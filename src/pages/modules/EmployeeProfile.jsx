@@ -665,8 +665,8 @@ export default function EmployeeProfile() {
                   colorClass={avatarColors[employees.findIndex(e => e.id === displayEmp.id) % avatarColors.length]}
                   size="md"
                 />
-                {/* Photo upload overlay — only in edit mode (not for employee role) */}
-                {isEditing && !isEmployee && (
+                {/* Photo upload overlay — only when employee is editing their OWN profile */}
+                {isEditing && isEmployee && displayEmp.id === 3 && (
                   <>
                     <button
                       type="button"
