@@ -26,34 +26,34 @@ const router = createBrowserRouter([
     element: <MainLayout />,
     children: [
       // Dashboard — all roles
-      { index: true,              element: <Dashboard /> },
+      { index: true, element: <Dashboard /> },
 
       // HR & People
-      { path: 'enterprise',       element: <RoleGuard allowedRoles={['admin']}><EnterpriseManagement /></RoleGuard> },
-      { path: 'users',            element: <RoleGuard allowedRoles={['admin', 'hr']}><UserManagement /></RoleGuard> },
-      { path: 'profile',          element: <EmployeeProfile /> },
-      { path: 'attendance',       element: <RoleGuard allowedRoles={['admin', 'hr', 'manager', 'employee']}><Attendance /></RoleGuard> },
-      { path: 'recruitment',      element: <RoleGuard allowedRoles={['admin', 'hr']}><Recruitment /></RoleGuard> },
+      { path: 'enterprise', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><EnterpriseManagement /></RoleGuard> },
+      { path: 'users', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><UserManagement /></RoleGuard> },
+      { path: 'profile', element: <EmployeeProfile /> },
+      { path: 'attendance', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><Attendance /></RoleGuard> },
+      { path: 'recruitment', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Recruitment /></RoleGuard> },
 
       // Workflows
-      { path: 'tasks',            element: <RoleGuard allowedRoles={['admin', 'hr', 'manager', 'employee']}><TaskPerformance /></RoleGuard> },
-      { path: 'vacation',         element: <RoleGuard allowedRoles={['admin', 'hr', 'manager', 'employee']}><VacationRequest /></RoleGuard> },
-      { path: 'documents',        element: <RoleGuard allowedRoles={['admin', 'hr', 'manager', 'employee']}><DocumentRequest /></RoleGuard> },
-      { path: 'payroll',          element: <RoleGuard allowedRoles={['admin', 'hr']}><Payroll /></RoleGuard> },
+      { path: 'tasks', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><TaskPerformance /></RoleGuard> },
+      { path: 'vacation', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><VacationRequest /></RoleGuard> },
+      { path: 'documents', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><DocumentRequest /></RoleGuard> },
+      { path: 'payroll', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Payroll /></RoleGuard> },
 
 
 
       // Intelligence
-      { path: 'analytics',        element: <RoleGuard allowedRoles={['admin', 'manager']}><PlaceholderPage title="Analytics" /></RoleGuard> },
-      { path: 'ai-assistant',     element: <RoleGuard allowedRoles={['admin', 'hr', 'manager']}><PlaceholderPage title="AI Assistant" /></RoleGuard> },
-      { path: 'notifications',    element: <PlaceholderPage title="Notifications" /> },
+      { path: 'analytics', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><PlaceholderPage title="Analytics" /></RoleGuard> },
+      { path: 'ai-assistant', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><PlaceholderPage title="AI Assistant" /></RoleGuard> },
+      { path: 'notifications', element: <PlaceholderPage title="Notifications" /> },
 
       // System
-      { path: 'permissions',      element: <RoleGuard allowedRoles={['admin']}><PlaceholderPage title="Permissions" /></RoleGuard> },
-      { path: 'settings',         element: <RoleGuard allowedRoles={['admin']}><PlaceholderPage title="Settings" /></RoleGuard> },
+      { path: 'permissions', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><PlaceholderPage title="Permissions" /></RoleGuard> },
+      { path: 'settings', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><PlaceholderPage title="Settings" /></RoleGuard> },
 
       // Catch-all
-      { path: '*',                element: <PlaceholderPage title="Page Not Found" /> },
+      { path: '*', element: <PlaceholderPage title="Page Not Found" /> },
     ],
   },
 ]);

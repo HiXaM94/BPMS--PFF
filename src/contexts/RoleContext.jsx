@@ -6,14 +6,24 @@ import { createContext, useContext, useState, useCallback } from 'react';
  */
 export const ROLES = [
   {
-    id: 'admin',
-    label: 'Administrator',
-    shortLabel: 'Admin',
-    description: 'Full platform access, organization management',
+    id: 'super_admin',
+    label: 'Super Admin',
+    shortLabel: 'S-Admin',
+    description: 'SaaS Platform Owner, cross-company monitoring',
     color: 'from-[#8e55ea] to-[#b38cf5]',
     textColor: 'text-[#8e55ea]',
     bgColor: 'bg-[#8e55ea]/10',
-    companyId: 1, // TechCorp International
+    companyId: 0, // Platform level
+  },
+  {
+    id: 'company_admin',
+    label: 'Company Admin',
+    shortLabel: 'Company Admin',
+    description: 'Director/Manager Principal, full company control',
+    color: 'from-[#f43f5e] to-[#fb7185]',
+    textColor: 'text-[#f43f5e]',
+    bgColor: 'bg-[#f43f5e]/10',
+    companyId: 1, // Acme Corp
   },
   {
     id: 'hr',
@@ -23,7 +33,7 @@ export const ROLES = [
     color: 'from-[#2a85ff] to-[#6cb4ff]',
     textColor: 'text-[#2a85ff]',
     bgColor: 'bg-[#2a85ff]/10',
-    companyId: 2, // FinServe Global
+    companyId: 1, // Acme Corp
   },
   {
     id: 'manager',
@@ -33,7 +43,7 @@ export const ROLES = [
     color: 'from-[#ff9a55] to-[#ffbe7b]',
     textColor: 'text-[#ff9a55]',
     bgColor: 'bg-[#ff9a55]/10',
-    companyId: 3, // MediCare Plus
+    companyId: 1, // Acme Corp
   },
   {
     id: 'employee',
@@ -43,7 +53,7 @@ export const ROLES = [
     color: 'from-[#83bf6e] to-[#a8d99a]',
     textColor: 'text-[#83bf6e]',
     bgColor: 'bg-[#83bf6e]/10',
-    companyId: 1, // TechCorp International
+    companyId: 1, // Acme Corp
   },
 ];
 
