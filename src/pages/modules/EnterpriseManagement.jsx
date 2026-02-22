@@ -112,7 +112,7 @@ export default function EnterpriseManagement() {
   const [successMsg, setSuccessMsg] = useState('');
   const { currentRole } = useRole();
 
-  const isAdmin = currentRole.id === 'admin';
+  const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
 
   // ─── company_id filtering ───
   // Admin sees ALL companies. Other roles see only their own company.
@@ -132,10 +132,10 @@ export default function EnterpriseManagement() {
   const visibleIndustries = isAdmin
     ? industryStats
     : visibleEnterprises.map(e => ({
-        label: e.industry,
-        count: 1,
-        color: industryStats.find(i => i.label === e.industry)?.color || 'neutral',
-      }));
+      label: e.industry,
+      count: 1,
+      color: industryStats.find(i => i.label === e.industry)?.color || 'neutral',
+    }));
 
   const handleInputChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -206,7 +206,7 @@ export default function EnterpriseManagement() {
         ].map((card, i) => (
           <div key={i} className="bg-surface-primary rounded-2xl border border-border-secondary p-4
                                   hover:shadow-md transition-all duration-300 group animate-fade-in"
-               style={{ animationDelay: `${i * 80}ms` }}>
+            style={{ animationDelay: `${i * 80}ms` }}>
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-text-tertiary uppercase tracking-wider">{card.label}</span>
               <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${card.color}
@@ -221,7 +221,7 @@ export default function EnterpriseManagement() {
 
       {/* Industries */}
       <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5 animate-fade-in"
-           style={{ animationDelay: '350ms' }}>
+        style={{ animationDelay: '350ms' }}>
         <h2 className="text-sm font-semibold text-text-primary mb-3">Industries</h2>
         <div className="flex flex-wrap gap-2">
           {visibleIndustries.map(ind => (
@@ -234,7 +234,7 @@ export default function EnterpriseManagement() {
 
       {/* Search + Table */}
       <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in"
-           style={{ animationDelay: '450ms' }}>
+        style={{ animationDelay: '450ms' }}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 pt-5 pb-3">
           <h2 className="text-sm font-semibold text-text-primary">
             {isAdmin ? 'All Organizations' : 'My Organization'}

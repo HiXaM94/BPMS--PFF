@@ -13,7 +13,8 @@ export default function TaskPerformance() {
     const { currentRole } = useRole();
 
     switch (currentRole.id) {
-        case 'admin':
+        case 'super_admin':
+        case 'company_admin':
             return <AdminDashboard />;
         case 'hr':
             return <HRDashboard />;

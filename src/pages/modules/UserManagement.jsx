@@ -99,7 +99,7 @@ export default function UserManagement() {
   const [editUser, setEditUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', role: '', department: '', status: '' });
 
-  const isAdmin = currentRole.id === 'admin';
+  const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
   const isHR = currentRole.id === 'hr';
 
   // Determine what type of account can be created
@@ -126,7 +126,7 @@ export default function UserManagement() {
 
   const filtered = users.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
-                        u.email.toLowerCase().includes(search.toLowerCase());
+      u.email.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter === 'all' || u.role === roleFilter;
     return matchSearch && matchRole;
   });
@@ -205,7 +205,7 @@ export default function UserManagement() {
 
       {/* Role Distribution */}
       <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5 animate-fade-in"
-           style={{ animationDelay: '350ms' }}>
+        style={{ animationDelay: '350ms' }}>
         <h2 className="text-sm font-semibold text-text-primary mb-3">Role Distribution</h2>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {Object.entries(roleColors).map(([role, color]) => {
@@ -223,7 +223,7 @@ export default function UserManagement() {
 
       {/* Users Table */}
       <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in"
-           style={{ animationDelay: '450ms' }}>
+        style={{ animationDelay: '450ms' }}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 pt-5 pb-3">
           <h2 className="text-sm font-semibold text-text-primary flex-1">All Users</h2>
           <div className="flex items-center gap-2 flex-wrap">
