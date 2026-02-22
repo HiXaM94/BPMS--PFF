@@ -1,31 +1,41 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Sparkles, X, Send, Bot, User, Loader2,
-  Minimize2, Maximize2, ChevronDown,
+  Minimize2, Maximize2, ChevronDown, FileText, Users, TrendingUp, Calendar,
 } from 'lucide-react';
+import { supabase } from '../../services/supabase';
 
-const MOCK_SUGGESTIONS = [
-  'Optimize onboarding workflow',
-  'Show bottleneck analysis',
-  'Summarize pending approvals',
-  'Draft a vacation policy rule',
+const HR_SUGGESTIONS = [
+  { label: 'Rank candidates for React role', icon: Users },
+  { label: 'Summarize pending leave requests', icon: Calendar },
+  { label: 'Analyze team performance trends', icon: TrendingUp },
+  { label: 'Draft job description for UX Designer', icon: FileText },
 ];
 
-const MOCK_RESPONSES = {
-  default: `I've analyzed your current workflows. Here are my observations:\n\n• **3 processes** have avg completion time above target\n• The **approval step** in "Employee Onboarding" averages **2.4 days** — consider adding an auto-escalation rule\n• Your team's task completion rate is **87%** this sprint, up from 82% last sprint\n\nWould you like me to suggest specific optimizations?`,
-  optimize: `Based on the "Employee Onboarding" workflow analysis:\n\n**Recommended Optimizations:**\n1. 🔄 Merge "Prepare Profile" and "IT Setup" into parallel tasks — saves ~1 day\n2. ⏱ Add 48h auto-escalation on "Manager Approval" step\n3. 📋 Convert manual background check to automated API verification\n\n**Estimated Impact:** Reduce total onboarding time from 8 days → 5 days (37% improvement)`,
-  bottleneck: `**Bottleneck Analysis — Last 30 Days**\n\n🔴 **Critical:** "Manager Approval" — avg 2.4 days (target: 1 day)\n🟠 **Warning:** "Document Verification" — avg 1.8 days (target: 1 day)\n🟢 **Healthy:** All other steps within targets\n\n**Root Cause:** 68% of delays occur when the primary approver is unavailable. Recommendation: Add a **delegate approver** rule for absences exceeding 24h.`,
-  summary: `**Pending Approvals Summary:**\n\n• **7 vacation requests** — 3 pending manager review\n• **4 document requests** — 2 processing, 2 pending\n• **2 workflow changes** — awaiting admin sign-off\n• **1 new hire onboarding** — stuck at background check (3 days)\n\n⚡ **Priority Action:** The onboarding for Diana Kim has exceeded SLA. Recommend immediate escalation.`,
-  draft: `Here's a draft vacation policy rule:\n\n\`\`\`\nRule: Auto-Approve Short Leave\nCondition: leave_days <= 2 AND leave_balance >= 5\nAction: Auto-approve without manager review\nNotify: Manager (FYI only)\nEscalation: None\n\`\`\`\n\nThis would auto-approve **~40%** of vacation requests, reducing manager workload. Shall I refine this further?`,
-};
+async function callAI(messages) {
+  if (!supabase) {
+    // Fallback smart mock when Supabase not configured
+    const last = messages[messages.length - 1].content.toLowerCase();
+    if (last.includes('candidate') || last.includes('cv') || last.includes('rank'))
+      return `**Candidate Ranking — Senior React Developer**\n\n1. 🥇 **Nadia Benali** — Score: 94/100\n   • 6 years React experience, strong portfolio, excellent technical test\n   • Stage: Offer → Recommend immediate offer\n\n2. 🥈 **Youssef Alami** — Score: 78/100\n   • 4 years experience, good portfolio\n   • Stage: Technical Interview → Schedule final round\n\n3. 🥉 **Karim Idrissi** — Score: 65/100\n   • 5 years full-stack, pending technical review\n   • Stage: HR Screen → Move to technical test\n\n**Recommendation:** Proceed with Nadia Benali — she meets all requirements and her test scores are exceptional.`;
+    if (last.includes('leave') || last.includes('vacation') || last.includes('pending'))
+      return `**Pending Leave Requests Summary**\n\n• **3 requests** awaiting approval\n• Ibrahim Rouass: Feb 20–24 (Annual Leave, 5 days)\n• Ahmed Hassan: Mar 3–7 (Annual Leave, 5 days)\n• Carlos Ruiz: Feb 25–26 (Sick Leave, 2 days — rejected)\n\n⚡ **Action needed:** Ibrahim and Ahmed's requests overlap. Recommend staggering approvals to maintain team coverage.`;
+    if (last.includes('performance') || last.includes('trend'))
+      return `**Team Performance Analysis — Q4 2025**\n\n� **Top Performers:**\n• Clara Dupont — 94/100 (Exceptional HR management)\n• Ibrahim Rouass — 90/100 (Strong leadership)\n\n� **Needs Attention:**\n• Ahmed Hassan — 76/100 (Task delays noted)\n• Bob Tanaka — 78/100 (Documentation gaps)\n\n**Recommendation:** Schedule 1:1 coaching sessions for Ahmed and Bob. Consider Ibrahim for team lead promotion.`;
+    if (last.includes('job') || last.includes('description') || last.includes('draft'))
+      return `**Draft Job Description — UX Designer**\n\n**Position:** Senior UX Designer\n**Department:** Design\n**Location:** Casablanca, Morocco\n\n**Responsibilities:**\n• Lead end-to-end UX design for BPMS platform features\n• Conduct user research and usability testing\n• Create wireframes, prototypes, and design systems\n• Collaborate with engineering and product teams\n\n**Requirements:**\n• 3+ years UX design experience\n• Proficiency in Figma, user research methods\n• Portfolio demonstrating complex product design\n\nShall I refine this further or adjust the requirements?`;
+    return `I'm your **HR AI Assistant**. I can help you:\n\n• 📋 **Rank & screen candidates** from your recruitment pipeline\n• 📊 **Analyze performance** trends across your team\n• 🗓 **Summarize leave requests** and flag conflicts\n• ✍️ **Draft job descriptions** and HR policies\n• 🔍 **Parse CVs** and extract key qualifications\n\nWhat would you like to explore?`;
+  }
 
-function getResponse(message) {
-  const lower = message.toLowerCase();
-  if (lower.includes('optim')) return MOCK_RESPONSES.optimize;
-  if (lower.includes('bottleneck') || lower.includes('block')) return MOCK_RESPONSES.bottleneck;
-  if (lower.includes('summary') || lower.includes('pending') || lower.includes('approval')) return MOCK_RESPONSES.summary;
-  if (lower.includes('draft') || lower.includes('rule') || lower.includes('policy')) return MOCK_RESPONSES.draft;
-  return MOCK_RESPONSES.default;
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-hr-assistant', {
+      body: { messages },
+    });
+    if (error) throw error;
+    return data.reply;
+  } catch {
+    return `I encountered an issue connecting to the AI service. Please check your OpenAI API key configuration in the Supabase Edge Function settings.\n\nIn the meantime, I can still help with basic HR queries using my built-in knowledge.`;
+  }
 }
 
 function formatMessage(text) {
@@ -36,48 +46,48 @@ function formatMessage(text) {
     .replace(/\n/g, '<br />');
 }
 
+const INITIAL_MESSAGE = {
+  id: 1, role: 'assistant',
+  content: `Hello! I'm your **HR AI Assistant**. I can help you:\n\n• 📋 **Rank & screen candidates** from your recruitment pipeline\n• 📊 **Analyze performance** trends across your team\n• 🗓 **Summarize leave requests** and flag conflicts\n• ✍️ **Draft job descriptions** and HR policies\n• 🔍 **Parse CVs** and extract key qualifications\n\nWhat would you like to explore?`,
+  time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+};
+
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      id: 1, role: 'assistant',
-      content: 'Hello! I\'m your BPMS AI assistant. I can help you optimize workflows, analyze bottlenecks, summarize processes, and draft business rules.\n\nWhat would you like to explore?',
-      time: '14:30',
-    },
-  ]);
+  const [messages, setMessages] = useState([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => { scrollToBottom(); }, [messages, isTyping]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isTyping]);
   useEffect(() => { if (isOpen) inputRef.current?.focus(); }, [isOpen]);
 
-  const handleSend = (text) => {
+  const handleSend = async (text) => {
     const msg = text || input.trim();
-    if (!msg) return;
+    if (!msg || isTyping) return;
 
     const now = new Date();
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-    setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: msg, time }]);
+    const userMsg = { id: Date.now(), role: 'user', content: msg, time };
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI response delay
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1, role: 'assistant',
-        content: getResponse(msg),
-        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      }]);
-    }, 1200 + Math.random() * 800);
+    // Build conversation history for context
+    const history = [...messages, userMsg]
+      .filter(m => m.role !== 'system')
+      .map(m => ({ role: m.role, content: m.content }));
+
+    const reply = await callAI(history);
+
+    setIsTyping(false);
+    setMessages(prev => [...prev, {
+      id: Date.now() + 1, role: 'assistant', content: reply,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    }]);
   };
 
   const handleKeyDown = (e) => {
@@ -207,19 +217,23 @@ export default function AIAssistant() {
         {/* Quick suggestions */}
         {messages.length <= 2 && !isTyping && (
           <div className="px-4 pb-2 flex flex-wrap gap-1.5 shrink-0">
-            {MOCK_SUGGESTIONS.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => handleSend(s)}
-                className="px-3 py-1.5 rounded-full text-[11px] font-medium
-                           bg-violet-500/8 text-violet-600 dark:text-violet-400
-                           border border-violet-200 dark:border-violet-800
-                           hover:bg-violet-500/15 hover:border-violet-300
-                           transition-all duration-200 cursor-pointer"
-              >
-                {s}
-              </button>
-            ))}
+            {HR_SUGGESTIONS.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleSend(s.label)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium
+                             bg-violet-500/8 text-violet-600 dark:text-violet-400
+                             border border-violet-200 dark:border-violet-800
+                             hover:bg-violet-500/15 hover:border-violet-300
+                             transition-all duration-200 cursor-pointer"
+                >
+                  <Icon size={11} />
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
         )}
 

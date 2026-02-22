@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Building2,
   Users,
@@ -15,6 +16,7 @@ import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
 import { adminData } from '../../data/mockData';
+import { supabase, isSupabaseReady } from '../../services/supabase';
 
 /* ─── Asset-style cards with colored backgrounds matching template ─── */
 const assetCards = [
@@ -129,7 +131,64 @@ const orgColumns = [
 ];
 
 export default function AdminDashboard() {
-  const totalUserCount = adminData.stats.find(s => s.title.includes('User'))?.value || '1,846';
+  const [cards, setCards] = useState(assetCards);
+  const [orgs, setOrgs]   = useState(orgTableData);
+  const [totalUsers, setTotalUsers] = useState('1,846');
+  const [systemLogs, setSystemLogs] = useState(adminData.systemLogs);
+
+  useEffect(() => {
+    if (!isSupabaseReady) return;
+
+    // Counts
+    Promise.all([
+      supabase.from('entreprises').select('id', { count: 'exact', head: true }),
+      supabase.from('users').select('id', { count: 'exact', head: true }),
+    ]).then(([ents, users]) => {
+      const entCount  = ents.count ?? 0;
+      const userCount = users.count ?? 0;
+      setTotalUsers(userCount.toLocaleString());
+      setCards(prev => [
+        { ...prev[0], value: entCount.toString(),  sub: `${userCount} employees` },
+        { ...prev[1], value: userCount.toLocaleString(), sub: 'registered users' },
+        prev[2],
+      ]);
+    });
+
+    // Organisations table
+    supabase.from('entreprises')
+      .select('id, name, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5)
+      .then(({ data }) => {
+        if (!data || data.length === 0) return;
+        setOrgs(data.map((e, i) => ({
+          id: e.id,
+          name: e.name,
+          tag: e.name.slice(0, 4).toUpperCase(),
+          plan: 'Business',
+          users: '-',
+          growth: '',
+          positive: true,
+          status: e.status || 'active',
+        })));
+      });
+
+    // System logs
+    supabase.from('system_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(6)
+      .then(({ data }) => {
+        if (!data || data.length === 0) return;
+        setSystemLogs(data.map(l => ({
+          id: l.id,
+          severity: l.level || 'info',
+          event: l.action || l.message || 'System event',
+          details: l.details || '',
+          time: new Date(l.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        })));
+      });
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -147,7 +206,7 @@ export default function AdminDashboard() {
                         animate-fade-in">
           <h2 className="text-sm font-semibold text-text-secondary mb-1">Platform Usage</h2>
           <div className="flex items-baseline gap-3 mb-1">
-            <span className="text-3xl font-bold text-text-primary tracking-tight">1,846</span>
+            <span className="text-3xl font-bold text-text-primary tracking-tight">{totalUsers}</span>
             <span className="text-xs font-medium text-text-tertiary">total users</span>
           </div>
           <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#eafaf0] dark:bg-emerald-500/10 mb-4">
@@ -187,7 +246,7 @@ export default function AdminDashboard() {
         <div className="lg:col-span-7 flex flex-col">
           <h2 className="text-sm font-semibold text-text-secondary mb-3">Quick Stats</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
-            {assetCards.map((card, i) => (
+            {cards.map((card, i) => (
               <div
                 key={i}
                 className={`${card.bg} ${card.darkBg} rounded-2xl p-5 animate-fade-in
@@ -248,7 +307,7 @@ export default function AdminDashboard() {
               </select>
             </div>
           </div>
-          <DataTable columns={orgColumns} data={orgTableData} emptyMessage="No organizations found" />
+          <DataTable columns={orgColumns} data={orgs} emptyMessage="No organizations found" />
         </div>
 
         {/* Promo / CTA Card — dark card matching template */}
@@ -286,7 +345,7 @@ export default function AdminDashboard() {
                       animate-fade-in" style={{ animationDelay: '500ms' }}>
         <h2 className="text-sm font-bold text-text-primary mb-4">System Logs</h2>
         <div className="space-y-3">
-          {adminData.systemLogs.map((log) => (
+          {systemLogs.map((log) => (
             <div key={log.id} className="flex items-start gap-3 group">
               <StatusBadge variant={{ success: 'success', warning: 'warning', danger: 'danger', info: 'info' }[log.severity]} size="sm" dot>
                 {log.severity}

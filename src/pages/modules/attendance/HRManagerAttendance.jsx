@@ -1,20 +1,42 @@
+import { useState, useEffect } from 'react';
 import { Users, Clock, AlertCircle, CheckCircle2, FileText, Download, UserCheck, MessageSquare, Settings } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
+import { supabase, isSupabaseReady } from '../../../services/supabase';
 
 export default function HRManagerAttendance() {
+    const [stats, setStats] = useState({ present: 78, late: 11, absent: 9, total: 87 });
+
+    useEffect(() => {
+        if (!isSupabaseReady) return;
+        const today = new Date().toISOString().split('T')[0];
+        supabase
+            .from('presences')
+            .select('status')
+            .eq('date', today)
+            .then(({ data }) => {
+                if (!data || data.length === 0) return;
+                const present = data.filter(r => r.status === 'present').length;
+                const late    = data.filter(r => r.status === 'late').length;
+                const absent  = data.filter(r => r.status === 'absent').length;
+                setStats({ present: present + late, late, absent, total: data.length });
+            });
+    }, []);
+
+    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Real-Time Monitor (HR-01) */}
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                     <Clock size={20} className="text-brand-500" />
-                    Real-Time Attendance Monitor (9:15 AM)
+                    Real-Time Attendance Monitor ({now})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <StatCard title="Clocked In" value="78/87" subtitle="90% present" icon={UserCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
-                    <StatCard title="Late Arrivals" value="11" subtitle="Clocked in after 9:15" icon={AlertCircle} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
-                    <StatCard title="Not Clocked In" value="9" subtitle="Action required" icon={AlertCircle} iconColor="bg-gradient-to-br from-red-500 to-rose-500" />
+                    <StatCard title="Clocked In" value={`${stats.present}/${stats.total}`} subtitle={`${stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 90}% present`} icon={UserCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
+                    <StatCard title="Late Arrivals" value={stats.late.toString()} subtitle="Clocked in after 9:15" icon={AlertCircle} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
+                    <StatCard title="Not Clocked In" value={stats.absent.toString()} subtitle="Action required" icon={AlertCircle} iconColor="bg-gradient-to-br from-red-500 to-rose-500" />
                     <StatCard title="On Break" value="3" subtitle="Coffee/Other" icon={Clock} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
                 </div>
 

@@ -1,13 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     ShieldCheck, AlertTriangle, FileText, CheckCircle2,
     Send, Clock, UserPlus, FileCheck, Mail
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
+import { supabase, isSupabaseReady } from '../../../services/supabase';
 
 export default function HRManagerDocuments() {
     const [activeTab, setActiveTab] = useState('compliance');
+    const [docStats, setDocStats] = useState({ overdue: 3, pending: 2, complete: 72, total: 87, generated: 14 });
+
+    useEffect(() => {
+        if (!isSupabaseReady) return;
+        supabase.from('documents').select('status').then(({ data }) => {
+            if (!data || data.length === 0) return;
+            const pending   = data.filter(d => d.status === 'pending').length;
+            const approved  = data.filter(d => d.status === 'approved').length;
+            const rejected  = data.filter(d => d.status === 'rejected').length;
+            const total     = data.length;
+            setDocStats({
+                overdue:   rejected,
+                pending,
+                complete:  approved,
+                total,
+                generated: approved,
+            });
+        });
+    }, []);
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -34,7 +54,7 @@ export default function HRManagerDocuments() {
                         onClick={() => setActiveTab('review')}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'review' ? 'bg-surface-primary text-text-primary shadow-sm flex items-center gap-1.5' : 'text-text-secondary hover:text-text-primary flex items-center gap-1.5'}`}
                     >
-                        Reviews <span className="bg-brand-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">2</span>
+                        Reviews <span className="bg-brand-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{docStats.pending}</span>
                     </button>
                 </div>
             </div>
@@ -42,10 +62,10 @@ export default function HRManagerDocuments() {
             {activeTab === 'compliance' && (
                 <div className="animate-fade-in space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <StatCard title="Overdue Files" value="3" subtitle="Immediate actions" icon={AlertTriangle} iconColor="bg-gradient-to-br from-red-500 to-rose-500" />
-                        <StatCard title="Pending Review" value="2" subtitle="HR approval needed" icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
-                        <StatCard title="Complete Records" value="72/87" subtitle="82.8% compliant" icon={ShieldCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
-                        <StatCard title="Generated MTD" value="14" subtitle="Official docs issued" icon={FileCheck} iconColor="bg-gradient-to-br from-brand-500 to-indigo-500" />
+                        <StatCard title="Overdue Files" value={docStats.overdue.toString()} subtitle="Immediate actions" icon={AlertTriangle} iconColor="bg-gradient-to-br from-red-500 to-rose-500" />
+                        <StatCard title="Pending Review" value={docStats.pending.toString()} subtitle="HR approval needed" icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
+                        <StatCard title="Complete Records" value={`${docStats.complete}/${docStats.total}`} subtitle={`${docStats.total > 0 ? Math.round((docStats.complete / docStats.total) * 100) : 0}% compliant`} icon={ShieldCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
+                        <StatCard title="Generated MTD" value={docStats.generated.toString()} subtitle="Official docs issued" icon={FileCheck} iconColor="bg-gradient-to-br from-brand-500 to-indigo-500" />
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

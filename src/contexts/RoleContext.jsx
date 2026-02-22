@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 /**
  * Available roles in the BPMS platform.
@@ -57,17 +57,40 @@ export const ROLES = [
   },
 ];
 
+// Maps Supabase user_role enum → local role id
+export const ROLE_MAP = {
+  ADMIN:        'super_admin',
+  HR:           'hr',
+  TEAM_MANAGER: 'manager',
+  EMPLOYEE:     'employee',
+};
+
 const RoleContext = createContext(undefined);
 
-export function RoleProvider({ children }) {
+export function RoleProvider({ children, profileRole }) {
   const [currentRole, setCurrentRole] = useState(() => {
+    // If a Supabase profile role is provided, use it
+    if (profileRole) {
+      const mapped = ROLE_MAP[profileRole];
+      const found = ROLES.find(r => r.id === mapped);
+      if (found) return found;
+    }
+    // Fall back to localStorage (demo / offline mode)
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('bpms-role');
       const found = ROLES.find(r => r.id === stored);
       if (found) return found;
     }
-    return ROLES[0]; // Default to admin
+    return ROLES[0];
   });
+
+  // Sync when profile role changes (e.g. after login)
+  useEffect(() => {
+    if (!profileRole) return;
+    const mapped = ROLE_MAP[profileRole];
+    const found = ROLES.find(r => r.id === mapped);
+    if (found) setCurrentRole(found);
+  }, [profileRole]);
 
   const switchRole = useCallback((roleId) => {
     const role = ROLES.find(r => r.id === roleId);

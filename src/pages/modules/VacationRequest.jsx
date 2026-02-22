@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Palmtree, Calendar, CheckCircle2, XCircle,
-  AlertCircle, CalendarDays, Send, Eye, Check, X,
+  AlertCircle, CalendarDays, Send, Eye, Check, X, Loader2,
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
@@ -9,18 +9,18 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import StatCard from '../../components/ui/StatCard';
 import Modal from '../../components/ui/Modal';
 import { useRole } from '../../contexts/RoleContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase, isSupabaseReady } from '../../services/supabase';
 
-const initialRequests = [
+const MOCK_REQUESTS = [
   { id: 1, employee: 'Ibrahim Rouass', type: 'Annual Leave', startDate: 'Feb 20, 2026', endDate: 'Feb 24, 2026', days: 5, reason: 'Family vacation', status: 'pending', submittedAt: 'Feb 10, 2026' },
   { id: 2, employee: 'Sarah Martinez', type: 'Sick Leave', startDate: 'Feb 14, 2026', endDate: 'Feb 14, 2026', days: 1, reason: 'Medical appointment', status: 'approved', submittedAt: 'Feb 13, 2026' },
   { id: 3, employee: 'Ahmed Hassan', type: 'Annual Leave', startDate: 'Mar 3, 2026', endDate: 'Mar 7, 2026', days: 5, reason: 'Personal time off', status: 'pending', submittedAt: 'Feb 12, 2026' },
   { id: 4, employee: 'Fatima Zahra', type: 'Maternity', startDate: 'Mar 1, 2026', endDate: 'May 31, 2026', days: 90, reason: 'Maternity leave', status: 'approved', submittedAt: 'Jan 15, 2026' },
   { id: 5, employee: 'Carlos Ruiz', type: 'Annual Leave', startDate: 'Feb 25, 2026', endDate: 'Feb 26, 2026', days: 2, reason: 'Moving to new apartment', status: 'rejected', submittedAt: 'Feb 8, 2026' },
-  { id: 6, employee: 'Bob Tanaka', type: 'Remote Work', startDate: 'Feb 17, 2026', endDate: 'Feb 21, 2026', days: 5, reason: 'Working from home', status: 'approved', submittedAt: 'Feb 5, 2026' },
-  { id: 7, employee: 'Diana Kim', type: 'Unpaid Leave', startDate: 'Mar 10, 2026', endDate: 'Mar 14, 2026', days: 5, reason: 'Personal emergency', status: 'pending', submittedAt: 'Feb 13, 2026' },
 ];
 
-const leaveBalance = [
+const MOCK_BALANCE = [
   { type: 'Annual Leave', total: 22, used: 8, remaining: 14, color: 'brand' },
   { type: 'Sick Leave', total: 10, used: 2, remaining: 8, color: 'danger' },
   { type: 'Remote Work', total: 24, used: 15, remaining: 9, color: 'info' },
@@ -28,7 +28,6 @@ const leaveBalance = [
 ];
 
 const leaveTypes = ['Annual Leave', 'Sick Leave', 'Remote Work', 'Maternity', 'Unpaid Leave'];
-
 const typeColorMap = { 'Annual Leave': 'brand', 'Sick Leave': 'danger', 'Remote Work': 'info', 'Maternity': 'pink', 'Unpaid Leave': 'neutral' };
 const statusColorMap = { approved: 'success', pending: 'warning', rejected: 'danger' };
 const statusIconMap = { approved: CheckCircle2, pending: AlertCircle, rejected: XCircle };
@@ -37,7 +36,6 @@ const inputCls = `w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary bor
                   focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400
                   transition-all duration-200 text-text-primary placeholder:text-text-tertiary`;
 const labelCls = 'block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider';
-
 const emptyForm = { type: 'Annual Leave', startDate: '', endDate: '', reason: '' };
 
 function calcDays(start, end) {
@@ -46,9 +44,17 @@ function calcDays(start, end) {
   return diff < 0 ? 0 : diff + 1;
 }
 
+function fmtDate(d) {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function VacationRequest() {
   const { currentRole } = useRole();
-  const [requests, setRequests] = useState(initialRequests);
+  const { profile } = useAuth();
+  const [requests, setRequests] = useState([]);
+  const [leaveBalance, setLeaveBalance] = useState(MOCK_BALANCE);
+  const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
   const [viewRequest, setViewRequest] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -57,44 +63,108 @@ export default function VacationRequest() {
 
   const isManager = ['company_admin', 'hr', 'manager', 'super_admin'].includes(currentRole.id);
 
-  const pendingCount = requests.filter(r => r.status === 'pending').length;
-  const approvedCount = requests.filter(r => r.status === 'approved').length;
-  const totalDays = requests.filter(r => r.status === 'approved').reduce((s, r) => s + r.days, 0);
-
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
-  const handleSubmit = (e) => {
+  const fetchData = useCallback(async () => {
+    if (!isSupabaseReady) {
+      setRequests(MOCK_REQUESTS);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data } = await supabase
+      .from('vacances')
+      .select('*, users(name)')
+      .order('created_at', { ascending: false });
+
+    setRequests((data || []).map(r => ({
+      id: r.id,
+      employee: r.users?.name || 'Unknown',
+      type: r.leave_type || 'Annual Leave',
+      startDate: fmtDate(r.start_date),
+      endDate: fmtDate(r.end_date),
+      days: r.days_count ?? calcDays(r.start_date, r.end_date),
+      reason: r.reason || '-',
+      status: r.status || 'pending',
+      submittedAt: fmtDate(r.created_at),
+      _raw: r,
+    })));
+
+    // Fetch leave balance for current user
+    if (profile?.id) {
+      const { data: balData } = await supabase
+        .from('leave_balances')
+        .select('*')
+        .eq('user_id', profile.id)
+        .single();
+      if (balData) {
+        setLeaveBalance([
+          { type: 'Annual Leave', total: balData.annual_total ?? 22, used: balData.annual_used ?? 0, remaining: (balData.annual_total ?? 22) - (balData.annual_used ?? 0), color: 'brand' },
+          { type: 'Sick Leave', total: balData.sick_total ?? 10, used: balData.sick_used ?? 0, remaining: (balData.sick_total ?? 10) - (balData.sick_used ?? 0), color: 'danger' },
+          { type: 'Remote Work', total: balData.remote_total ?? 24, used: balData.remote_used ?? 0, remaining: (balData.remote_total ?? 24) - (balData.remote_used ?? 0), color: 'info' },
+          { type: 'Unpaid Leave', total: balData.unpaid_total ?? 10, used: balData.unpaid_used ?? 0, remaining: (balData.unpaid_total ?? 10) - (balData.unpaid_used ?? 0), color: 'neutral' },
+        ]);
+      }
+    }
+    setLoading(false);
+  }, [profile?.id]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const pendingCount  = requests.filter(r => r.status === 'pending').length;
+  const approvedCount = requests.filter(r => r.status === 'approved').length;
+  const totalDays     = requests.filter(r => r.status === 'approved').reduce((s, r) => s + (r.days || 0), 0);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
-      const days = calcDays(form.startDate, form.endDate);
-      const newReq = {
-        id: Date.now(),
-        employee: currentRole.label,
-        type: form.type,
-        startDate: new Date(form.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        endDate: new Date(form.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        days,
-        reason: form.reason,
-        status: 'pending',
-        submittedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      };
-      setRequests(prev => [newReq, ...prev]);
-      setForm(emptyForm);
-      setShowNewModal(false);
-      setSubmitting(false);
+    const days = calcDays(form.startDate, form.endDate);
+
+    if (!isSupabaseReady) {
+      setRequests(prev => [{
+        id: Date.now(), employee: profile?.name || currentRole.label,
+        type: form.type, startDate: fmtDate(form.startDate), endDate: fmtDate(form.endDate),
+        days, reason: form.reason, status: 'pending', submittedAt: fmtDate(new Date()),
+      }, ...prev]);
+      setForm(emptyForm); setShowNewModal(false); setSubmitting(false);
       showToast('Leave request submitted successfully!');
-    }, 600);
+      return;
+    }
+
+    const { error } = await supabase.from('vacances').insert({
+      user_id: profile?.id,
+      leave_type: form.type,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      days_count: days,
+      reason: form.reason,
+      status: 'pending',
+    });
+    setSubmitting(false);
+    if (error) { showToast('Error: ' + error.message); return; }
+    setForm(emptyForm); setShowNewModal(false);
+    showToast('Leave request submitted successfully!');
+    fetchData();
   };
 
-  const handleApprove = (id) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r));
+  const handleApprove = async (id) => {
+    if (isSupabaseReady) {
+      await supabase.from('vacances').update({ status: 'approved' }).eq('id', id);
+      fetchData();
+    } else {
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r));
+    }
     setViewRequest(null);
     showToast('Request approved.');
   };
 
-  const handleReject = (id) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'rejected' } : r));
+  const handleReject = async (id) => {
+    if (isSupabaseReady) {
+      await supabase.from('vacances').update({ status: 'rejected' }).eq('id', id);
+      fetchData();
+    } else {
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'rejected' } : r));
+    }
     setViewRequest(null);
     showToast('Request rejected.');
   };
@@ -194,7 +264,13 @@ export default function VacationRequest() {
           <h2 className="text-sm font-semibold text-text-primary">All Requests</h2>
           <StatusBadge variant="warning" size="sm" dot>{pendingCount} pending</StatusBadge>
         </div>
-        <DataTable columns={columns} data={requests} />
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={24} className="animate-spin text-text-tertiary" />
+          </div>
+        ) : (
+          <DataTable columns={columns} data={requests} />
+        )}
       </div>
 
       {/* ── New Request Modal ── */}

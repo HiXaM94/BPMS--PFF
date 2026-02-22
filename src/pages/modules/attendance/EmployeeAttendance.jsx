@@ -1,60 +1,120 @@
+import { useState, useEffect } from 'react';
 import { Clock, Download, CheckCircle2, History, AlertCircle, ScanLine, LogIn, Maximize2 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
+import { useAuth } from '../../../contexts/AuthContext';
+import { supabase, isSupabaseReady } from '../../../services/supabase';
+
+function fmtTime(t) {
+    if (!t) return '-';
+    const [h, m] = t.split(':');
+    const hr = parseInt(h, 10);
+    return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
+}
 
 export default function EmployeeAttendance() {
+    const { profile } = useAuth();
+    const [today, setToday] = useState(null);
+    const [monthlyHours, setMonthlyHours] = useState(144);
+    const [overtime, setOvertime] = useState(4);
+
+    useEffect(() => {
+        if (!isSupabaseReady || !profile?.id) return;
+        const date = new Date().toISOString().split('T')[0];
+        const monthStart = date.slice(0, 7) + '-01';
+
+        // Today's presence
+        supabase.from('presences')
+            .select('*, employees!inner(user_id)')
+            .eq('employees.user_id', profile.id)
+            .eq('date', date)
+            .maybeSingle()
+            .then(({ data }) => { if (data) setToday(data); });
+
+        // Monthly totals
+        supabase.from('presences')
+            .select('hours_worked, overtime_hours, employees!inner(user_id)')
+            .eq('employees.user_id', profile.id)
+            .gte('date', monthStart)
+            .then(({ data }) => {
+                if (!data || data.length === 0) return;
+                const hrs = data.reduce((s, r) => s + (r.hours_worked || 0), 0);
+                const ot  = data.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+                setMonthlyHours(Math.round(hrs));
+                setOvertime(Math.round(ot * 10) / 10);
+            });
+    }, [profile?.id]);
+
+    const firstName = profile?.name?.split(' ')[0] || 'there';
+    const isClockedIn = today?.check_in_time && !today?.check_out_time;
+    const isOnTime = today?.status === 'present';
+
     return (
         <div className="space-y-6 animate-fade-in">
 
             {/* Employee Greeting */}
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-xl font-bold text-text-primary">Hello, Ahmed! 👋</h2>
-                    <p className="text-sm text-text-secondary mt-1">IT • Software Developer</p>
+                    <h2 className="text-xl font-bold text-text-primary">Hello, {firstName}! 👋</h2>
+                    <p className="text-sm text-text-secondary mt-1">{profile?.position || 'Employee'}</p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* EMP-01: Clock In Kiosk/Success Block */}
+                {/* EMP-01: Clock In Block */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-brand-500 rounded-3xl p-6 text-white shadow-lg shadow-brand-500/20 relative overflow-hidden">
+                    <div className={`rounded-3xl p-6 text-white shadow-lg relative overflow-hidden
+                        ${isClockedIn ? 'bg-brand-500 shadow-brand-500/20' : 'bg-surface-primary border border-border-secondary'}`}>
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full pointer-events-none"></div>
 
-                        <h3 className="text-lg font-bold mb-1 flex items-center gap-2"><CheckCircle2 size={20} /> Clock In Successful!</h3>
-                        <p className="text-white/80 text-sm mb-6">You are on time today. Have a great shift!</p>
-
-                        <div className="space-y-3 mb-6 bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-                            <div className="flex justify-between">
-                                <span className="text-white/70 text-sm">Time</span>
-                                <span className="font-semibold">8:55 AM</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-white/70 text-sm">Location</span>
-                                <span className="font-semibold">Main Entrance</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-white/70 text-sm">Shift</span>
-                                <span className="font-semibold">9:00 - 17:00</span>
-                            </div>
-                        </div>
-
-                        <button className="w-full py-3 bg-white text-brand-500 font-bold rounded-xl shadow-md hover:scale-[1.02] transition-transform">
-                            Start Lunch Break
-                        </button>
+                        {isClockedIn ? (
+                            <>
+                                <h3 className="text-lg font-bold mb-1 flex items-center gap-2"><CheckCircle2 size={20} /> Clock In Successful!</h3>
+                                <p className="text-white/80 text-sm mb-6">{isOnTime ? 'You are on time today. Have a great shift!' : 'You clocked in late today.'}</p>
+                                <div className="space-y-3 mb-6 bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-white/70 text-sm">Time</span>
+                                        <span className="font-semibold">{fmtTime(today.check_in_time)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-white/70 text-sm">Status</span>
+                                        <span className="font-semibold capitalize">{today.status}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-white/70 text-sm">Shift</span>
+                                        <span className="font-semibold">9:00 - 17:00</span>
+                                    </div>
+                                </div>
+                                <button className="w-full py-3 bg-white text-brand-500 font-bold rounded-xl shadow-md hover:scale-[1.02] transition-transform">
+                                    Start Lunch Break
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <h3 className="text-lg font-bold mb-1 flex items-center gap-2 text-text-primary"><LogIn size={20} className="text-brand-500" /> Not Clocked In</h3>
+                                <p className="text-text-secondary text-sm mb-6">Use the kiosk or QR code to clock in.</p>
+                                <div className="flex items-center justify-center w-full h-24 border-2 border-dashed border-border-secondary rounded-xl mb-4">
+                                    <ScanLine size={36} className="text-text-tertiary" />
+                                </div>
+                                <button className="w-full py-3 bg-brand-500 text-white font-bold rounded-xl shadow-md hover:scale-[1.02] transition-transform">
+                                    Clock In Now
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-surface-primary border border-border-secondary p-4 rounded-2xl flex flex-col items-center justify-center text-center">
                             <Clock size={24} className="text-text-tertiary mb-2" />
-                            <span className="text-2xl font-bold text-text-primary">144h</span>
+                            <span className="text-2xl font-bold text-text-primary">{monthlyHours}h</span>
                             <span className="text-xs font-medium text-text-secondary mt-1">Worked This Month</span>
                         </div>
                         <div className="bg-surface-primary border border-border-secondary p-4 rounded-2xl flex flex-col items-center justify-center text-center">
                             <History size={24} className="text-text-tertiary mb-2" />
-                            <span className="text-2xl font-bold text-text-primary">4h</span>
-                            <span className="text-xs font-medium text-text-secondary mt-1">Pending Overtime</span>
+                            <span className="text-2xl font-bold text-text-primary">{overtime}h</span>
+                            <span className="text-xs font-medium text-text-secondary mt-1">Overtime This Month</span>
                         </div>
                     </div>
                 </div>
