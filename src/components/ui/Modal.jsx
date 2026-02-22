@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 /**
@@ -57,14 +58,15 @@ export default function Modal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
       onClick={(e) => { if (e.target === overlayRef.current) handleClose(); }}
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4
+      style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+      className="flex items-center justify-center p-4
                  bg-black/60 backdrop-blur-sm animate-fade-in"
     >
       <div
@@ -89,7 +91,7 @@ export default function Modal({
           )}
         </div>
 
-        {/* Body — scrollable */}
+        {/* Body — scrollable independently */}
         <div className="px-6 py-5 overflow-y-auto flex-1 min-h-0">
           {children}
         </div>
@@ -101,6 +103,7 @@ export default function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
