@@ -182,117 +182,111 @@ INSERT INTO vacances (employee_id,approved_by,leave_type,start_date,end_date,day
   ('bbbbbbbb-0001-0001-0001-000000000001','aaaaaaaa-0004-0004-0004-000000000004','Sick Leave',  '2026-01-20','2026-01-21',2,'Flu recovery',            'APPROVED','2026-01-19 00:00:00+00');
 
 -- DOCUMENTS
-INSERT INTO documents (employee_id,requested_by,title,doc_type,format,status,request_date,due_date,notes) VALUES
-  ('bbbbbbbb-0001-0001-0001-000000000001','aaaaaaaa-0001-0001-0001-000000000001','Employment Certificate','Employment Certificate','PDF','COMPLETED',  '2026-02-01','2026-02-05','For bank loan application'),
-  ('bbbbbbbb-0003-0003-0003-000000000003','aaaaaaaa-0003-0003-0003-000000000003','Salary Certificate Jan 2026','Salary Certificate','PDF','COMPLETED', '2026-02-03','2026-02-07','For visa application'),
-  ('bbbbbbbb-0007-0007-0007-000000000007','aaaaaaaa-0007-0007-0007-000000000007','Work Experience Letter','Work Experience Letter','PDF','IN_PROGRESS','2026-02-10','2026-02-17','For professional certification'),
-  ('bbbbbbbb-0009-0009-0009-000000000009','aaaaaaaa-0009-0009-0009-000000000009','Tax Certificate 2025','Tax Certificate','PDF','PENDING',             '2026-02-12','2026-02-20','Annual tax filing'),
-  ('bbbbbbbb-0002-0002-0002-000000000002','aaaaaaaa-0002-0002-0002-000000000002','Payslip January 2026','Payslip','PDF','COMPLETED',                   '2026-02-01','2026-02-03','Monthly payslip'),
-  ('bbbbbbbb-0010-0010-0010-000000000010','aaaaaaaa-0010-0010-0010-000000000010','HR Policy Document','HR Policy','PDF','PENDING',                     '2026-02-14','2026-02-21','Updated HR policies 2026'),
-  ('bbbbbbbb-0004-0004-0004-000000000004','aaaaaaaa-0004-0004-0004-000000000004','Employment Certificate','Employment Certificate','PDF','REJECTED',   '2026-01-15','2026-01-20','Incomplete information provided');
+INSERT INTO documents (employee_id,processed_by,title,doc_type,format,status,request_date,due_date) VALUES
+  ('bbbbbbbb-0001-0001-0001-000000000001','aaaaaaaa-0001-0001-0001-000000000001','Employment Certificate',    'Certificate','PDF','completed',  '2026-02-01','2026-02-05'),
+  ('bbbbbbbb-0003-0003-0003-000000000003','aaaaaaaa-0003-0003-0003-000000000003','Salary Certificate Jan 2026','Certificate','PDF','completed',  '2026-02-03','2026-02-07'),
+  ('bbbbbbbb-0007-0007-0007-000000000007','aaaaaaaa-0007-0007-0007-000000000007','Work Experience Letter',    'Letter',     'PDF','processing', '2026-02-10','2026-02-17'),
+  ('bbbbbbbb-0009-0009-0009-000000000009','aaaaaaaa-0009-0009-0009-000000000009','Tax Certificate 2025',      'Tax',        'PDF','pending',    '2026-02-12','2026-02-20'),
+  ('bbbbbbbb-0002-0002-0002-000000000002','aaaaaaaa-0002-0002-0002-000000000002','Payslip January 2026',      'Payroll',    'PDF','completed',  '2026-02-01','2026-02-03'),
+  ('bbbbbbbb-0010-0010-0010-000000000010','aaaaaaaa-0010-0010-0010-000000000010','HR Policy Document',        'Report',     'PDF','pending',    '2026-02-14','2026-02-21'),
+  ('bbbbbbbb-0004-0004-0004-000000000004','aaaaaaaa-0004-0004-0004-000000000004','Employment Certificate',    'Certificate','PDF','rejected',   '2026-01-15','2026-01-20');
 
 -- RECRUTEMENTS (Job Postings)
 INSERT INTO recrutements (id,entreprise_id,department_id,created_by,title,description,requirements,location,employment_type,salary_min,salary_max,status,applicants_count,deadline) VALUES
-  ('eeeeeeee-0001-0001-0001-000000000001','11111111-0001-0001-0001-000000000001','22222222-0001-0001-0001-000000000001','aaaaaaaa-0004-0004-0004-000000000004','Senior React Developer',    'Build and maintain React applications',      '5+ years React, TypeScript, REST APIs',   'Casablanca, Morocco','Full-time',15000,22000,'OPEN',  12,'2026-03-15'),
-  ('eeeeeeee-0002-0002-0002-000000000002','11111111-0001-0001-0001-000000000001','22222222-0002-0002-0002-000000000002','aaaaaaaa-0004-0004-0004-000000000004','Marketing Specialist',      'Digital marketing campaigns',                '3+ years digital marketing, SEO, SEM',    'Casablanca, Morocco','Full-time',10000,14000,'OPEN',   8,'2026-03-01'),
-  ('eeeeeeee-0003-0003-0003-000000000003','11111111-0001-0001-0001-000000000001','22222222-0003-0003-0003-000000000003','aaaaaaaa-0004-0004-0004-000000000004','HR Business Partner',       'Strategic HR management',                    '5+ years HR, HRIS experience',            'Casablanca, Morocco','Full-time',12000,16000,'OPEN',   5,'2026-02-28'),
-  ('eeeeeeee-0004-0004-0004-000000000004','11111111-0001-0001-0001-000000000001','22222222-0004-0004-0004-000000000004','aaaaaaaa-0004-0004-0004-000000000004','UX Designer',               'Design user experiences',                    '3+ years UX, Figma, user research',       'Casablanca, Morocco','Full-time',11000,15000,'CLOSED', 24,'2026-01-31'),
-  ('eeeeeeee-0005-0005-0005-000000000005','11111111-0001-0001-0001-000000000001','22222222-0006-0006-0006-000000000006','aaaaaaaa-0004-0004-0004-000000000004','QA Automation Engineer',    'Build automated test suites',                '3+ years QA, Selenium or Playwright',     'Casablanca, Morocco','Full-time',12000,17000,'OPEN',   3,'2026-03-31');
+  ('eeeeeeee-0001-0001-0001-000000000001','11111111-0001-0001-0001-000000000001','22222222-0001-0001-0001-000000000001','aaaaaaaa-0004-0004-0004-000000000004','Senior React Developer',    'Build and maintain React applications',      '5+ years React, TypeScript, REST APIs',   'Casablanca, Morocco','Full-time',15000,22000,'open',  12,'2026-03-15'),
+  ('eeeeeeee-0002-0002-0002-000000000002','11111111-0001-0001-0001-000000000001','22222222-0002-0002-0002-000000000002','aaaaaaaa-0004-0004-0004-000000000004','Marketing Specialist',      'Digital marketing campaigns',                '3+ years digital marketing, SEO, SEM',    'Casablanca, Morocco','Full-time',10000,14000,'open',   8,'2026-03-01'),
+  ('eeeeeeee-0003-0003-0003-000000000003','11111111-0001-0001-0001-000000000001','22222222-0003-0003-0003-000000000003','aaaaaaaa-0004-0004-0004-000000000004','HR Business Partner',       'Strategic HR management',                    '5+ years HR, HRIS experience',            'Casablanca, Morocco','Full-time',12000,16000,'open',   5,'2026-02-28'),
+  ('eeeeeeee-0004-0004-0004-000000000004','11111111-0001-0001-0001-000000000001','22222222-0004-0004-0004-000000000004','aaaaaaaa-0004-0004-0004-000000000004','UX Designer',               'Design user experiences',                    '3+ years UX, Figma, user research',       'Casablanca, Morocco','Full-time',11000,15000,'closed', 24,'2026-01-31'),
+  ('eeeeeeee-0005-0005-0005-000000000005','11111111-0001-0001-0001-000000000001','22222222-0006-0006-0006-000000000006','aaaaaaaa-0004-0004-0004-000000000004','QA Automation Engineer',    'Build automated test suites',                '3+ years QA, Selenium or Playwright',     'Casablanca, Morocco','Full-time',12000,17000,'open',   3,'2026-03-31');
 
 -- CANDIDATES
-INSERT INTO candidates (recrutement_id,name,email,phone,current_position,experience_years,stage,status,applied_at,notes) VALUES
-  ('eeeeeeee-0001-0001-0001-000000000001','Youssef Alami',   'youssef.a@email.com','+212 661 111 222','React Developer at Startup',    4,'INTERVIEW','active','2026-02-01 00:00:00+00','Strong portfolio'),
-  ('eeeeeeee-0001-0001-0001-000000000001','Nadia Benali',    'nadia.b@email.com',  '+212 662 222 333','Frontend Dev at Agency',        6,'OFFER',    'active','2026-01-28 00:00:00+00','Excellent technical test'),
-  ('eeeeeeee-0001-0001-0001-000000000001','Karim Idrissi',   'karim.i@email.com',  '+212 663 333 444','Full Stack at Corp',             5,'SCREENING','active','2026-02-05 00:00:00+00','Pending technical review'),
-  ('eeeeeeee-0002-0002-0002-000000000002','Sara Ouali',      'sara.o@email.com',   '+212 664 444 555','Marketing Exec at Agency',      3,'INTERVIEW','active','2026-02-03 00:00:00+00','Good campaign experience'),
-  ('eeeeeeee-0002-0002-0002-000000000002','Mehdi Tazi',      'mehdi.t@email.com',  '+212 665 555 666','Digital Marketer Freelance',     2,'SCREENING','active','2026-02-07 00:00:00+00','Needs more B2B experience'),
-  ('eeeeeeee-0003-0003-0003-000000000003','Leila Cherkaoui', 'leila.c@email.com',  '+212 666 666 777','HR Manager at MNC',             7,'OFFER',    'active','2026-01-25 00:00:00+00','Top candidate'),
-  ('eeeeeeee-0004-0004-0004-000000000004','Omar Fassi',      'omar.f@email.com',   '+212 667 777 888','UX Designer at Tech Co',        4,'HIRED',    'active','2026-01-10 00:00:00+00','Hired — starts March 2026'),
-  ('eeeeeeee-0005-0005-0005-000000000005','Zineb Moussaoui', 'zineb.m@email.com',  '+212 668 888 999','QA Engineer at Fintech',        3,'APPLIED',  'active','2026-02-14 00:00:00+00','Application under review');
+INSERT INTO candidates (recrutement_id,name,email,phone,stage,status,notes,applied_date) VALUES
+  ('eeeeeeee-0001-0001-0001-000000000001','Youssef Alami',   'youssef.a@email.com','+212 661 111 222','Technical Interview','in-progress','Strong portfolio',         '2026-02-01'),
+  ('eeeeeeee-0001-0001-0001-000000000001','Nadia Benali',    'nadia.b@email.com',  '+212 662 222 333','Offer',              'offer',      'Excellent technical test', '2026-01-28'),
+  ('eeeeeeee-0001-0001-0001-000000000001','Karim Idrissi',   'karim.i@email.com',  '+212 663 333 444','HR Screen',          'in-progress','Pending technical review', '2026-02-05'),
+  ('eeeeeeee-0002-0002-0002-000000000002','Sara Ouali',      'sara.o@email.com',   '+212 664 444 555','Technical Interview','in-progress','Good campaign experience', '2026-02-03'),
+  ('eeeeeeee-0002-0002-0002-000000000002','Mehdi Tazi',      'mehdi.t@email.com',  '+212 665 555 666','HR Screen',          'in-progress','Needs more B2B experience','2026-02-07'),
+  ('eeeeeeee-0003-0003-0003-000000000003','Leila Cherkaoui', 'leila.c@email.com',  '+212 666 666 777','Offer',              'offer',      'Top candidate',            '2026-01-25'),
+  ('eeeeeeee-0004-0004-0004-000000000004','Omar Fassi',      'omar.f@email.com',   '+212 667 777 888','Final Interview',    'hired',      'Hired - starts March 2026','2026-01-10'),
+  ('eeeeeeee-0005-0005-0005-000000000005','Zineb Moussaoui', 'zineb.m@email.com',  '+212 668 888 999','Applied',            'in-progress','Application under review', '2026-02-14');
 
 -- PERFORMANCES
-INSERT INTO performances (employee_id,period,tasks_assigned,tasks_completed,rating,notes) VALUES
-  ('bbbbbbbb-0001-0001-0001-000000000001','Q4 2025',20,18,4.5,'Excellent delivery, strong leadership'),
-  ('bbbbbbbb-0002-0002-0002-000000000002','Q4 2025',15,14,4.2,'Great campaign results, on-time delivery'),
-  ('bbbbbbbb-0003-0003-0003-000000000003','Q4 2025',18,15,3.8,'Good analytical work, some delays'),
-  ('bbbbbbbb-0004-0004-0004-000000000004','Q4 2025',12,12,4.7,'Exceptional HR management'),
-  ('bbbbbbbb-0006-0006-0006-000000000006','Q4 2025',16,13,4.0,'Solid QA coverage, room for automation'),
-  ('bbbbbbbb-0007-0007-0007-000000000007','Q4 2025',14,12,3.9,'Good backend work, needs better docs'),
-  ('bbbbbbbb-0009-0009-0009-000000000009','Q4 2025',10, 9,4.1,'Creative designs, fast turnaround'),
-  ('bbbbbbbb-0010-0010-0010-000000000010','Q4 2025',11,10,4.3,'Accurate financial analysis'),
-  ('bbbbbbbb-0001-0001-0001-000000000001','Q1 2026', 8, 5,4.3,'On track for Q1 goals'),
-  ('bbbbbbbb-0003-0003-0003-000000000003','Q1 2026', 6, 3,3.5,'In progress'),
-  ('bbbbbbbb-0007-0007-0007-000000000007','Q1 2026', 5, 3,4.0,'Good pace on API work');
+INSERT INTO performances (employee_id,period,tasks_assigned,tasks_completed,score,notes) VALUES
+  ('bbbbbbbb-0001-0001-0001-000000000001','Q4 2025',20,18,90,'Excellent delivery, strong leadership'),
+  ('bbbbbbbb-0002-0002-0002-000000000002','Q4 2025',15,14,84,'Great campaign results, on-time delivery'),
+  ('bbbbbbbb-0003-0003-0003-000000000003','Q4 2025',18,15,76,'Good analytical work, some delays'),
+  ('bbbbbbbb-0004-0004-0004-000000000004','Q4 2025',12,12,94,'Exceptional HR management'),
+  ('bbbbbbbb-0006-0006-0006-000000000006','Q4 2025',16,13,80,'Solid QA coverage, room for automation'),
+  ('bbbbbbbb-0007-0007-0007-000000000007','Q4 2025',14,12,78,'Good backend work, needs better docs'),
+  ('bbbbbbbb-0009-0009-0009-000000000009','Q4 2025',10, 9,82,'Creative designs, fast turnaround'),
+  ('bbbbbbbb-0010-0010-0010-000000000010','Q4 2025',11,10,86,'Accurate financial analysis'),
+  ('bbbbbbbb-0001-0001-0001-000000000001','Q1 2026', 8, 5,86,'On track for Q1 goals'),
+  ('bbbbbbbb-0003-0003-0003-000000000003','Q1 2026', 6, 3,70,'In progress'),
+  ('bbbbbbbb-0007-0007-0007-000000000007','Q1 2026', 5, 3,80,'Good pace on API work');
 
 -- ANALYTIQUES
-INSERT INTO analytiques (entreprise_id,metric_name,metric_value,metric_date,dimension,dimension_value) VALUES
-  ('11111111-0001-0001-0001-000000000001','total_employees',     10,    '2026-02-01','month','2026-02'),
-  ('11111111-0001-0001-0001-000000000001','active_employees',     8,    '2026-02-01','month','2026-02'),
-  ('11111111-0001-0001-0001-000000000001','total_projects',       4,    '2026-02-01','month','2026-02'),
-  ('11111111-0001-0001-0001-000000000001','tasks_completed',      2,    '2026-02-01','month','2026-02'),
-  ('11111111-0001-0001-0001-000000000001','tasks_in_progress',    5,    '2026-02-01','month','2026-02'),
-  ('11111111-0001-0001-0001-000000000001','payroll_total',   126500,    '2026-01-01','month','2026-01'),
-  ('11111111-0001-0001-0001-000000000001','avg_attendance_rate',  87.5, '2026-02-01','month','2026-02'),
-  ('11111111-0001-0001-0001-000000000001','open_positions',        4,   '2026-02-01','month','2026-02'),
-  ('11111111-0001-0001-0001-000000000001','pending_leaves',        3,   '2026-02-01','month','2026-02'),
-  ('11111111-0001-0001-0001-000000000001','total_employees',      10,   '2026-01-01','month','2026-01'),
-  ('11111111-0001-0001-0001-000000000001','payroll_total',   121300,    '2025-12-01','month','2025-12'),
-  ('11111111-0001-0001-0001-000000000001','avg_attendance_rate',  91.0, '2026-01-01','month','2026-01');
+INSERT INTO analytiques (entreprise_id,report_type,period,period_start,period_end,data,generated_date) VALUES
+  ('11111111-0001-0001-0001-000000000001','global',     'February 2026','2026-02-01','2026-02-28','{"total_employees":10,"active_employees":8,"total_projects":4,"tasks_completed":2,"tasks_in_progress":5,"avg_attendance_rate":87.5,"open_positions":4,"pending_leaves":3}','2026-02-01'),
+  ('11111111-0001-0001-0001-000000000001','payroll',    'January 2026', '2026-01-01','2026-01-31','{"payroll_total":126500,"employees_paid":8}','2026-01-31'),
+  ('11111111-0001-0001-0001-000000000001','global',     'January 2026', '2026-01-01','2026-01-31','{"total_employees":10,"avg_attendance_rate":91.0}','2026-01-31'),
+  ('11111111-0001-0001-0001-000000000001','payroll',    'December 2025','2025-12-01','2025-12-31','{"payroll_total":121300,"employees_paid":8}','2025-12-31'),
+  ('11111111-0001-0001-0001-000000000001','performance','Q4 2025',      '2025-10-01','2025-12-31','{"avg_score":83.6,"top_performer":"Ibrahim Rouass"}','2026-01-05'),
+  ('11111111-0001-0001-0001-000000000001','recruitment','February 2026','2026-02-01','2026-02-28','{"open_positions":4,"total_candidates":8,"offers_made":2}','2026-02-15');
 
 -- NOTIFICATIONS
-INSERT INTO notifications (user_id,type,title,message,read,related_entity,related_id) VALUES
-  ('aaaaaaaa-0003-0003-0003-000000000003','TASK_ASSIGNED',  'New Task Assigned',       'You have been assigned: Review Q4 Financial Report',   false,'task',        'dddddddd-0001-0001-0001-000000000001'),
-  ('aaaaaaaa-0003-0003-0003-000000000003','TASK_ASSIGNED',  'New Task Assigned',       'You have been assigned: Code review PR #247',          false,'task',        'dddddddd-0005-0005-0005-000000000005'),
-  ('aaaaaaaa-0001-0001-0001-000000000001','TASK_VALIDATED', 'Task Pending Validation', 'Deploy staging environment is ready for validation',   false,'task',        'dddddddd-0007-0007-0007-000000000007'),
-  ('aaaaaaaa-0004-0004-0004-000000000004','LEAVE_REQUEST',  'New Leave Request',       'Ibrahim Rouass submitted a leave request Feb 20-24',   false,'vacance',     NULL),
-  ('aaaaaaaa-0004-0004-0004-000000000004','LEAVE_REQUEST',  'New Leave Request',       'Ahmed Hassan submitted a leave request Mar 3-7',       false,'vacance',     NULL),
-  ('aaaaaaaa-0002-0002-0002-000000000002','TASK_COMPLETED', 'Task Completed',          'Design campaign landing page has been completed',      true, 'task',        'dddddddd-0010-0010-0010-000000000010'),
-  ('aaaaaaaa-0001-0001-0001-000000000001','SYSTEM',         'New User Registered',     'Diana Kim has registered and is pending approval',     true, 'user',        'aaaaaaaa-0008-0008-0008-000000000008'),
-  ('aaaaaaaa-0003-0003-0003-000000000003','PAYROLL',        'Payslip Available',       'Your January 2026 payslip is now available',           true, 'payroll',     NULL),
-  ('aaaaaaaa-0006-0006-0006-000000000006','LEAVE_APPROVED', 'Leave Approved',          'Your maternity leave request has been approved',       true, 'vacance',     NULL),
-  ('aaaaaaaa-0009-0009-0009-000000000009','LEAVE_REJECTED', 'Leave Request Rejected',  'Your leave request for Feb 25-26 was not approved',    false,'vacance',     NULL),
-  ('aaaaaaaa-0007-0007-0007-000000000007','LEAVE_APPROVED', 'Remote Work Approved',    'Your remote work request for Feb 17-21 is approved',   true, 'vacance',     NULL),
-  ('aaaaaaaa-0001-0001-0001-000000000001','RECRUITMENT',    'New Candidate Applied',   'Zineb Moussaoui applied for QA Automation Engineer',   false,'recrutement', 'eeeeeeee-0005-0005-0005-000000000005'),
-  ('aaaaaaaa-0004-0004-0004-000000000004','RECRUITMENT',    'Candidate Offer Stage',   'Nadia Benali has reached the Offer stage',             false,'recrutement', 'eeeeeeee-0001-0001-0001-000000000001'),
-  ('aaaaaaaa-0004-0004-0004-000000000004','PAYROLL',        'Payroll Generated',       'February 2026 payroll has been generated',             false,'payroll',     NULL),
-  ('aaaaaaaa-0002-0002-0002-000000000002','TASK_ASSIGNED',  'New Task Assigned',       'You have been assigned: Social media content plan',    true, 'task',        'dddddddd-0011-0011-0011-000000000011');
+INSERT INTO notifications (user_id,type,message,is_read,related_entity,related_id) VALUES
+  ('aaaaaaaa-0003-0003-0003-000000000003','info',   'You have been assigned: Review Q4 Financial Report',  false,'task',        'dddddddd-0001-0001-0001-000000000001'),
+  ('aaaaaaaa-0003-0003-0003-000000000003','info',   'You have been assigned: Code review PR #247',         false,'task',        'dddddddd-0005-0005-0005-000000000005'),
+  ('aaaaaaaa-0001-0001-0001-000000000001','info',   'Deploy staging environment is ready for validation',  false,'task',        'dddddddd-0007-0007-0007-000000000007'),
+  ('aaaaaaaa-0004-0004-0004-000000000004','info',   'Ibrahim Rouass submitted a leave request Feb 20-24',  false,'vacance',     NULL),
+  ('aaaaaaaa-0004-0004-0004-000000000004','info',   'Ahmed Hassan submitted a leave request Mar 3-7',      false,'vacance',     NULL),
+  ('aaaaaaaa-0002-0002-0002-000000000002','success','Design campaign landing page has been completed',     true, 'task',        'dddddddd-0010-0010-0010-000000000010'),
+  ('aaaaaaaa-0001-0001-0001-000000000001','info',   'Diana Kim has registered and is pending approval',    true, 'user',        'aaaaaaaa-0008-0008-0008-000000000008'),
+  ('aaaaaaaa-0003-0003-0003-000000000003','success','Your January 2026 payslip is now available',          true, 'payroll',     NULL),
+  ('aaaaaaaa-0006-0006-0006-000000000006','success','Your maternity leave request has been approved',      true, 'vacance',     NULL),
+  ('aaaaaaaa-0009-0009-0009-000000000009','warning','Your leave request for Feb 25-26 was not approved',   false,'vacance',     NULL),
+  ('aaaaaaaa-0007-0007-0007-000000000007','success','Your remote work request for Feb 17-21 is approved',  true, 'vacance',     NULL),
+  ('aaaaaaaa-0001-0001-0001-000000000001','info',   'Zineb Moussaoui applied for QA Automation Engineer',  false,'recrutement','eeeeeeee-0005-0005-0005-000000000005'),
+  ('aaaaaaaa-0004-0004-0004-000000000004','info',   'Nadia Benali has reached the Offer stage',            false,'recrutement','eeeeeeee-0001-0001-0001-000000000001'),
+  ('aaaaaaaa-0004-0004-0004-000000000004','success','February 2026 payroll has been generated',            false,'payroll',     NULL),
+  ('aaaaaaaa-0002-0002-0002-000000000002','info',   'You have been assigned: Social media content plan',   true, 'task',        'dddddddd-0011-0011-0011-000000000011');
 
 -- AI AGENTS
-INSERT INTO ai_agents (id,entreprise_id,name,description,agent_type,is_active,config) VALUES
-  ('ffffffff-0001-0001-0001-000000000001','11111111-0001-0001-0001-000000000001','HR Assistant',         'AI assistant for HR queries and recommendations',                  'HR_ASSISTANT',         true,'{"model":"gpt-4","temperature":0.3,"max_tokens":1000}'),
-  ('ffffffff-0002-0002-0002-000000000002','11111111-0001-0001-0001-000000000001','Performance Analyzer', 'Analyzes employee performance trends and suggests improvements',   'PERFORMANCE_ANALYZER', true,'{"model":"gpt-4","temperature":0.2,"max_tokens":2000}'),
-  ('ffffffff-0003-0003-0003-000000000003','11111111-0001-0001-0001-000000000001','Recruitment Screener', 'Screens candidates and ranks them based on job requirements',      'RECRUITMENT_SCREENER', true,'{"model":"gpt-4","temperature":0.1,"max_tokens":1500}');
+INSERT INTO ai_agents (id,entreprise_id,name,is_active,config) VALUES
+  ('ffffffff-0001-0001-0001-000000000001','11111111-0001-0001-0001-000000000001','HR Assistant',         true,'{"model":"gpt-4","temperature":0.3,"max_tokens":1000}'),
+  ('ffffffff-0002-0002-0002-000000000002','11111111-0001-0001-0001-000000000001','Performance Analyzer', true,'{"model":"gpt-4","temperature":0.2,"max_tokens":2000}'),
+  ('ffffffff-0003-0003-0003-000000000003','11111111-0001-0001-0001-000000000001','Recruitment Screener', true,'{"model":"gpt-4","temperature":0.1,"max_tokens":1500}');
 
 -- AI RECOMMENDATIONS
-INSERT INTO ai_recommendations (agent_id,target_employee_id,recommendation_type,title,content,confidence_score,status) VALUES
-  ('ffffffff-0002-0002-0002-000000000002','bbbbbbbb-0003-0003-0003-000000000003','PERFORMANCE','Upskilling Opportunity',
-   'Based on current task completion rate (83%), consider enrolling Ahmed in advanced Python training to boost productivity.',
-   0.87,'PENDING'),
-  ('ffffffff-0002-0002-0002-000000000002','bbbbbbbb-0007-0007-0007-000000000007','PERFORMANCE','Documentation Improvement',
-   'Bob Tanaka consistently delivers quality code but documentation scores are low. Recommend pairing with a senior for knowledge transfer.',
-   0.79,'PENDING'),
-  ('ffffffff-0001-0001-0001-000000000001','bbbbbbbb-0009-0009-0009-000000000009','LEAVE','Leave Balance Alert',
-   'Carlos Ruiz has used 4 of 22 annual leave days. Encourage planning remaining leave to avoid year-end accumulation.',
-   0.92,'REVIEWED'),
-  ('ffffffff-0003-0003-0003-000000000003',NULL,'RECRUITMENT','Top Candidate Identified',
-   'Nadia Benali scores highest among Senior React Developer applicants based on experience, technical test, and portfolio review.',
-   0.94,'ACCEPTED'),
-  ('ffffffff-0002-0002-0002-000000000002','bbbbbbbb-0001-0001-0001-000000000001','PERFORMANCE','Leadership Recognition',
-   'Ibrahim Rouass has maintained a 90% task completion rate for 2 consecutive quarters. Consider for team lead promotion.',
-   0.88,'ACCEPTED');
+INSERT INTO ai_recommendations (agent_id,target_employee,type,reason,suggestion) VALUES
+  ('ffffffff-0002-0002-0002-000000000002','bbbbbbbb-0003-0003-0003-000000000003','review',
+   'Task completion rate is 83% — below the 90% target.',
+   'Enroll Ahmed Hassan in advanced Python training to boost productivity.'),
+  ('ffffffff-0002-0002-0002-000000000002','bbbbbbbb-0007-0007-0007-000000000007','review',
+   'Code quality is high but documentation scores are consistently low.',
+   'Pair Bob Tanaka with a senior developer for knowledge transfer sessions.'),
+  ('ffffffff-0001-0001-0001-000000000001','bbbbbbbb-0009-0009-0009-000000000009','alert',
+   'Carlos Ruiz has only used 4 of 22 annual leave days.',
+   'Encourage planning remaining leave to avoid year-end accumulation.'),
+  ('ffffffff-0003-0003-0003-000000000003',NULL,'optimization',
+   'Nadia Benali scores highest among Senior React Developer applicants.',
+   'Proceed to offer stage — strong technical test and portfolio review results.'),
+  ('ffffffff-0002-0002-0002-000000000002','bbbbbbbb-0001-0001-0001-000000000001','bonus',
+   'Ibrahim Rouass has maintained 90%+ task completion for 2 consecutive quarters.',
+   'Consider for team lead promotion and performance bonus.');
 
 -- SYSTEM LOGS
-INSERT INTO system_logs (user_id,action,entity_type,entity_id,details,ip_address) VALUES
-  ('aaaaaaaa-0001-0001-0001-000000000001','LOGIN',       'auth',       NULL,                                  '{"method":"email"}',                          '192.168.1.10'),
-  ('aaaaaaaa-0001-0001-0001-000000000001','CREATE',      'project',    'cccccccc-0001-0001-0001-000000000001', '{"title":"BPMS Platform v2.0"}',               '192.168.1.10'),
-  ('aaaaaaaa-0001-0001-0001-000000000001','CREATE',      'task',       'dddddddd-0001-0001-0001-000000000001', '{"title":"Review Q4 Financial Report"}',       '192.168.1.10'),
-  ('aaaaaaaa-0004-0004-0004-000000000004','CREATE',      'payroll',    NULL,                                  '{"month":"January 2026","count":8}',           '192.168.1.14'),
-  ('aaaaaaaa-0004-0004-0004-000000000004','APPROVE',     'vacance',    NULL,                                  '{"employee":"Sarah Martinez","type":"Sick"}',  '192.168.1.14'),
-  ('aaaaaaaa-0004-0004-0004-000000000004','REJECT',      'vacance',    NULL,                                  '{"employee":"Carlos Ruiz","reason":"overlap"}','192.168.1.14'),
-  ('aaaaaaaa-0002-0002-0002-000000000002','VALIDATE',    'task',       'dddddddd-0010-0010-0010-000000000010', '{"status":"VALIDATED"}',                      '192.168.1.12'),
-  ('aaaaaaaa-0007-0007-0007-000000000007','UPDATE',      'task',       'dddddddd-0007-0007-0007-000000000007', '{"status":"COMPLETED"}',                      '192.168.1.17'),
-  ('aaaaaaaa-0001-0001-0001-000000000001','CREATE',      'recrutement','eeeeeeee-0001-0001-0001-000000000001', '{"title":"Senior React Developer"}',           '192.168.1.10'),
-  ('aaaaaaaa-0003-0003-0003-000000000003','LOGIN',       'auth',       NULL,                                  '{"method":"email"}',                          '192.168.1.13');
+INSERT INTO system_logs (user_id,event,details,severity) VALUES
+  ('aaaaaaaa-0001-0001-0001-000000000001','user.login',              'Login via email',                       'info'),
+  ('aaaaaaaa-0001-0001-0001-000000000001','project.create',          'Created project: BPMS Platform v2.0',   'info'),
+  ('aaaaaaaa-0001-0001-0001-000000000001','task.create',             'Created task: Review Q4 Financial Report','info'),
+  ('aaaaaaaa-0004-0004-0004-000000000004','payroll.generate',        'Generated payroll for January 2026 (8 employees)','info'),
+  ('aaaaaaaa-0004-0004-0004-000000000004','vacance.approve',         'Approved sick leave for Sarah Martinez', 'info'),
+  ('aaaaaaaa-0004-0004-0004-000000000004','vacance.reject',          'Rejected leave for Carlos Ruiz: overlap','warning'),
+  ('aaaaaaaa-0002-0002-0002-000000000002','task.validate',           'Validated task: Design campaign landing page','info'),
+  ('aaaaaaaa-0007-0007-0007-000000000007','task.complete',           'Completed task: Deploy staging environment','info'),
+  ('aaaaaaaa-0001-0001-0001-000000000001','recrutement.create',      'Posted job: Senior React Developer',    'info'),
+  ('aaaaaaaa-0003-0003-0003-000000000003','user.login',              'Login via email',                       'info');
 
 -- Restore FK constraint (optional — remove this line if you want to keep seeding freely)
 -- ALTER TABLE users ADD CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
