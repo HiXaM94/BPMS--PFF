@@ -1,5 +1,13 @@
 -- BPMS Seed Data — Part 1: Core entities
 -- Run schema.sql and rls_policies.sql FIRST.
+--
+-- NOTE: users.id is a FK to auth.users(id).
+-- For demo/dev seeding we temporarily drop that constraint,
+-- insert mock users, then restore it.
+-- In production, create real auth users via Supabase Auth first.
+
+-- Drop FK so we can insert mock user rows freely
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_id_fkey;
 
 -- ENTREPRISES
 INSERT INTO entreprises (id, name, industry, phone, email, location, status, plan, created_at) VALUES
@@ -285,3 +293,6 @@ INSERT INTO system_logs (user_id,action,entity_type,entity_id,details,ip_address
   ('aaaaaaaa-0007-0007-0007-000000000007','UPDATE',      'task',       'dddddddd-0007-0007-0007-000000000007', '{"status":"COMPLETED"}',                      '192.168.1.17'),
   ('aaaaaaaa-0001-0001-0001-000000000001','CREATE',      'recrutement','eeeeeeee-0001-0001-0001-000000000001', '{"title":"Senior React Developer"}',           '192.168.1.10'),
   ('aaaaaaaa-0003-0003-0003-000000000003','LOGIN',       'auth',       NULL,                                  '{"method":"email"}',                          '192.168.1.13');
+
+-- Restore FK constraint (optional — remove this line if you want to keep seeding freely)
+-- ALTER TABLE users ADD CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
