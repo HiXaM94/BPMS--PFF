@@ -23,61 +23,63 @@ const defaultEnterprises = [
   { id: 7, company_id: 7, name: 'LogiTrans SARL', industry: 'Logistics', employees: 134, location: 'Kenitra, Morocco', email: 'contact@logitrans.ma', phone: '+212 537 234 567', status: 'active', plan: 'Business', created: 'Feb 10, 2026' },
 ];
 
-const columns = [
-  {
-    key: 'name', label: 'Organization',
-    render: (val, row) => (
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                        bg-gradient-to-br from-brand-500/15 to-brand-600/15 shrink-0">
-          <Building2 size={18} className="text-brand-500" />
+function getColumns(onView, onEdit) {
+  return [
+    {
+      key: 'name', label: 'Organization',
+      render: (val, row) => (
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl
+                          bg-gradient-to-br from-brand-500/15 to-brand-600/15 shrink-0">
+            <Building2 size={18} className="text-brand-500" />
+          </div>
+          <div>
+            <span className="font-semibold text-text-primary block">{val}</span>
+            <span className="text-[11px] text-text-tertiary">{row.industry}</span>
+          </div>
         </div>
-        <div>
-          <span className="font-semibold text-text-primary block">{val}</span>
-          <span className="text-[11px] text-text-tertiary">{row.industry}</span>
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: 'location', label: 'Location',
-    render: (val) => (
-      <div className="flex items-center gap-1.5 text-text-secondary text-xs">
-        <MapPin size={12} className="text-text-tertiary" />{val}
-      </div>
-    ),
-  },
-  { key: 'employees', label: 'Employees', cellClassName: 'font-semibold text-text-primary' },
-  {
-    key: 'plan', label: 'Plan',
-    render: (val) => (
-      <StatusBadge variant={val === 'Enterprise' ? 'violet' : val === 'Business' ? 'brand' : 'neutral'} size="sm">
-        {val}
-      </StatusBadge>
-    ),
-  },
-  {
-    key: 'status', label: 'Status',
-    render: (val) => {
-      const map = { active: 'success', trial: 'warning', suspended: 'danger' };
-      return <StatusBadge variant={map[val]} dot size="sm">{val}</StatusBadge>;
+      ),
     },
-  },
-  { key: 'created', label: 'Created', cellClassName: 'text-text-tertiary text-xs' },
-  {
-    key: 'actions', label: '',
-    render: (_, row) => (
-      <div className="flex items-center gap-1">
-        <button className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View">
-          <Eye size={14} className="text-text-tertiary" />
-        </button>
-        <button className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit">
-          <Edit size={14} className="text-text-tertiary" />
-        </button>
-      </div>
-    ),
-  },
-];
+    {
+      key: 'location', label: 'Location',
+      render: (val) => (
+        <div className="flex items-center gap-1.5 text-text-secondary text-xs">
+          <MapPin size={12} className="text-text-tertiary" />{val}
+        </div>
+      ),
+    },
+    { key: 'employees', label: 'Employees', cellClassName: 'font-semibold text-text-primary' },
+    {
+      key: 'plan', label: 'Plan',
+      render: (val) => (
+        <StatusBadge variant={val === 'Enterprise' ? 'violet' : val === 'Business' ? 'brand' : 'neutral'} size="sm">
+          {val}
+        </StatusBadge>
+      ),
+    },
+    {
+      key: 'status', label: 'Status',
+      render: (val) => {
+        const map = { active: 'success', trial: 'warning', suspended: 'danger' };
+        return <StatusBadge variant={map[val]} dot size="sm">{val}</StatusBadge>;
+      },
+    },
+    { key: 'created', label: 'Created', cellClassName: 'text-text-tertiary text-xs' },
+    {
+      key: 'actions', label: '',
+      render: (_, row) => (
+        <div className="flex items-center gap-1">
+          <button onClick={() => onView(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View">
+            <Eye size={14} className="text-text-tertiary" />
+          </button>
+          <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit">
+            <Edit size={14} className="text-text-tertiary" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+}
 
 const industryStats = [
   { label: 'Technology', count: 1, color: 'brand' },
@@ -110,6 +112,9 @@ export default function EnterpriseManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [form, setForm] = useState(emptyCompanyForm);
   const [successMsg, setSuccessMsg] = useState('');
+  const [viewEnterprise, setViewEnterprise] = useState(null);
+  const [editEnterprise, setEditEnterprise] = useState(null);
+  const [editForm, setEditForm] = useState(emptyCompanyForm);
   const { currentRole } = useRole();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
@@ -140,6 +145,23 @@ export default function EnterpriseManagement() {
   const handleInputChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
+
+  const handleEditSave = (e) => {
+    e.preventDefault();
+    setEnterprises(prev => prev.map(ent =>
+      ent.id === editEnterprise.id
+        ? { ...ent, name: editForm.name, industry: editForm.industry, location: editForm.location, email: editForm.email, phone: editForm.phone, plan: editForm.plan }
+        : ent
+    ));
+    setEditEnterprise(null);
+    setSuccessMsg(`Company "${editForm.name}" updated successfully!`);
+    setTimeout(() => setSuccessMsg(''), 4000);
+  };
+
+  const columns = getColumns(
+    (ent) => setViewEnterprise(ent),
+    (ent) => { setEditEnterprise(ent); setEditForm({ name: ent.name, industry: ent.industry, location: ent.location, email: ent.email, phone: ent.phone || '', plan: ent.plan }); }
+  );
 
   const handleCreateCompany = (e) => {
     e.preventDefault();
@@ -253,6 +275,112 @@ export default function EnterpriseManagement() {
         </div>
         <DataTable columns={columns} data={filtered} emptyMessage="No organizations found" />
       </div>
+
+      {/* View Enterprise Modal */}
+      <Modal
+        isOpen={!!viewEnterprise}
+        onClose={() => setViewEnterprise(null)}
+        title="Organization Details"
+        maxWidth="max-w-md"
+        footer={
+          <div className="flex justify-end">
+            <button onClick={() => setViewEnterprise(null)}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
+                         bg-gradient-to-r from-brand-500 to-brand-600
+                         shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer">
+              Close
+            </button>
+          </div>
+        }
+      >
+        {viewEnterprise && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/15 shrink-0">
+                <Building2 size={22} className="text-brand-500" />
+              </div>
+              <div>
+                <p className="font-bold text-text-primary text-base">{viewEnterprise.name}</p>
+                <p className="text-xs text-text-tertiary">{viewEnterprise.industry}</p>
+              </div>
+            </div>
+            <div className="divide-y divide-border-secondary">
+              {[
+                { label: 'Status', value: <StatusBadge variant={{ active: 'success', trial: 'warning', suspended: 'danger' }[viewEnterprise.status]} dot size="sm">{viewEnterprise.status}</StatusBadge> },
+                { label: 'Plan', value: <StatusBadge variant={viewEnterprise.plan === 'Enterprise' ? 'violet' : viewEnterprise.plan === 'Business' ? 'brand' : 'neutral'} size="sm">{viewEnterprise.plan}</StatusBadge> },
+                { label: 'Location', value: viewEnterprise.location },
+                { label: 'Email', value: viewEnterprise.email },
+                { label: 'Phone', value: viewEnterprise.phone || '—' },
+                { label: 'Employees', value: viewEnterprise.employees },
+                { label: 'Created', value: viewEnterprise.created },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-start justify-between py-2.5 gap-4">
+                  <span className="text-xs text-text-tertiary uppercase tracking-wider shrink-0">{label}</span>
+                  <span className="text-sm text-text-primary text-right">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Enterprise Modal */}
+      <Modal
+        isOpen={!!editEnterprise}
+        onClose={() => setEditEnterprise(null)}
+        title="Edit Organization"
+        maxWidth="max-w-xl"
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <button type="button" onClick={() => setEditEnterprise(null)}
+              className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary
+                         hover:bg-surface-tertiary border border-border-secondary transition-all cursor-pointer">
+              Cancel
+            </button>
+            <button type="submit" form="edit-enterprise-form"
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
+                         bg-gradient-to-r from-brand-500 to-brand-600
+                         shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer">
+              Save Changes
+            </button>
+          </div>
+        }
+      >
+        {editEnterprise && (
+          <form id="edit-enterprise-form" onSubmit={handleEditSave} className="space-y-4">
+            <div>
+              <label className={labelClassName}>Company Name *</label>
+              <input type="text" required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className={inputClassName}/>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClassName}>Industry *</label>
+                <input type="text" required value={editForm.industry} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))} className={inputClassName}/>
+              </div>
+              <div>
+                <label className={labelClassName}>Plan</label>
+                <select value={editForm.plan} onChange={e => setEditForm(f => ({ ...f, plan: e.target.value }))} className={inputClassName + ' cursor-pointer'}>
+                  <option>Starter</option><option>Business</option><option>Enterprise</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className={labelClassName}>Location *</label>
+              <input type="text" required value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} className={inputClassName}/>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClassName}>Email *</label>
+                <input type="email" required value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className={inputClassName}/>
+              </div>
+              <div>
+                <label className={labelClassName}>Phone</label>
+                <input type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} className={inputClassName}/>
+              </div>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {/* Create Company Modal (Admin only) */}
       <Modal

@@ -80,9 +80,9 @@ export default function NotificationDropdown() {
       </button>
 
       {/* Dropdown */}
-      <div className={`absolute top-full right-0 mt-2 w-[380px]
+      <div className={`absolute top-full right-0 mt-2 w-[min(380px,calc(100vw-2rem))]
                        bg-surface-primary border border-border-secondary rounded-2xl
-                       shadow-xl overflow-hidden z-50
+                       shadow-xl overflow-hidden z-[150]
                        transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
                        origin-top-right
                        ${isOpen
