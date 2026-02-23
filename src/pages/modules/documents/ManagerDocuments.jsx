@@ -47,32 +47,44 @@ export default function ManagerDocuments() {
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <StatCard title="Total Team Requests" value="14" icon={FileText} iconColor="bg-gradient-to-br from-brand-500 to-indigo-500" />
-                    <StatCard title="Manager Approvals" value="1" subtitle="Requires your review" icon={FileCheck} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
+                    <StatCard title="Pending (HR Review)" value="2" subtitle="Awaiting HR action" icon={FileCheck} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
                     <StatCard title="Complete" value="12" icon={FileCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* Manager Approval Card (e.g. Training Request) */}
+                {/* Read-only Team Document Status */}
                 <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden h-fit">
-                    <div className="p-5 border-b border-border-secondary flex items-center gap-2 bg-amber-500/5">
-                        <FileCheck size={18} className="text-amber-500" />
-                        <h3 className="text-base font-bold text-text-primary">Action Required</h3>
+                    <div className="p-5 border-b border-border-secondary flex items-center gap-2 bg-brand-500/5">
+                        <FileCheck size={18} className="text-brand-500" />
+                        <h3 className="text-base font-bold text-text-primary">Team Status</h3>
                     </div>
-                    <div className="p-5">
-                        <p className="font-semibold text-text-primary mb-1">Training Certificate Request</p>
-                        <p className="text-xs text-text-secondary mb-4">Sara Idrissi wants to attend a React Advanced Workshop (Cost: 1,500 MAD) and needs your approval before HR processes the paperwork.</p>
-
-                        <div className="bg-surface-secondary p-3 rounded-lg border border-border-secondary mb-4">
-                            <span className="text-xs font-semibold text-text-tertiary uppercase block mb-1">Manager Note (To HR)</span>
-                            <textarea className="w-full bg-surface-primary border border-border-secondary rounded text-xs p-2 shrink-0 outline-none" rows="2" placeholder="Looks good..." />
+                    <div className="p-5 space-y-4">
+                        <div className="flex items-center justify-between text-sm border-b border-surface-secondary pb-3">
+                            <div>
+                                <p className="font-semibold text-text-primary">Sara Idrissi</p>
+                                <p className="text-[11px] text-text-tertiary">Training Certificate</p>
+                            </div>
+                            <StatusBadge variant="warning" size="sm" dot>Pending HR</StatusBadge>
                         </div>
-
-                        <div className="flex gap-2">
-                            <button className="flex-1 py-2 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors">Approve</button>
-                            <button className="flex-1 py-2 bg-surface-primary border border-border-secondary text-text-primary rounded-lg font-medium text-sm hover:bg-surface-secondary transition-colors">Deny</button>
+                        <div className="flex items-center justify-between text-sm border-b border-surface-secondary pb-3">
+                            <div>
+                                <p className="font-semibold text-text-primary">Omar Fahmi</p>
+                                <p className="text-[11px] text-text-tertiary">Onboarding Documents</p>
+                            </div>
+                            <StatusBadge variant="brand" size="sm" dot>In Progress</StatusBadge>
                         </div>
+                        <div className="flex items-center justify-between text-sm">
+                            <div>
+                                <p className="font-semibold text-text-primary">Ahmed Benali</p>
+                                <p className="text-[11px] text-text-tertiary">Work Experience Letter</p>
+                            </div>
+                            <StatusBadge variant="success" size="sm" dot>Complete</StatusBadge>
+                        </div>
+                        <p className="text-[11px] text-text-tertiary text-center pt-2 border-t border-border-secondary">
+                            Document approvals are handled by HR. You can view your team's status here.
+                        </p>
                     </div>
                 </div>
 
