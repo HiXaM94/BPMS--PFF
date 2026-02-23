@@ -173,11 +173,29 @@ export default function ManagerDashboard() {
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white text-xs font-bold">3</div>
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Upcoming Leaves</p>
+                  <p className="text-sm font-semibold text-text-primary">Upcoming Absences</p>
                   <p className="text-[10px] text-text-tertiary uppercase">Next 7 days</p>
                 </div>
               </div>
               <ArrowUpRight size={16} className="text-text-tertiary" />
+            </div>
+          </div>
+        </div>
+
+        {/* My Personal Leave Status */}
+        <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5 animate-fade-in"
+          style={{ animationDelay: '550ms' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-text-primary">My Leave Status</h2>
+            <button onClick={() => window.location.href = '/modules/vacation'} className="text-[10px] font-bold text-brand-500 uppercase">View All</button>
+          </div>
+          <div className="p-3 rounded-xl bg-brand-500/5 border border-brand-500/10">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-text-secondary uppercase">Annual Balance</span>
+              <span className="text-sm font-bold text-brand-600">18 Days Left</span>
+            </div>
+            <div className="h-1.5 w-full bg-border-secondary rounded-full overflow-hidden">
+              <div className="h-full bg-brand-500 w-[82%]" />
             </div>
           </div>
         </div>
