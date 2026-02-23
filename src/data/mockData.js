@@ -154,12 +154,59 @@ export const managerData = {
     { id: 5, title: 'Office Relocation Plan', requester: 'Admin Dept.', type: 'Operations', priority: 'high', submitted: '2d ago', amount: null },
   ],
   teamMembers: [
-    { id: 1, name: 'Alice Wang', role: 'Sr. Developer', tasksCompleted: 24, tasksActive: 3, performance: 'excellent' },
-    { id: 2, name: 'Bob Tanaka', role: 'Developer', tasksCompleted: 18, tasksActive: 4, performance: 'good' },
-    { id: 3, name: 'Fatima Zahra', role: 'QA Engineer', tasksCompleted: 31, tasksActive: 2, performance: 'excellent' },
-    { id: 4, name: 'Carlos Ruiz', role: 'Designer', tasksCompleted: 15, tasksActive: 5, performance: 'average' },
-    { id: 5, name: 'Diana Kim', role: 'Developer', tasksCompleted: 22, tasksActive: 2, performance: 'good' },
-    { id: 6, name: 'Ethan Brown', role: 'Jr. Developer', tasksCompleted: 12, tasksActive: 6, performance: 'improving' },
+    { id: 1, name: 'Alice Wang', role: 'Sr. Developer', tasksCompleted: 24, tasksActive: 3, performance: 'excellent', efficiency: 94, status: 'Active' },
+    { id: 2, name: 'Bob Tanaka', role: 'Developer', tasksCompleted: 18, tasksActive: 4, performance: 'good', efficiency: 86, status: 'Active' },
+    { id: 3, name: 'Fatima Zahra', role: 'QA Engineer', tasksCompleted: 31, tasksActive: 2, performance: 'excellent', efficiency: 98, status: 'Active' },
+    { id: 4, name: 'Carlos Ruiz', role: 'Designer', tasksCompleted: 15, tasksActive: 5, performance: 'average', efficiency: 72, status: 'Active' },
+    { id: 5, name: 'Diana Kim', role: 'Developer', tasksCompleted: 22, tasksActive: 2, performance: 'good', efficiency: 89, status: 'On Leave' },
+    { id: 6, name: 'Ethan Brown', role: 'Jr. Developer', tasksCompleted: 12, tasksActive: 6, performance: 'improving', efficiency: 68, status: 'Active' },
+  ],
+  assignedProjects: [
+    {
+      id: 1,
+      title: 'B2B Portal Refactor',
+      department: 'Engineering',
+      deadline: 'Mar 15, 2026',
+      status: 'Active',
+      members: 8,
+      progress: 68,
+      description: 'Complete overhaul of the B2B customer portal to improve performance and add 3D visualization capabilities.',
+      client: 'Internal / Enterprise Sales',
+      budget: '$45,000'
+    },
+    {
+      id: 2,
+      title: 'AI Recommendation Engine',
+      department: 'Data Science',
+      deadline: 'Apr 02, 2026',
+      status: 'Active',
+      members: 5,
+      progress: 32,
+      description: 'Implementing a machine learning based recommendation system to personalize user experiences.',
+      client: 'Global Marketing',
+      budget: '$30,000'
+    },
+    {
+      id: 3,
+      title: 'Security Audit Q1',
+      department: 'DevOps',
+      deadline: 'Mar 10, 2026',
+      status: 'Critical',
+      members: 3,
+      progress: 85,
+      description: 'Quarterly infrastructure security audit and vulnerability patch management.',
+      client: 'System Compliance',
+      budget: '$15,000'
+    },
+  ],
+  pendingTasks: [
+    { id: 101, title: 'API Integration Layer', assignee: 'Alice Wang', project: 'B2B Portal', priority: 'High', submitted: '2h ago' },
+    { id: 102, title: 'Auth Middleware Fix', assignee: 'Bob Tanaka', project: 'B2B Portal', priority: 'Critical', submitted: '4h ago' },
+    { id: 103, title: 'Design System Update', assignee: 'Carlos Ruiz', project: 'Global UI', priority: 'Medium', submitted: '1d ago' },
+  ],
+  teamLeaveRequests: [
+    { id: 1, employeeName: 'Bob Tanaka', type: 'Annual Leave', dates: 'Feb 26 – Feb 28', status: 'pending', urgent: false },
+    { id: 2, employeeName: 'Carlos Ruiz', type: 'Remote Work', dates: 'Feb 24', status: 'pending', urgent: true },
   ],
 };
 

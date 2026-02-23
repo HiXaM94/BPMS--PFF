@@ -10,14 +10,25 @@ import PageHeader from '../../../components/ui/PageHeader';
 import StatCard from '../../../components/ui/StatCard';
 import DataTable from '../../../components/ui/DataTable';
 import StatusBadge from '../../../components/ui/StatusBadge';
+import { managerData } from '../../../data/mockData';
 import {
     LayoutDashboard, Users, CheckCircle, AlertCircle,
-    FileText, Briefcase, CheckSquare, XCircle, Plus, Search, Trash2, Edit, Clock, Calendar
+    FileText, Briefcase, CheckSquare, XCircle, Plus, Search, Trash2, Edit, Clock, Calendar, TrendingUp, Activity, ArrowUpRight, CheckCircle2
 } from 'lucide-react';
 
 export default function ManagerDashboard() {
     const { currentRole } = useRole();
     const managerId = 'manager'; // Mock ID
+
+    const [selectedProject, setSelectedProject] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleProjectClick = (project) => {
+        // Enriched project with data from mockData if missing (like description/budget)
+        const enrichedProject = managerData.assignedProjects.find(p => p.id === project.id) || project;
+        setSelectedProject(enrichedProject);
+        setIsModalOpen(true);
+    };
 
     // Fetch Reviews (Validation Pending)
     const { data: allTasks, loading: tasksLoading, refresh: refreshTasks } = useController(
@@ -35,7 +46,7 @@ export default function ManagerDashboard() {
 
     // Mock Data for Employees (until User module is ready)
     const MOCK_EMPLOYEES = [
-        { id: 'employee', name: 'You (Demo Employee)' }, // Matches the ID used in EmployeeDashboard
+        { id: 'employee', name: 'You (Demo Employee)' },
         { id: 'emp2', name: 'Sarah Connor' },
         { id: 'emp3', name: 'John Doe' },
         { id: 'emp4', name: 'Jane Smith' }
@@ -53,7 +64,6 @@ export default function ManagerDashboard() {
 
     const handleValidation = async (taskId, decision) => {
         setProcessing(taskId);
-        let newStatus = decision === 'approve' ? 'Completed' : 'In Progress';
         let validationStatus = decision === 'approve' ? 'Validated' : 'Rejected';
         await taskController.validateTask(taskId, validationStatus);
         await refreshTasks();
@@ -73,13 +83,6 @@ export default function ManagerDashboard() {
         await refreshTasks();
     };
 
-    const handleDeleteTask = async (taskId) => {
-        if (window.confirm('Are you sure you want to delete this task?')) {
-            await taskController.delete(taskId);
-            await refreshTasks();
-        }
-    };
-
     if (tasksLoading || projectsLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -92,252 +95,120 @@ export default function ManagerDashboard() {
     const myProjects = projects || [];
     const teamTasks = allTasks || [];
 
-    const validationColumns = [
+    const myProjectsColumns = (onTitleClick) => [
         {
-            key: 'title', label: 'Task', render: (val, row) => (
-                <div>
-                    <span className="font-semibold text-text-primary block text-sm">{val}</span>
-                    <span className="text-[11px] text-text-tertiary">ID: #{row.id}</span>
-                </div>
+            key: 'title',
+            label: 'Project Name',
+            render: (val, row) => (
+                <button
+                    onClick={() => onTitleClick(row)}
+                    className="font-semibold text-text-primary text-sm hover:text-brand-500 hover:underline transition-all text-left cursor-pointer"
+                >
+                    {val}
+                </button>
             )
         },
-        { key: 'assigneeId', label: 'Assignee', cellClassName: 'text-text-secondary text-sm' },
-        { key: 'deadline', label: 'Deadline', cellClassName: 'text-text-secondary text-xs' },
+        { key: 'department', label: 'Department', cellClassName: 'text-text-tertiary text-xs uppercase font-bold' },
         {
-            key: 'actions', label: 'Decision', render: (_, row) => (
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => handleValidation(row.id, 'approve')}
-                        className="flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors text-xs font-medium"
-                    >
-                        <CheckCircle size={14} /> Approve
-                    </button>
-                    <button
-                        onClick={() => handleValidation(row.id, 'reject')}
-                        className="flex items-center gap-1 px-3 py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-xs font-medium"
-                    >
-                        <XCircle size={14} /> Reject
-                    </button>
-                </div>
-            )
-        }
-    ];
-
-    const allTeamTasksColumns = [
-        {
-            key: 'title', label: 'Task', render: (val, row) => (
-                <div>
-                    <span className="font-semibold text-text-primary block text-sm">{val}</span>
-                    <span className="text-[11px] text-text-tertiary">ID: #{row.id}</span>
-                </div>
+            key: 'status', label: 'Status', render: (val) => (
+                <StatusBadge variant={val === 'Active' ? 'brand' : 'neutral'} size="sm">{val}</StatusBadge>
             )
         },
         {
-            key: 'assigneeId', label: 'Assignee', render: (val) => {
-                const emp = MOCK_EMPLOYEES.find(e => e.id === val);
+            key: 'progress', label: 'Progress', render: (_, row) => {
+                const projectTasks = allTasks.filter(t => t.projectId === row.id);
+                const completed = projectTasks.filter(t => t.status === 'Completed' || t.validationStatus === 'Validated').length;
+                const progress = projectTasks.length > 0 ? Math.round((completed / projectTasks.length) * 100) : 0;
                 return (
                     <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center text-[10px] font-bold text-brand-600">
-                            {emp ? emp.name.charAt(0) : '?'}
+                        <div className="w-16 h-1.5 bg-border-secondary rounded-full overflow-hidden">
+                            <div className="h-full bg-brand-500" style={{ width: `${progress}%` }} />
                         </div>
-                        <span className="text-sm text-text-secondary">{emp ? emp.name : val}</span>
+                        <span className="text-[10px] font-bold text-text-secondary">{progress}%</span>
                     </div>
                 );
             }
-        },
+        }
+    ];
+
+    const taskValidationColumns = [
         {
-            key: 'priority', label: 'Priority', render: (val) => {
-                const map = { Critical: 'danger', High: 'warning', Medium: 'brand', Low: 'neutral' };
-                return <StatusBadge variant={map[val] || 'neutral'} size="sm">{val}</StatusBadge>;
-            }
-        },
-        {
-            key: 'status', label: 'Status', render: (val, row) => (
-                <StatusBadge variant={row.validationStatus === 'Validated' ? 'success' : (val === 'Completed' ? 'warning' : 'neutral')} size="sm">
-                    {row.validationStatus === 'Validated' ? 'Validated' : val}
-                </StatusBadge>
+            key: 'title', label: 'Task', render: (val, row) => (
+                <div>
+                    <p className="font-semibold text-text-primary text-sm leading-tight">{val}</p>
+                    <p className="text-[10px] text-text-tertiary uppercase font-bold mt-0.5">ID: #{row.id}</p>
+                </div>
             )
         },
         {
-            key: 'actions', label: 'Actions', render: (_, row) => (
-                <div className="flex gap-2">
-                    <button onClick={() => handleDeleteTask(row.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-                        <Trash2 size={14} />
+            key: 'assigneeId', label: 'Assignee', render: (val) => (
+                <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-600 font-bold text-[10px]">
+                        {val.charAt(0)}
+                    </div>
+                    <span className="text-xs text-text-secondary font-medium">{val}</span>
+                </div>
+            )
+        },
+        {
+            key: 'actions', label: 'Decision', render: (_, row) => (
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => handleValidation(row.id, 'approve')}
+                        className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all"
+                        disabled={processing === row.id}
+                    >
+                        {processing === row.id ? <div className="w-3 h-3 border-2 border-current border-t-transparent animate-spin rounded-full" /> : <CheckCircle2 size={14} />}
                     </button>
-                    {/* Edit could be added similarly */}
+                    <button
+                        onClick={() => handleValidation(row.id, 'reject')}
+                        className="p-1.5 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white transition-all"
+                        disabled={processing === row.id}
+                    >
+                        <XCircle size={14} />
+                    </button>
                 </div>
             )
         }
     ];
 
-    const renderValidationQueue = () => (
-        <>
-            {/* Mobile View */}
-            <div className="md:hidden space-y-4">
-                {pendingValidation.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                        No tasks waiting for validation.
+    const teamProgressionColumns = [
+        {
+            key: 'name', label: 'Employee', render: (val, row) => (
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-600 font-bold text-[10px] border border-orange-500/20">
+                        {(val || 'U').charAt(0)}
                     </div>
-                ) : (
-                    pendingValidation.map(row => (
-                        <div key={row.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h4 className="font-semibold text-sm text-gray-900">{row.title}</h4>
-                                    <span className="text-xs text-gray-500">ID: #{row.id}</span>
-                                </div>
-                                <span className="text-xs text-gray-500">{row.deadline}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-gray-600">
-                                <span>Assignee: {MOCK_EMPLOYEES.find(e => e.id === row.assigneeId)?.name || row.assigneeId}</span>
-                            </div>
-                            <div className="pt-3 border-t border-gray-50 flex gap-2">
-                                <button
-                                    onClick={() => handleValidation(row.id, 'approve')}
-                                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 text-xs font-medium"
-                                >
-                                    <CheckCircle size={14} /> Approve
-                                </button>
-                                <button
-                                    onClick={() => handleValidation(row.id, 'reject')}
-                                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-xs font-medium"
-                                >
-                                    <XCircle size={14} /> Reject
-                                </button>
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
-            {/* Desktop View */}
-            <div className="hidden md:block">
-                <DataTable
-                    columns={validationColumns}
-                    data={pendingValidation}
-                    emptyMessage="No tasks waiting for validation."
-                />
-            </div>
-        </>
-    );
-
-    const renderProjects = () => (
-        <>
-            {/* Mobile View */}
-            <div className="md:hidden space-y-4">
-                {myProjects.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                        No active projects.
+                    <div>
+                        <p className="font-semibold text-text-primary text-xs">{val}</p>
+                        <p className="text-[9px] text-text-tertiary">{row.role}</p>
                     </div>
-                ) : (
-                    myProjects.map(row => {
-                        const projectTasks = allTasks.filter(t => t.projectId === row.id);
-                        const completed = projectTasks.filter(t => t.status === 'Completed' || t.validationStatus === 'Validated').length;
-                        const progress = projectTasks.length > 0 ? Math.round((completed / projectTasks.length) * 100) : 0;
-                        return (
-                            <div key={row.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <h4 className="font-semibold text-sm text-gray-900">{row.title}</h4>
-                                        <span className="text-xs text-gray-500">{row.department}</span>
-                                    </div>
-                                    <StatusBadge variant={row.status === 'Active' ? 'brand' : 'neutral'} size="sm">{row.status}</StatusBadge>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                        <span>Progress</span>
-                                        <span>{progress}%</span>
-                                    </div>
-                                    <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
-                                        <div className="h-full bg-brand-500" style={{ width: `${progress}%` }} />
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })
-                )}
-            </div>
-            {/* Desktop View */}
-            <div className="hidden md:block">
-                <DataTable
-                    columns={[
-                        { key: 'title', label: 'Project', cellClassName: 'font-semibold text-text-primary text-sm' },
-                        { key: 'department', label: 'Dept', cellClassName: 'text-text-secondary text-xs' },
-                        { key: 'status', label: 'Status', render: (val) => <StatusBadge variant={val === 'Active' ? 'brand' : 'neutral'} size="sm">{val}</StatusBadge> },
-                        {
-                            key: 'progress', label: 'Progress', render: (_, row) => {
-                                const projectTasks = allTasks.filter(t => t.projectId === row.id);
-                                const completed = projectTasks.filter(t => t.status === 'Completed' || t.validationStatus === 'Validated').length;
-                                const progress = projectTasks.length > 0 ? Math.round((completed / projectTasks.length) * 100) : 0;
-
-                                return (
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-24 h-2 rounded-full bg-border-secondary overflow-hidden">
-                                            <div className="h-full bg-brand-500" style={{ width: `${progress}%` }} />
-                                        </div>
-                                        <span className="text-xs text-text-secondary">{progress}%</span>
-                                    </div>
-                                );
-                            }
-                        }
-                    ]}
-                    data={myProjects}
-                    emptyMessage="No active projects."
-                />
-            </div>
-        </>
-    );
-
-    const renderTeamTasks = () => (
-        <>
-            {/* Mobile View */}
-            <div className="md:hidden space-y-4">
-                {allTasks.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                        No tasks found.
+                </div>
+            )
+        },
+        {
+            key: 'efficiency', label: 'Efficiency', render: (val) => (
+                <div className="flex items-center gap-2">
+                    <div className="w-12 h-1 bg-border-secondary rounded-full overflow-hidden">
+                        <div className="h-full bg-brand-500" style={{ width: `${val}%` }} />
                     </div>
-                ) : (
-                    allTasks.map(row => (
-                        <div key={row.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h4 className="font-semibold text-sm text-gray-900">{row.title}</h4>
-                                    <span className="text-xs text-gray-500">ID: #{row.id}</span>
-                                </div>
-                                <StatusBadge variant={row.validationStatus === 'Validated' ? 'success' : (row.status === 'Completed' ? 'warning' : 'neutral')} size="sm">
-                                    {row.validationStatus === 'Validated' ? 'Validated' : row.status}
-                                </StatusBadge>
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-gray-600">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center text-[10px] font-bold text-brand-600">
-                                        {MOCK_EMPLOYEES.find(e => e.id === row.assigneeId)?.name.charAt(0) || '?'}
-                                    </div>
-                                    <span>{MOCK_EMPLOYEES.find(e => e.id === row.assigneeId)?.name || row.assigneeId}</span>
-                                </div>
-                                {(() => {
-                                    const map = { Critical: 'danger', High: 'warning', Medium: 'brand', Low: 'neutral' };
-                                    return <StatusBadge variant={map[row.priority] || 'neutral'} size="sm">{row.priority}</StatusBadge>;
-                                })()}
-                            </div>
-                            <div className="pt-3 border-t border-gray-50 flex justify-end">
-                                <button onClick={() => handleDeleteTask(row.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors bg-gray-50 rounded-lg">
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
-            {/* Desktop View */}
-            <div className="hidden md:block">
-                <DataTable
-                    columns={allTeamTasksColumns}
-                    data={allTasks}
-                    emptyMessage="No tasks found."
-                />
-            </div>
-        </>
-    );
+                    <span className="text-[10px] font-bold text-brand-600">{val}%</span>
+                </div>
+            )
+        },
+        {
+            key: 'tasksCompleted', label: 'Tasks', render: (val, row) => (
+                <span className="text-[10px] font-medium text-text-secondary">
+                    <b className="text-text-primary">{val}</b>/{val + (row.tasksActive || 0)}
+                </span>
+            )
+        },
+        {
+            key: 'status', label: 'Status', render: (val) => (
+                <StatusBadge variant={val === 'Active' ? 'success' : 'warning'} size="xs" dot>{val}</StatusBadge>
+            )
+        }
+    ];
 
     return (
         <div className="space-y-8 animate-fade-in pb-10">
@@ -381,53 +252,206 @@ export default function ManagerDashboard() {
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Validation Queue */}
+            {/* 4-Table Layout */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                {/* 1. Projects Linked by Admin (Functional) */}
                 <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm">
-                    <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-amber-50/30">
-                        <h2 className="font-semibold text-text-primary flex items-center gap-2">
-                            <AlertCircle size={18} className="text-amber-500" />
-                            Validation Queue
+                    <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-brand-500/5">
+                        <h2 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-tight">
+                            <Briefcase size={16} className="text-brand-500" />
+                            Projects Linked to Me
                         </h2>
-                        <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 text-xs font-bold">{pendingValidation.length}</span>
                     </div>
-                    {renderValidationQueue()}
+                    <DataTable
+                        columns={myProjectsColumns(handleProjectClick)}
+                        data={myProjects}
+                        emptyMessage="No projects assigned."
+                    />
                 </div>
 
-                {/* Projects Overview */}
+                {/* 2. Team Task Validation (Functional) */}
                 <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm">
-                    <div className="p-5 border-b border-border-secondary bg-surface-secondary/30">
-                        <h2 className="font-semibold text-text-primary">Active Projects</h2>
+                    <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-amber-500/5">
+                        <h2 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-tight">
+                            <Clock size={16} className="text-amber-500" />
+                            Task Validation Request
+                        </h2>
+                        <StatusBadge variant="warning" size="sm">{pendingValidation.length} Awaiting</StatusBadge>
                     </div>
-                    {renderProjects()}
+                    <DataTable columns={taskValidationColumns} data={pendingValidation} emptyMessage="No tasks waiting for validation." />
                 </div>
             </div>
 
-            {/* All Team Tasks Section */}
+            {/* 3. Team Member Progression (Instant) */}
             <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm">
                 <div className="p-5 border-b border-border-secondary flex justify-between items-center">
-                    <h2 className="font-semibold text-text-primary flex items-center gap-2">
-                        <FileText size={18} className="text-brand-500" />
-                        All Team Tasks
+                    <h2 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-tight">
+                        <TrendingUp size={16} className="text-emerald-500" />
+                        Team Member Progression (Instant)
                     </h2>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                        <input
-                            type="text"
-                            placeholder="Search tasks..."
-                            className="pl-9 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                        />
-                    </div>
                 </div>
-                {renderTeamTasks()}
+                <DataTable columns={teamProgressionColumns} data={managerData.teamMembers} />
             </div>
 
-            import React, {useState} from 'react';
-            import {createPortal} from 'react-dom';
-            import {useRole} from '../../../contexts/RoleContext';
-            // ... existing imports
+            {/* 4. Active Projects Overall Progress */}
+            <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm">
+                <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-surface-secondary/30">
+                    <h2 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-tight">
+                        <Activity size={16} className="text-brand-500" />
+                        Active Projects Overall Progress
+                    </h2>
+                </div>
+                <DataTable
+                    columns={[
+                        {
+                            key: 'title',
+                            label: 'Project',
+                            render: (val, row) => (
+                                <button
+                                    onClick={() => handleProjectClick(row)}
+                                    className="font-bold text-text-primary text-sm hover:text-brand-500 hover:underline transition-all text-left cursor-pointer"
+                                >
+                                    {val}
+                                </button>
+                            )
+                        },
+                        {
+                            key: 'progress', label: 'Progress', render: (_, row) => {
+                                const projectTasks = allTasks.filter(t => t.projectId === row.id);
+                                const completed = projectTasks.filter(t => t.status === 'Completed' || t.validationStatus === 'Validated').length;
+                                const progress = projectTasks.length > 0 ? Math.round((completed / projectTasks.length) * 100) : 0;
+                                return (
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1 h-2 bg-border-secondary rounded-full overflow-hidden max-w-[120px]">
+                                            <div className="h-full bg-gradient-to-r from-brand-500 to-brand-400" style={{ width: `${progress}%` }} />
+                                        </div>
+                                        <span className="text-xs font-black text-brand-600">{progress}%</span>
+                                    </div>
+                                );
+                            }
+                        },
+                        { key: 'department', label: 'Team', render: (val) => <span className="text-xs font-semibold text-text-tertiary">{val}</span> },
+                        {
+                            key: 'actions', label: '', render: () => (
+                                <button className="text-brand-500 hover:text-brand-600 transition-colors">
+                                    <ArrowUpRight size={16} />
+                                </button>
+                            )
+                        }
+                    ]}
+                    data={myProjects}
+                />
+            </div>
 
-            // ... inside component ...
+            {/* Project Detail Modal */}
+            {isModalOpen && selectedProject && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-300">
+                        {/* Modal Header */}
+                        <div className="p-8 border-b border-gray-100 bg-gradient-to-br from-brand-500/10 to-transparent relative">
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 rounded-2xl bg-brand-500 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+                                            <Briefcase size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-2xl font-black text-gray-900 tracking-tight">{selectedProject.title}</h3>
+                                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">{selectedProject.department} • {selectedProject.client || 'Enterprise'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="p-2 rounded-xl bg-gray-100 text-gray-400 hover:text-gray-900 transition-all active:scale-90"
+                                >
+                                    <XCircle size={20} />
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-4 mt-6">
+                                <StatusBadge variant={selectedProject.status === 'Active' ? 'brand' : 'danger'} size="sm" dot>{selectedProject.status}</StatusBadge>
+                                <div className="h-4 w-px bg-gray-200" />
+                                <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+                                    <Clock size={14} className="text-brand-500" />
+                                    Deadline: {selectedProject.deadline}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto">
+                            <div className="space-y-3">
+                                <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Project Overview</h4>
+                                <p className="text-sm text-gray-600 leading-relaxed font-medium">
+                                    {selectedProject.description || 'Comprehensive project management and execution phase for ' + selectedProject.title + '.'}
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-8">
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Financial Summary</h4>
+                                    <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex items-center justify-between">
+                                        <span className="text-xs font-bold text-emerald-600/80">Total Budget</span>
+                                        <span className="text-lg font-black text-emerald-600">{selectedProject.budget || '$0'}</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Team Composition</h4>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex -space-x-3">
+                                            {[1, 2, 3, 4].map(i => (
+                                                <div key={i} className="w-9 h-9 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400">
+                                                    {String.fromCharCode(64 + i)}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-500">+{selectedProject.members - 4} more</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-end">
+                                    <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Current Progression</h4>
+                                    <span className="text-xl font-black text-brand-600">
+                                        {(() => {
+                                            const projectTasks = allTasks.filter(t => t.projectId === selectedProject.id);
+                                            const completed = projectTasks.filter(t => t.status === 'Completed' || t.validationStatus === 'Validated').length;
+                                            return projectTasks.length > 0 ? Math.round((completed / projectTasks.length) * 100) : 0;
+                                        })()}%
+                                    </span>
+                                </div>
+                                <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden shadow-inner">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-brand-500 to-indigo-500 shadow-lg shadow-brand-500/30 transition-all duration-1000 ease-out"
+                                        style={{
+                                            width: `${(() => {
+                                                const projectTasks = allTasks.filter(t => t.projectId === selectedProject.id);
+                                                const completed = projectTasks.filter(t => t.status === 'Completed' || t.validationStatus === 'Validated').length;
+                                                return projectTasks.length > 0 ? Math.round((completed / projectTasks.length) * 100) : 0;
+                                            })()}%`
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="px-6 py-2.5 text-xs font-black text-gray-500 uppercase tracking-widest hover:text-gray-900 transition-colors"
+                            >
+                                Close
+                            </button>
+                            <button className="px-6 py-2.5 bg-brand-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-brand-500/20 hover:bg-brand-700 hover:-translate-y-0.5 transition-all active:translate-y-0">
+                                Manage Project
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* Create Task Modal */}
             {isCreateOpen && createPortal(
