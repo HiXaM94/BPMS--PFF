@@ -367,7 +367,7 @@ For questions, issues, or suggestions:
 
 <div align="center">
 
-### Made with ❤️ by HiXaM94
+### Made with ❤️ by Flowly Team 
 
 **Star ⭐ the repository if you find it helpful!**
 
