@@ -139,7 +139,7 @@ export default function AdminDashboard() {
   const [globalLeave, setGlobalLeave] = useState(adminData.globalLeaveRequests || []);
 
   const leaveColumns = [
-    { key: 'employee', label: 'Employee', cellClassName: 'font-semibold text-text-primary text-sm' },
+    { key: 'employeeName', label: 'Employee', cellClassName: 'font-semibold text-text-primary text-sm' },
     { key: 'org', label: 'Organization', cellClassName: 'text-text-tertiary text-xs font-bold uppercase' },
     { key: 'type', label: 'Type', render: (val) => <StatusBadge variant="neutral" size="sm">{val}</StatusBadge> },
     { key: 'dates', label: 'Period', cellClassName: 'text-text-secondary text-xs' },

@@ -4,10 +4,12 @@ import {
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import Modal from '../../components/ui/Modal';
+import StatusBadge from '../../components/ui/StatusBadge';
 import { useRole } from '../../contexts/RoleContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { vacationController } from '../../controllers/VacationController';
 import { LeaveBalance } from '../../models/Vacation';
+import { hrData } from '../../data/mockData';
 
 // Role-specific views
 import EmployeeVacationView from './vacation/EmployeeVacationView';
@@ -41,6 +43,7 @@ export default function VacationRequest() {
   const [form, setForm] = useState(emptyForm);
   const [toast, setToast] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [actionModal, setActionModal] = useState({ isOpen: false, type: '', requestId: null, reason: '' });
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
@@ -62,7 +65,13 @@ export default function VacationRequest() {
 
       setRequests(personalReqs);
       setLeaveBalance(bal);
-      setTeamRequests(allReqs);
+
+      // Inject demo data if no real requests exist (for demo purposes)
+      if (allReqs.length === 0 && (currentRole.id === 'hr' || currentRole.id === 'manager' || currentRole.id === 'company_admin')) {
+        setTeamRequests(hrData.leaveRequests);
+      } else {
+        setTeamRequests(allReqs);
+      }
     } catch (err) {
       console.error('Error fetching vacation data:', err);
     } finally {
@@ -95,22 +104,38 @@ export default function VacationRequest() {
     }
   };
 
-  const handleApprove = async (id) => {
-    const reason = prompt('Add an approval note (optional):');
-    if (reason === null) return;
-    await vacationController.approveRequest(id, reason);
-    showToast('Request approved.');
-    fetchData();
-    setViewRequest(null);
+  const handleApprove = (id) => {
+    setActionModal({ isOpen: true, type: 'approve', requestId: id, reason: '' });
   };
 
-  const handleReject = async (id) => {
-    const reason = prompt('Please enter rejection reason (required):');
-    if (!reason) return;
-    await vacationController.rejectRequest(id, reason);
-    showToast('Request rejected.');
-    fetchData();
-    setViewRequest(null);
+  const handleReject = (id) => {
+    setActionModal({ isOpen: true, type: 'reject', requestId: id, reason: '' });
+  };
+
+  const confirmAction = async () => {
+    const { type, requestId, reason } = actionModal;
+    if (type === 'reject' && !reason) {
+      showToast('Rejection reason is required.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      if (type === 'approve') {
+        await vacationController.approveRequest(requestId, reason);
+        showToast('Request approved.');
+      } else {
+        await vacationController.rejectRequest(requestId, reason);
+        showToast('Request rejected.');
+      }
+      setActionModal({ isOpen: false, type: '', requestId: null, reason: '' });
+      setViewRequest(null);
+      fetchData();
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderRoleView = () => {
@@ -286,6 +311,52 @@ export default function VacationRequest() {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* Action (Approve/Reject) Modal */}
+      <Modal
+        isOpen={actionModal.isOpen}
+        onClose={() => setActionModal({ ...actionModal, isOpen: false })}
+        title={actionModal.type === 'approve' ? 'Approve Request' : 'Reject Request'}
+        maxWidth="max-w-md"
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={() => setActionModal({ ...actionModal, isOpen: false })}
+              className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-secondary rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmAction}
+              disabled={submitting}
+              className={`px-5 py-2.5 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition-all
+                          ${actionModal.type === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}
+            >
+              {submitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+              Confirm {actionModal.type === 'approve' ? 'Approval' : 'Rejection'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary leading-relaxed">
+            {actionModal.type === 'approve'
+              ? 'You are about to approve this leave request. You can optionally provide a note for the employee.'
+              : 'Please provide a reason for rejecting this leave request. This will be shared with the employee.'}
+          </p>
+          <div>
+            <label className={labelCls}>{actionModal.type === 'approve' ? 'Approval Note (Optional)' : 'Rejection Reason (Required)'}</label>
+            <textarea
+              rows={3}
+              value={actionModal.reason}
+              onChange={e => setActionModal(prev => ({ ...prev, reason: e.target.value }))}
+              placeholder={actionModal.type === 'approve' ? "Good luck with your time off!" : "Conflict with project deadline..."}
+              className={inputCls + ' resize-none'}
+              required={actionModal.type === 'reject'}
+            />
+          </div>
+        </div>
       </Modal>
     </div>
   );
