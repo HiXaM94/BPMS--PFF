@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { Lock, Loader2 } from 'lucide-react';
@@ -11,15 +11,36 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Check if we have a recovery token in the URL
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const type = hashParams.get('type');
+  const [ready, setReady] = useState(false);
+  const readyRef = useRef(false);
 
-    if (!accessToken || type !== 'recovery') {
-      setError('Invalid or expired reset link. Please request a new password reset.');
+  useEffect(() => {
+    if (!supabase) {
+      setError('Service unavailable. Please try again later.');
+      return;
     }
+
+    // Supabase v2 automatically detects the recovery token in the URL hash
+    // and fires a PASSWORD_RECOVERY event — no manual hash parsing needed.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        readyRef.current = true;
+        setReady(true);
+        setError('');
+      }
+    });
+
+    // If no recovery event fires within 5s, the link is likely invalid/expired
+    const timeout = setTimeout(() => {
+      if (!readyRef.current) {
+        setError('Invalid or expired reset link. Please request a new password reset.');
+      }
+    }, 5000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const handleSubmit = async (e) => {
