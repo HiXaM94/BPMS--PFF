@@ -16,7 +16,8 @@ export const supabase = supabaseUrl && supabaseAnonKey
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        lock: { enabled: false },
+        // Bypass navigator.locks to avoid "lock is not a function" / timeout errors
+        lock: (name, acquireTimeout, fn) => fn(),
       },
     })
   : null;
