@@ -7,6 +7,27 @@ import PageHeader from '../components/ui/PageHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { aiService } from '../services/AIService';
 
+// Lightweight markdown-to-JSX for AI responses
+function renderMarkdown(text) {
+  if (!text) return null;
+  return text.split('\n').map((line, i) => {
+    // Convert **bold**
+    let parts = line.split(/(\*\*[^*]+\*\*)/g).map((seg, j) => {
+      if (seg.startsWith('**') && seg.endsWith('**')) {
+        return <strong key={j} className="font-semibold">{seg.slice(2, -2)}</strong>;
+      }
+      // Convert _italic_
+      return seg.split(/(_[^_]+_)/g).map((s2, k) => {
+        if (s2.startsWith('_') && s2.endsWith('_') && s2.length > 2) {
+          return <em key={k} className="italic text-gray-500">{s2.slice(1, -1)}</em>;
+        }
+        return s2;
+      });
+    });
+    return <span key={i}>{parts}{i < text.split('\n').length - 1 && <br />}</span>;
+  });
+}
+
 export default function AIAssistant() {
   const { profile } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -192,7 +213,7 @@ export default function AIAssistant() {
                             : 'bg-gray-100 text-gray-900'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        <div className="whitespace-pre-wrap text-sm leading-relaxed">{renderMarkdown(message.content)}</div>
                       </div>
 
                       {message.role === 'assistant' && !message.error && (
