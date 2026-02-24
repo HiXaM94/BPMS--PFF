@@ -7,6 +7,8 @@ import StatCard from '../../components/ui/StatCard';
 import MiniChart from '../../components/ui/MiniChart';
 import Modal from '../../components/ui/Modal';
 import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
+import { aiService } from '../../services/AIService';
 
 // ── Fallback mock data (used when Supabase is not configured) ──
 const MOCK_JOBS = [
@@ -61,6 +63,8 @@ export default function Recruitment() {
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
+  const [aiScoring, setAiScoring] = useState(false);
+
   const fetchData = useCallback(async () => {
     if (!isSupabaseReady) {
       setJobs(MOCK_JOBS);
@@ -69,9 +73,15 @@ export default function Recruitment() {
       return;
     }
     setLoading(true);
-    const [{ data: jobsData }, { data: candsData }] = await Promise.all([
-      supabase.from('recrutements').select('*').order('created_at', { ascending: false }),
-      supabase.from('candidates').select('*').order('created_at', { ascending: false }),
+    const [jobsData, candsData] = await Promise.all([
+      cacheService.getOrSet('recruit:jobs', async () => {
+        const { data } = await supabase.from('recrutements').select('*').order('created_at', { ascending: false });
+        return data;
+      }, 120),
+      cacheService.getOrSet('recruit:candidates', async () => {
+        const { data } = await supabase.from('candidates').select('*').order('created_at', { ascending: false });
+        return data;
+      }, 120),
     ]);
     setJobs((jobsData || []).map(j => ({
       id: j.id,
@@ -135,6 +145,8 @@ export default function Recruitment() {
     if (error) { flash('Error: ' + error.message); return; }
     setForm(emptyForm); setShowNew(false);
     flash('Job posted successfully!');
+    cacheService.invalidatePattern('^recruit:');
+    cacheService.invalidatePattern('^hr:');
     fetchData();
   };
 
@@ -156,7 +168,32 @@ export default function Recruitment() {
     }).eq('id', editJob.id);
     if (error) { flash('Error: ' + error.message); return; }
     setEditJob(null); flash('Job posting updated.');
+    cacheService.invalidatePattern('^recruit:');
     fetchData();
+  };
+
+  const handleAiScore = async () => {
+    if (candidates.length === 0) return;
+    setAiScoring(true);
+    try {
+      const firstOpenJob = jobs.find(j => j.status === 'open');
+      const jobDesc = firstOpenJob?.description || firstOpenJob?.title || 'Open position';
+      const scored = await aiService.recommendCandidates(
+        jobDesc,
+        candidates.map(c => ({ ...c, experience: c.position, skills: [c.stage] }))
+      );
+      setCandidates(scored.map(c => ({
+        ...c,
+        rating: c.aiScore ? (c.aiScore / 20).toFixed(1) : c.rating,
+        aiScore: c.aiScore ? Math.round(c.aiScore) : undefined,
+        aiReasoning: c.aiReasoning,
+      })));
+      flash('AI scoring complete – candidates re-ranked!');
+    } catch (err) {
+      flash('AI scoring failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setAiScoring(false);
+    }
   };
 
   const jobCols = [
@@ -236,7 +273,16 @@ export default function Recruitment() {
       <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in" style={{ animationDelay: '550ms' }}>
         <div className="px-5 pt-5 pb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-text-primary">Active Candidates</h2>
-          <button className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors cursor-pointer flex items-center gap-1">View All <ArrowUpRight size={12}/></button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAiScore}
+              disabled={aiScoring || candidates.length === 0}
+              className="text-xs font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {aiScoring ? <><Loader2 size={12} className="animate-spin"/>Scoring...</> : <><Star size={12}/>AI Score</>}
+            </button>
+            <button className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors cursor-pointer flex items-center gap-1">View All <ArrowUpRight size={12}/></button>
+          </div>
         </div>
         {loading ? (
           <div className="flex items-center justify-center py-12">

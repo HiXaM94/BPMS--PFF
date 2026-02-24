@@ -14,6 +14,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
 import { hrData } from '../../data/mockData';
 import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 
 function fmtDate(d) {
   if (!d) return '-';
@@ -106,50 +107,61 @@ export default function HRDashboard() {
   useEffect(() => {
     if (!isSupabaseReady) return;
 
-    // Fetch counts in parallel
-    Promise.all([
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-      supabase.from('recrutements').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-      supabase.from('vacances').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('candidates').select('id', { count: 'exact', head: true }),
-    ]).then(([users, jobs, pending, cands]) => {
+    // Fetch counts in parallel – cached 2 min
+    cacheService.getOrSet('hr:stats', async () => {
+      const [users, jobs, pending, cands] = await Promise.all([
+        supabase.from('users').select('id', { count: 'exact', head: true }),
+        supabase.from('recrutements').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+        supabase.from('vacances').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('candidates').select('id', { count: 'exact', head: true }),
+      ]);
+      return {
+        usersCount: users.count ?? 0,
+        jobsCount: jobs.count ?? 0,
+        pendingCount: pending.count ?? 0,
+        candsCount: cands.count ?? 0,
+      };
+    }, 120).then(({ usersCount, jobsCount, pendingCount, candsCount }) => {
       setStats([
-        { id: 1, title: 'Total Employees', value: (users.count ?? 0).toString(), change: '', changeType: 'positive', subtitle: 'active users' },
-        { id: 2, title: 'Open Positions',  value: (jobs.count ?? 0).toString(),  change: '', changeType: 'positive', subtitle: 'job postings' },
-        { id: 3, title: 'Pending Leaves',  value: (pending.count ?? 0).toString(), change: '', changeType: 'neutral', subtitle: 'awaiting approval' },
-        { id: 4, title: 'Active Candidates', value: (cands.count ?? 0).toString(), change: '', changeType: 'positive', subtitle: 'in pipeline' },
+        { id: 1, title: 'Total Employees', value: usersCount.toString(), change: '', changeType: 'positive', subtitle: 'active users' },
+        { id: 2, title: 'Open Positions',  value: jobsCount.toString(),  change: '', changeType: 'positive', subtitle: 'job postings' },
+        { id: 3, title: 'Pending Leaves',  value: pendingCount.toString(), change: '', changeType: 'neutral', subtitle: 'awaiting approval' },
+        { id: 4, title: 'Active Candidates', value: candsCount.toString(), change: '', changeType: 'positive', subtitle: 'in pipeline' },
       ]);
     });
 
-    // Fetch recent leave requests
-    supabase.from('vacances')
-      .select('*, users(name)')
-      .order('created_at', { ascending: false })
-      .limit(5)
-      .then(({ data }) => {
-        if (!data) return;
-        setLeave(data.map(r => ({
-          id: r.id,
-          employee: r.users?.name || 'Unknown',
-          department: '-',
-          type: r.leave_type || 'Annual Leave',
-          dates: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}`,
-          days: r.days_count ?? 0,
-          status: r.status || 'pending',
-        })));
-      });
+    // Fetch recent leave requests – cached 90s
+    cacheService.getOrSet('hr:leaves', async () => {
+      const { data } = await supabase.from('vacances')
+        .select('*, users(name)')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      return data;
+    }, 90).then((data) => {
+      if (!data) return;
+      setLeave(data.map(r => ({
+        id: r.id,
+        employee: r.users?.name || 'Unknown',
+        department: '-',
+        type: r.leave_type || 'Annual Leave',
+        dates: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}`,
+        days: r.days_count ?? 0,
+        status: r.status || 'pending',
+      })));
+    });
 
-    // Fetch recruitment pipeline stages
-    supabase.from('candidates')
-      .select('stage')
-      .then(({ data }) => {
-        if (!data || data.length === 0) return;
-        const stages = ['HR Screen', 'Technical Interview', 'Final Interview', 'Offer'];
-        setPipeline(stages.map(label => ({
-          label,
-          value: data.filter(c => c.stage === label).length,
-        })));
-      });
+    // Fetch recruitment pipeline stages – cached 2 min
+    cacheService.getOrSet('hr:pipeline', async () => {
+      const { data } = await supabase.from('candidates').select('stage');
+      return data;
+    }, 120).then((data) => {
+      if (!data || data.length === 0) return;
+      const stages = ['HR Screen', 'Technical Interview', 'Final Interview', 'Offer'];
+      setPipeline(stages.map(label => ({
+        label,
+        value: data.filter(c => c.stage === label).length,
+      })));
+    });
   }, []);
 
   return (

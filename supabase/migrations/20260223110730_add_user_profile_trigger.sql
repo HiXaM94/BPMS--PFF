@@ -11,11 +11,15 @@ BEGIN
     '11111111-0001-0001-0001-000000000001', -- Default to TechCorp
     COALESCE(NEW.raw_user_meta_data->>'name', NEW.email),
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'role', 'EMPLOYEE'),
-    'active',
+    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'EMPLOYEE'::user_role),
+    'active'::user_status,
     UPPER(LEFT(COALESCE(NEW.raw_user_meta_data->>'name', NEW.email), 2))
   );
   RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE LOG 'Error in handle_new_user: %', SQLERRM;
+    RAISE;
 END;
 $$;
 

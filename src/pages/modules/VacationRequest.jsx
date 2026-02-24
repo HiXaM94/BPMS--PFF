@@ -11,6 +11,7 @@ import Modal from '../../components/ui/Modal';
 import { useRole } from '../../contexts/RoleContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 
 const MOCK_REQUESTS = [
   { id: 1, employee: 'Ibrahim Rouass', type: 'Annual Leave', startDate: 'Feb 20, 2026', endDate: 'Feb 24, 2026', days: 5, reason: 'Family vacation', status: 'pending', submittedAt: 'Feb 10, 2026' },
@@ -72,10 +73,13 @@ export default function VacationRequest() {
       return;
     }
     setLoading(true);
-    const { data } = await supabase
-      .from('vacances')
-      .select('*, users(name)')
-      .order('created_at', { ascending: false });
+    const data = await cacheService.getOrSet('vacation:requests', async () => {
+      const { data } = await supabase
+        .from('vacances')
+        .select('*, users(name)')
+        .order('created_at', { ascending: false });
+      return data;
+    }, 90);
 
     setRequests((data || []).map(r => ({
       id: r.id,
@@ -131,6 +135,8 @@ export default function VacationRequest() {
       return;
     }
 
+    cacheService.invalidatePattern('^vacation:');
+    cacheService.invalidatePattern('^hr:');
     const { error } = await supabase.from('vacances').insert({
       user_id: profile?.id,
       leave_type: form.type,
@@ -150,6 +156,8 @@ export default function VacationRequest() {
   const handleApprove = async (id) => {
     if (isSupabaseReady) {
       await supabase.from('vacances').update({ status: 'approved' }).eq('id', id);
+      cacheService.invalidatePattern('^vacation:');
+      cacheService.invalidatePattern('^hr:');
       fetchData();
     } else {
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r));
@@ -161,6 +169,8 @@ export default function VacationRequest() {
   const handleReject = async (id) => {
     if (isSupabaseReady) {
       await supabase.from('vacances').update({ status: 'rejected' }).eq('id', id);
+      cacheService.invalidatePattern('^vacation:');
+      cacheService.invalidatePattern('^hr:');
       fetchData();
     } else {
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'rejected' } : r));

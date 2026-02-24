@@ -4,6 +4,7 @@ import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
+import { cacheService } from '../../../services/CacheService';
 
 function fmtTime(t) {
     if (!t) return '-';
@@ -23,26 +24,30 @@ export default function EmployeeAttendance() {
         const date = new Date().toISOString().split('T')[0];
         const monthStart = date.slice(0, 7) + '-01';
 
-        // Today's presence
-        supabase.from('presences')
-            .select('*, employees!inner(user_id)')
-            .eq('employees.user_id', profile.id)
-            .eq('date', date)
-            .maybeSingle()
-            .then(({ data }) => { if (data) setToday(data); });
+        // Today's presence – cached 60s
+        cacheService.getOrSet(`attendance:emp:${profile.id}:${date}`, async () => {
+            const { data } = await supabase.from('presences')
+                .select('*, employees!inner(user_id)')
+                .eq('employees.user_id', profile.id)
+                .eq('date', date)
+                .maybeSingle();
+            return data;
+        }, 60).then((data) => { if (data) setToday(data); });
 
-        // Monthly totals
-        supabase.from('presences')
-            .select('hours_worked, overtime_hours, employees!inner(user_id)')
-            .eq('employees.user_id', profile.id)
-            .gte('date', monthStart)
-            .then(({ data }) => {
-                if (!data || data.length === 0) return;
-                const hrs = data.reduce((s, r) => s + (r.hours_worked || 0), 0);
-                const ot  = data.reduce((s, r) => s + (r.overtime_hours || 0), 0);
-                setMonthlyHours(Math.round(hrs));
-                setOvertime(Math.round(ot * 10) / 10);
-            });
+        // Monthly totals – cached 2 min
+        cacheService.getOrSet(`attendance:emp:monthly:${profile.id}:${monthStart}`, async () => {
+            const { data } = await supabase.from('presences')
+                .select('hours_worked, overtime_hours, employees!inner(user_id)')
+                .eq('employees.user_id', profile.id)
+                .gte('date', monthStart);
+            return data;
+        }, 120).then((data) => {
+            if (!data || data.length === 0) return;
+            const hrs = data.reduce((s, r) => s + (r.hours_worked || 0), 0);
+            const ot  = data.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+            setMonthlyHours(Math.round(hrs));
+            setOvertime(Math.round(ot * 10) / 10);
+        });
     }, [profile?.id]);
 
     const firstName = profile?.name?.split(' ')[0] || 'there';

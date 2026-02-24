@@ -3,6 +3,7 @@ import { Users, Clock, AlertCircle, CheckCircle2, FileText, Download, UserCheck,
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
+import { cacheService } from '../../../services/CacheService';
 
 export default function HRManagerAttendance() {
     const [stats, setStats] = useState({ present: 78, late: 11, absent: 9, total: 87 });
@@ -10,17 +11,19 @@ export default function HRManagerAttendance() {
     useEffect(() => {
         if (!isSupabaseReady) return;
         const today = new Date().toISOString().split('T')[0];
-        supabase
-            .from('presences')
-            .select('status')
-            .eq('date', today)
-            .then(({ data }) => {
-                if (!data || data.length === 0) return;
-                const present = data.filter(r => r.status === 'present').length;
-                const late    = data.filter(r => r.status === 'late').length;
-                const absent  = data.filter(r => r.status === 'absent').length;
-                setStats({ present: present + late, late, absent, total: data.length });
-            });
+        cacheService.getOrSet(`attendance:hr:${today}`, async () => {
+            const { data } = await supabase
+                .from('presences')
+                .select('status')
+                .eq('date', today);
+            return data;
+        }, 60).then((data) => {
+            if (!data || data.length === 0) return;
+            const present = data.filter(r => r.status === 'present').length;
+            const late    = data.filter(r => r.status === 'late').length;
+            const absent  = data.filter(r => r.status === 'absent').length;
+            setStats({ present: present + late, late, absent, total: data.length });
+        });
     }, []);
 
     const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });

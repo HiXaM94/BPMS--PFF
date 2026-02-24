@@ -9,6 +9,7 @@ import PlaceholderPage from '../pages/PlaceholderPage';
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
 import ForgotPassword from '../pages/auth/ForgotPassword';
+import ResetPassword from '../pages/auth/ResetPassword';
 
 // Module pages
 import EnterpriseManagement from '../pages/modules/EnterpriseManagement';
@@ -20,12 +21,16 @@ import VacationRequest from '../pages/modules/VacationRequest';
 import DocumentRequest from '../pages/modules/DocumentRequest';
 import Payroll from '../pages/modules/Payroll';
 import Recruitment from '../pages/modules/Recruitment';
+import Settings from '../pages/Settings';
+import Permissions from '../pages/Permissions';
+import AIAssistant from '../pages/AIAssistant';
 
 const router = createBrowserRouter([
   // ── Public auth routes ──
   { path: '/login',           element: <Login /> },
   { path: '/register',        element: <Register /> },
   { path: '/forgot-password', element: <ForgotPassword /> },
+  { path: '/reset-password',  element: <ResetPassword /> },
 
   // ── Protected app routes ──
   {
@@ -48,12 +53,12 @@ const router = createBrowserRouter([
 
       // Intelligence
       { path: 'analytics',     element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><PlaceholderPage title="Analytics" /></RoleGuard> },
-      { path: 'ai-assistant',  element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><PlaceholderPage title="AI Assistant" /></RoleGuard> },
+      { path: 'ai-assistant',  element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><AIAssistant /></RoleGuard> },
       { path: 'notifications', element: <PlaceholderPage title="Notifications" /> },
 
       // System
-      { path: 'permissions', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><PlaceholderPage title="Permissions" /></RoleGuard> },
-      { path: 'settings',    element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><PlaceholderPage title="Settings" /></RoleGuard> },
+      { path: 'permissions', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><Permissions /></RoleGuard> },
+      { path: 'settings',    element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Settings /></RoleGuard> },
 
       { path: '*', element: <PlaceholderPage title="Page Not Found" /> },
     ],
