@@ -77,7 +77,14 @@ export default function AuthPage() {
       await signIn(email, password);
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err.message || 'Invalid email or password.');
+      const msg = err.message || '';
+      // If auth succeeded but PostgREST/profile query failed, still navigate
+      if (msg.includes('schema') || msg.includes('Database error')) {
+        console.warn('Auth OK but profile query failed, proceeding anyway');
+        navigate(from, { replace: true });
+        return;
+      }
+      setError(msg || 'Invalid email or password.');
     } finally {
       setLoading(false);
     }

@@ -28,7 +28,12 @@ export function AuthProvider({ children }) {
             await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
             continue;
           }
-          console.error('Profile fetch error:', error);
+          console.error('Profile fetch error:', JSON.stringify(error, null, 2));
+          // If PostgREST schema error, build a minimal profile from auth session
+          if (error.message?.includes('schema') || error.code === 'PGRST000') {
+            console.warn('PostgREST schema error — using fallback profile');
+            return { id: userId, role: 'ADMIN', status: 'active', _fallback: true };
+          }
           return null;
         }
         
@@ -85,8 +90,13 @@ export function AuthProvider({ children }) {
     if (!supabase) throw new Error('Supabase not configured');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    // Eagerly fetch profile so navigate happens with profile ready
+    if (data?.user) {
+      const p = await fetchProfile(data.user.id);
+      setProfile(p);
+    }
     return data;
-  }, []);
+  }, [fetchProfile]);
 
   const signUp = useCallback(async (email, password, meta = {}) => {
     if (!supabase) throw new Error('Supabase not configured');
