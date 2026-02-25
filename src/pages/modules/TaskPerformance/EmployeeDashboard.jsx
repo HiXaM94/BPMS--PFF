@@ -351,7 +351,7 @@ export default function EmployeeDashboard() {
                 <StatCard title="Active Tasks" value={activeTasks.length} icon={ListChecks} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" subtitle="To Do & In Progress" />
                 <StatCard title="Pending Validation" value={reviewTasks.length} icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" subtitle="Awaiting Manager" />
                 <StatCard title="Tasks Validated" value={historyTasks.length} icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-600" subtitle="All time" />
-                <StatCard title="Completion Rate" value={`${performance?.completionRate || 0}%`} icon={PlayCircle} iconColor="bg-gradient-to-br from-violet-500 to-purple-600" subtitle="Performance Metric" />
+                <StatCard title="Completion Rate" value={`${performance?.completionRate || 0}%`} icon={PlayCircle} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" subtitle="Performance Metric" />
             </div>
 
             {/* Notifications */}

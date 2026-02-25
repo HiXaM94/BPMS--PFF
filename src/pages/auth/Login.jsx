@@ -39,7 +39,7 @@ export default function Login() {
       {/* Subtle background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-brand-500/[0.04] blur-[100px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-violet-500/[0.04] blur-[100px]" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-brand-500/[0.04] blur-[100px]" />
         <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] rounded-full bg-sky-400/[0.03] blur-[80px]" />
       </div>
 

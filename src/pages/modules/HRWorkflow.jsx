@@ -80,10 +80,10 @@ function ApprovalNode({ data }) {
 
 function ConditionNode({ data }) {
   return (
-    <div className="px-5 py-3 rounded-xl bg-white shadow-lg border-2 border-purple-300 min-w-[180px] rotate-0">
+    <div className="px-5 py-3 rounded-xl bg-white shadow-lg border-2 border-brand-300 min-w-[180px] rotate-0">
       <div className="flex items-center gap-2 mb-1">
-        <div className="w-6 h-6 rounded-lg bg-purple-100 flex items-center justify-center">
-          <AlertTriangle size={14} className="text-purple-600" />
+        <div className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center">
+          <AlertTriangle size={14} className="text-brand-600" />
         </div>
         <span className="font-bold text-sm text-gray-900">{data.label}</span>
       </div>
@@ -373,7 +373,7 @@ export default function HRWorkflow() {
               <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-red-500" /> {t('workflow.end')}</div>
               <div className="flex items-center gap-2"><div className="w-3 h-3 rounded border-2 border-brand-400" /> {t('workflow.action')}</div>
               <div className="flex items-center gap-2"><div className="w-3 h-3 rounded border-2 border-amber-400" /> {t('workflow.approval')}</div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded border-2 border-purple-400" /> {t('workflow.condition')}</div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded border-2 border-brand-400" /> {t('workflow.condition')}</div>
               <div className="flex items-center gap-2"><div className="w-3 h-3 rounded border-2 border-blue-400" /> {t('workflow.notification')}</div>
             </div>
           </Panel>

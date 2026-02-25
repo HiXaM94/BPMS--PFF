@@ -466,9 +466,9 @@ export default function Settings() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Features</h3>
                   
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-brand-50 to-blue-50 rounded-lg border border-brand-200">
                       <div className="flex items-center gap-3">
-                        <Zap className="text-purple-600" size={20} />
+                        <Zap className="text-brand-600" size={20} />
                         <div>
                           <p className="font-medium text-gray-900">AI Assistant Enabled</p>
                           <p className="text-sm text-gray-600">Enable AI-powered features across the platform</p>
@@ -481,7 +481,7 @@ export default function Settings() {
                           onChange={(e) => updateSetting('ai', 'enabled', e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
                       </label>
                     </div>
 
@@ -539,8 +539,8 @@ export default function Settings() {
                     <div className="p-4 border border-gray-200 rounded-lg">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <Building2 className="text-purple-600" size={20} />
+                          <div className="w-10 h-10 bg-brand-100 rounded-lg flex items-center justify-center">
+                            <Building2 className="text-brand-600" size={20} />
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">Slack</p>

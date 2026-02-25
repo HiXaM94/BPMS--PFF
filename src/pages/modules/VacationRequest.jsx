@@ -236,7 +236,7 @@ export default function VacationRequest() {
         <StatCard title="Pending Requests" value={pendingCount.toString()} icon={AlertCircle} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" delay={0} />
         <StatCard title="Approved" value={approvedCount.toString()} icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-600" delay={80} />
         <StatCard title="Days Approved" value={totalDays.toString()} icon={CalendarDays} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" subtitle="total across all" delay={160} />
-        <StatCard title="Total Requests" value={requests.length.toString()} icon={Calendar} iconColor="bg-gradient-to-br from-violet-500 to-purple-600" delay={240} />
+        <StatCard title="Total Requests" value={requests.length.toString()} icon={Calendar} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" delay={240} />
       </div>
 
       {/* Leave Balance */}

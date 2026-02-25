@@ -33,7 +33,7 @@ const approvalColumns = [
   { key: 'type', label: 'Type', render: (val) => (
     <StatusBadge variant={
       val === 'Finance' ? 'brand' :
-      val === 'Recruitment' ? 'violet' :
+      val === 'Recruitment' ? 'brand' :
       val === 'Expense' ? 'info' :
       val === 'Procurement' ? 'pink' : 'neutral'
     } size="sm">{val}</StatusBadge>

@@ -19,7 +19,7 @@ export default function SuperAdminPayroll() {
                     <StatCard title="Total Volume" value="14.2M MAD" subtitle="Processed across 45 SMEs" icon={DollarSign} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                     <StatCard title="Active Companies" value="45" subtitle="Using Payroll Module" icon={Building2} iconColor="bg-gradient-to-br from-brand-500 to-indigo-500" />
                     <StatCard title="Payslips Generated" value="3,240" subtitle="This cycle" icon={FileText} iconColor="bg-gradient-to-br from-blue-500 to-cyan-500" />
-                    <StatCard title="Bank Files Created" value="45/45" subtitle="100% completion" icon={CheckCircle2} iconColor="bg-gradient-to-br from-violet-500 to-purple-500" />
+                    <StatCard title="Bank Files Created" value="45/45" subtitle="100% completion" icon={CheckCircle2} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
                 </div>
             </div>
 

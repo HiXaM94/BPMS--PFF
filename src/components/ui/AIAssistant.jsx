@@ -107,7 +107,7 @@ export default function AIAssistant() {
                    transition-all duration-300 group
                    ${isOpen
                      ? 'bg-surface-primary border border-border-secondary rotate-0 scale-100'
-                     : 'bg-gradient-to-br from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 hover:scale-110 hover:shadow-2xl hover:shadow-violet-500/30'
+                     : 'bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 hover:scale-110 hover:shadow-2xl hover:shadow-brand-500/30'
                    }`}
         aria-label="AI Assistant"
       >
@@ -117,7 +117,7 @@ export default function AIAssistant() {
           <>
             <Sparkles size={22} className="text-white" />
             {/* Pulse ring */}
-            <span className="absolute inset-0 rounded-2xl border-2 border-violet-400 animate-ping opacity-20" />
+            <span className="absolute inset-0 rounded-2xl border-2 border-brand-400 animate-ping opacity-20" />
           </>
         )}
       </button>
@@ -138,7 +138,7 @@ export default function AIAssistant() {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3
-                        bg-gradient-to-r from-violet-600 to-purple-600 shrink-0">
+                        bg-gradient-to-r from-brand-600 to-brand-700 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg
                             bg-white/20 backdrop-blur-sm">
@@ -173,7 +173,7 @@ export default function AIAssistant() {
               {/* Avatar */}
               <div className={`flex items-center justify-center w-7 h-7 rounded-lg shrink-0 mt-0.5
                 ${msg.role === 'assistant'
-                  ? 'bg-gradient-to-br from-violet-500 to-purple-600'
+                  ? 'bg-gradient-to-br from-brand-500 to-brand-600'
                   : 'bg-gradient-to-br from-brand-500 to-brand-600'
                 }`}>
                 {msg.role === 'assistant'
@@ -199,7 +199,7 @@ export default function AIAssistant() {
           {isTyping && (
             <div className="flex gap-2.5 animate-fade-in">
               <div className="flex items-center justify-center w-7 h-7 rounded-lg shrink-0
-                              bg-gradient-to-br from-violet-500 to-purple-600">
+                              bg-gradient-to-br from-brand-500 to-brand-600">
                 <Bot size={14} className="text-white" />
               </div>
               <div className="inline-flex items-center gap-1 px-4 py-3 rounded-2xl rounded-tl-md
@@ -224,9 +224,9 @@ export default function AIAssistant() {
                   key={i}
                   onClick={() => handleSend(s.label)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium
-                             bg-violet-500/8 text-violet-600 dark:text-violet-400
-                             border border-violet-200 dark:border-violet-800
-                             hover:bg-violet-500/15 hover:border-violet-300
+                             bg-brand-500/8 text-brand-600 dark:text-brand-400
+                             border border-brand-200 dark:border-brand-800
+                             hover:bg-brand-500/15 hover:border-brand-300
                              transition-all duration-200 cursor-pointer"
                 >
                   <Icon size={11} />
@@ -240,7 +240,7 @@ export default function AIAssistant() {
         {/* Input */}
         <div className="px-3 pb-3 pt-2 border-t border-border-secondary shrink-0">
           <div className="flex items-end gap-2 bg-surface-secondary rounded-xl border border-border-secondary
-                          focus-within:ring-2 focus-within:ring-violet-500/30 focus-within:border-violet-400
+                          focus-within:ring-2 focus-within:ring-brand-500/30 focus-within:border-brand-400
                           transition-all duration-200 px-3 py-2">
             <textarea
               ref={inputRef}
@@ -258,7 +258,7 @@ export default function AIAssistant() {
               className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0
                          transition-all duration-200 cursor-pointer
                          ${input.trim() && !isTyping
-                           ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-sm hover:shadow-md hover:scale-105'
+                           ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-sm hover:shadow-md hover:scale-105'
                            : 'bg-surface-tertiary text-text-tertiary cursor-not-allowed'
                          }`}
             >

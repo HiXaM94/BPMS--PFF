@@ -18,7 +18,7 @@ export default function CompanyAdminPayroll() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard title="Total Cost" value="1,316,865 MAD" subtitle="Net + Contributions" icon={DollarSign} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                     <StatCard title="Total Net Payroll" value="1,058,250 MAD" subtitle="To be transferred" icon={DollarSign} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
-                    <StatCard title="Employees" value="87" subtitle="Included in cycle" icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-purple-500" />
+                    <StatCard title="Employees" value="87" subtitle="Included in cycle" icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
                     <StatCard title="Employer Contrib." value="258,615 MAD" subtitle="CNSS, AMO, Taxes" icon={FileText} iconColor="bg-gradient-to-br from-orange-500 to-red-500" />
                 </div>
             </div>

@@ -18,7 +18,7 @@ export default function HRManagerPayroll() {
                     <StatCard title="Total Net Scheduled" value="1,058,250 MAD" subtitle="87 Employees" icon={DollarSign} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                     <StatCard title="Overtime Processed" value="12,450 MAD" subtitle="Across 18 employees" icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
                     <StatCard title="Advances Deducted" value="8,000 MAD" subtitle="Across 4 employees" icon={FileText} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
-                    <StatCard title="Calculations" value="100%" subtitle="Passed validation" icon={CheckCircle2} iconColor="bg-gradient-to-br from-violet-500 to-purple-500" />
+                    <StatCard title="Calculations" value="100%" subtitle="Passed validation" icon={CheckCircle2} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
                 </div>
             </div>
 

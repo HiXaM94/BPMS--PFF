@@ -9,7 +9,7 @@ const variants = {
   info:     'bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-blue-500/20',
   neutral:  'bg-gray-500/10 text-gray-600 dark:text-gray-400 ring-gray-500/20',
   brand:    'bg-brand-500/10 text-brand-600 dark:text-brand-400 ring-brand-500/20',
-  violet:   'bg-violet-500/10 text-violet-600 dark:text-violet-400 ring-violet-500/20',
+  violet:   'bg-brand-500/10 text-brand-600 dark:text-brand-400 ring-brand-500/20',
   pink:     'bg-pink-500/10 text-pink-600 dark:text-pink-400 ring-pink-500/20',
 };
 
