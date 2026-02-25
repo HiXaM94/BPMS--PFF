@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Workflow, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
+import {
+  Workflow, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle,
+  Globe, Phone, MapPin, ArrowRight, Sparkles, Shield, Zap,
+} from 'lucide-react';
 
 export default function Login() {
   const { signIn } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
@@ -30,53 +35,121 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-sidebar-bg flex items-center justify-center p-4">
-      {/* Background glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-brand-500/5 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-violet-500/5 blur-3xl" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 flex items-center justify-center p-4">
+      {/* Subtle background orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-brand-500/[0.04] blur-[100px]" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-violet-500/[0.04] blur-[100px]" />
+        <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] rounded-full bg-sky-400/[0.03] blur-[80px]" />
       </div>
 
-      <div className="relative w-full max-w-md animate-fade-in">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-[#272b30] shadow-lg">
-            <Workflow size={24} className="text-white" />
+      {/* Two-panel card */}
+      <div className="relative w-full max-w-[960px] min-h-[560px] bg-white rounded-3xl shadow-2xl shadow-black/[0.06] border border-gray-100 overflow-hidden flex animate-fade-in">
+
+        {/* ───── LEFT PANEL — Brand + Contact ───── */}
+        <div className="hidden md:flex md:w-[420px] flex-col justify-between relative overflow-hidden
+                        bg-gradient-to-br from-brand-600 via-brand-500 to-indigo-400 p-10 text-white">
+          {/* Decorative shapes */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full border border-white/10" />
+            <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full border border-white/10" />
+            <div className="absolute top-1/2 right-0 w-32 h-32 rounded-full bg-white/[0.06] blur-2xl" />
+            <div className="absolute bottom-20 left-10 w-20 h-20 rounded-full bg-white/[0.05]" />
           </div>
-          <div>
-            <span className="text-xl font-bold text-white tracking-tight">BPMS</span>
-            <span className="block text-xs text-sidebar-text font-medium tracking-wide">Platform</span>
+
+          {/* Top: Logo */}
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-10">
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20">
+                <Workflow size={24} className="text-white" />
+              </div>
+              <div>
+                <span className="text-xl font-bold tracking-tight">BPMS</span>
+                <span className="block text-xs text-white/60 font-medium tracking-wide">Platform</span>
+              </div>
+            </div>
+
+            <h2 className="text-2xl font-bold leading-snug mb-3">
+              Streamline Your<br />Business Processes
+            </h2>
+            <p className="text-sm text-white/70 leading-relaxed max-w-[280px]">
+              The all-in-one HR management and workflow automation platform built for modern enterprises.
+            </p>
+
+            {/* Feature highlights */}
+            <div className="mt-8 space-y-3">
+              {[
+                { icon: Zap, text: 'Automated HR Workflows' },
+                { icon: Shield, text: 'Enterprise-grade Security' },
+                { icon: Sparkles, text: 'AI-powered Insights' },
+              ].map(({ icon: Icon, text }) => (
+                <div key={text} className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10">
+                    <Icon size={15} className="text-white/90" />
+                  </div>
+                  <span className="text-sm text-white/80 font-medium">{text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom: Contact info */}
+          <div className="relative z-10 space-y-2.5 pt-6 border-t border-white/15">
+            <div className="flex items-center gap-2.5 text-sm text-white/60">
+              <Globe size={14} />
+              <span>www.bpms-platform.com</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-sm text-white/60">
+              <Mail size={14} />
+              <span>contact@bpms-platform.com</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-sm text-white/60">
+              <Phone size={14} />
+              <span>+212 6 00 00 00 00</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-sm text-white/60">
+              <MapPin size={14} />
+              <span>Casablanca, Morocco</span>
+            </div>
           </div>
         </div>
 
-        {/* Card */}
-        <div className="bg-surface-primary rounded-2xl border border-border-primary shadow-2xl p-8">
-          <h1 className="text-2xl font-bold text-text-primary mb-1">Welcome back</h1>
-          <p className="text-sm text-text-secondary mb-6">Sign in to your BPMS account</p>
+        {/* ───── RIGHT PANEL — Login Form ───── */}
+        <div className="flex-1 flex flex-col justify-center px-8 sm:px-12 py-10">
+          {/* Mobile-only logo */}
+          <div className="flex items-center gap-3 mb-8 md:hidden">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600">
+              <Workflow size={20} className="text-white" />
+            </div>
+            <span className="text-lg font-bold text-text-primary tracking-tight">BPMS</span>
+          </div>
+
+          <h1 className="text-2xl font-bold text-text-primary mb-1">{t('auth.signInTitle')}</h1>
+          <p className="text-sm text-text-secondary mb-7">{t('auth.signInSubtitle')}</p>
 
           {error && (
-            <div className="flex items-center gap-2 p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm animate-fade-in">
+            <div className="flex items-center gap-2 p-3 mb-5 rounded-xl bg-red-500/8 border border-red-500/15 text-red-600 text-sm animate-fade-in">
               <AlertCircle size={16} className="shrink-0" />
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">{t('auth.email')}</label>
               <div className="relative">
-                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
                   placeholder="you@company.com"
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border-primary
-                             bg-surface-secondary text-text-primary text-sm
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200
+                             bg-gray-50/50 text-text-primary text-sm
                              placeholder:text-text-tertiary
-                             focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500
+                             focus:bg-white focus:border-brand-300 focus:ring-2 focus:ring-brand-500/10
                              transition-all duration-200"
                 />
               </div>
@@ -85,29 +158,30 @@ export default function Login() {
             {/* Password */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-text-secondary">Password</label>
-                <Link to="/forgot-password" className="text-xs text-brand-500 hover:text-brand-600 transition-colors">
-                  Forgot password?
+                <label className="block text-sm font-medium text-text-secondary">{t('auth.password')}</label>
+                <Link to="/forgot-password" className="text-xs text-brand-500 hover:text-brand-600 font-medium transition-colors">
+                  {t('auth.forgotPassword')}
                 </Link>
               </div>
               <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
                 <input
                   type={showPw ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-border-primary
-                             bg-surface-secondary text-text-primary text-sm
+                  className="w-full pl-10 pr-11 py-3 rounded-xl border border-gray-200
+                             bg-gray-50/50 text-text-primary text-sm
                              placeholder:text-text-tertiary
-                             focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500
+                             focus:bg-white focus:border-brand-300 focus:ring-2 focus:ring-brand-500/10
                              transition-all duration-200"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-tertiary
+                             hover:text-text-secondary transition-colors cursor-pointer"
                 >
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -118,29 +192,34 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
                          bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold text-sm
-                         shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0
+                         shadow-lg shadow-brand-500/20
+                         hover:shadow-xl hover:shadow-brand-500/25 hover:-translate-y-0.5
+                         active:translate-y-0 active:shadow-md
                          disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none
-                         transition-all duration-200 cursor-pointer mt-2"
+                         transition-all duration-200 cursor-pointer"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? t('common.loading') : t('auth.login')}
+              {!loading && <ArrowRight size={16} />}
             </button>
           </form>
 
-          <p className="text-center text-sm text-text-secondary mt-6">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-brand-500 hover:text-brand-600 font-medium transition-colors">
-              Create account
+          <p className="text-center text-sm text-text-secondary mt-7">
+            {t('auth.noAccount')}{' '}
+            <Link to="/register" className="text-brand-500 hover:text-brand-600 font-semibold transition-colors">
+              {t('auth.register')}
             </Link>
           </p>
-        </div>
 
-        {/* Demo hint */}
-        <p className="text-center text-xs text-sidebar-text mt-4">
-          Demo: use any email from the seeded users with password <strong className="text-white/60">Demo1234!</strong>
-        </p>
+          {/* Demo hint */}
+          <div className="mt-6 p-3 rounded-xl bg-brand-50/50 border border-brand-100/50">
+            <p className="text-center text-xs text-text-tertiary">
+              Demo: use any seeded user email with password <strong className="text-text-secondary">Demo1234!</strong>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

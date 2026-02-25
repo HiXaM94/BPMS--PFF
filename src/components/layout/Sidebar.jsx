@@ -115,7 +115,7 @@ export default function Sidebar() {
       {/* Desktop Sidebar */}
       <aside
         className={`hidden lg:flex flex-col fixed top-0 left-0 h-screen z-40
-                    bg-sidebar-bg
+                    bg-sidebar-bg border-r border-sidebar-border
                     transition-all duration-300 ease-in-out
                     ${isCollapsed ? 'w-[72px]' : 'w-60'}`}
       >
@@ -124,15 +124,15 @@ export default function Sidebar() {
           <div className={`flex items-center h-[72px] shrink-0
                            ${isCollapsed ? 'justify-center' : 'px-5 gap-3'}`}>
             <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                            bg-[#272b30] shadow-sm">
+                            bg-gradient-to-br from-brand-500 to-brand-600 shadow-sm">
               <Workflow size={20} className="text-white" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
-                <span className="text-sm font-bold text-white tracking-tight leading-tight">
+                <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
                   BPMS
                 </span>
-                <span className="text-[10px] text-sidebar-text/50 font-medium tracking-wide">
+                <span className="text-[10px] text-text-tertiary font-medium tracking-wide">
                   Platform
                 </span>
               </div>
@@ -184,7 +184,7 @@ export default function Sidebar() {
       {/* Mobile Sidebar */}
       <aside
         className={`fixed top-0 left-0 h-screen w-72 z-50 lg:hidden
-                    bg-sidebar-bg
+                    bg-sidebar-bg border-r border-sidebar-border
                     transition-transform duration-300 ease-in-out
                     ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
@@ -202,14 +202,14 @@ export default function Sidebar() {
           {/* Logo */}
           <div className="flex items-center h-[72px] px-5 gap-3 shrink-0">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                            bg-[#272b30]">
+                            bg-gradient-to-br from-brand-500 to-brand-600">
               <Workflow size={20} className="text-white" />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-bold text-white tracking-tight leading-tight">
+              <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
                 BPMS
               </span>
-              <span className="text-[10px] text-sidebar-text/50 font-medium tracking-wide">
+              <span className="text-[10px] text-text-tertiary font-medium tracking-wide">
                 Platform
               </span>
             </div>

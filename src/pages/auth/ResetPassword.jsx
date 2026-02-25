@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
-import { Lock, Loader2 } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { Workflow, Lock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function ResetPassword() {
+  const { t } = useLanguage();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,8 +22,6 @@ export default function ResetPassword() {
       return;
     }
 
-    // Supabase v2 automatically detects the recovery token in the URL hash
-    // and fires a PASSWORD_RECOVERY event — no manual hash parsing needed.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         readyRef.current = true;
@@ -30,10 +30,9 @@ export default function ResetPassword() {
       }
     });
 
-    // If no recovery event fires within 5s, the link is likely invalid/expired
     const timeout = setTimeout(() => {
       if (!readyRef.current) {
-        setError('Invalid or expired reset link. Please request a new password reset.');
+        setError(t('auth.invalidResetLink'));
       }
     }, 5000);
 
@@ -48,12 +47,12 @@ export default function ResetPassword() {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('auth.passwordMismatch'));
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError(t('auth.passwordMinLength'));
       return;
     }
 
@@ -77,86 +76,121 @@ export default function ResetPassword() {
     }
   };
 
+  const inputClass = `w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200
+                      bg-gray-50/50 text-text-primary text-sm placeholder:text-text-tertiary
+                      focus:bg-white focus:border-brand-300 focus:ring-2 focus:ring-brand-500/10
+                      transition-all duration-200 disabled:opacity-60`;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-brand-100 rounded-full mb-4">
-            <Lock className="w-8 h-8 text-brand-600" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 flex items-center justify-center p-4">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-brand-500/[0.04] blur-[100px]" />
+      </div>
+
+      <div className="relative w-full max-w-md animate-fade-in">
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-lg shadow-brand-500/20">
+            <Workflow size={24} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Reset Password</h1>
-          <p className="text-gray-600 mt-2">Enter your new password</p>
+          <div>
+            <span className="text-xl font-bold text-text-primary tracking-tight">BPMS</span>
+            <span className="block text-xs text-text-tertiary font-medium tracking-wide">Platform</span>
+          </div>
         </div>
 
-        {success ? (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-            <p className="text-green-800 font-medium">Password reset successfully!</p>
-            <p className="text-green-600 text-sm mt-1">Redirecting to login...</p>
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl shadow-black/[0.06] p-8">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-brand-50 rounded-2xl mb-4">
+              <Lock size={24} className="text-brand-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-text-primary">{t('auth.resetTitle')}</h1>
+            <p className="text-sm text-text-secondary mt-1">{t('auth.resetSubtitle')}</p>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-800 text-sm">{error}</p>
-              </div>
-            )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                New Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                placeholder="Enter new password"
-                required
-                disabled={loading}
-              />
+          {success ? (
+            <div className="bg-brand-50 border border-brand-100 rounded-xl p-5 text-center">
+              <CheckCircle2 size={28} className="text-brand-500 mx-auto mb-2" />
+              <p className="text-text-primary font-semibold">{t('auth.resetSuccess')}</p>
+              <p className="text-text-secondary text-sm mt-1">{t('auth.resetRedirect')}</p>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                placeholder="Confirm new password"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Resetting Password...
-                </>
-              ) : (
-                'Reset Password'
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/8 border border-red-500/15 text-red-600 text-sm animate-fade-in">
+                  <AlertCircle size={16} className="shrink-0" />
+                  {error}
+                </div>
               )}
-            </button>
 
-            <div className="text-center">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                  {t('auth.newPassword')}
+                </label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={inputClass}
+                    placeholder="Enter new password"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                  {t('auth.confirmPassword')}
+                </label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className={inputClass}
+                    placeholder="Confirm new password"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
               <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="text-brand-600 hover:text-brand-700 text-sm font-medium"
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
+                           bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold text-sm
+                           shadow-lg shadow-brand-500/20
+                           hover:shadow-xl hover:shadow-brand-500/25 hover:-translate-y-0.5
+                           active:translate-y-0 active:shadow-md
+                           disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none
+                           transition-all duration-200 cursor-pointer"
               >
-                Back to Login
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    {t('common.loading')}
+                  </>
+                ) : (
+                  t('auth.resetPassword')
+                )}
               </button>
-            </div>
-          </form>
-        )}
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  className="text-brand-500 hover:text-brand-600 text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  {t('auth.backToLogin')}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );
