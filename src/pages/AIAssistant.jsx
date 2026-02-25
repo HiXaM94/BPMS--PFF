@@ -176,8 +176,8 @@ export default function AIAssistant() {
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-4">
-                  <Sparkles className="text-purple-600" size={40} />
+                <div className="w-20 h-20 bg-gradient-to-br from-brand-100 to-brand-50 rounded-full flex items-center justify-center mb-4">
+                  <Sparkles className="text-brand-600" size={40} />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">
                   Welcome to AI Assistant
@@ -198,7 +198,7 @@ export default function AIAssistant() {
                     className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {message.role === 'assistant' && (
-                      <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
                         <Bot size={18} className="text-white" />
                       </div>
                     )}
@@ -272,7 +272,7 @@ export default function AIAssistant() {
                 
                 {loading && (
                   <div className="flex gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                    <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
                       <Bot size={18} className="text-white" />
                     </div>
                     <div className="bg-gray-100 rounded-2xl px-4 py-3">
@@ -331,7 +331,7 @@ export default function AIAssistant() {
                 const colorClasses = {
                   blue: 'bg-blue-50 text-blue-700 hover:bg-blue-100',
                   green: 'bg-green-50 text-green-700 hover:bg-green-100',
-                  purple: 'bg-purple-50 text-purple-700 hover:bg-purple-100',
+                  purple: 'bg-brand-50 text-brand-700 hover:bg-brand-100',
                   orange: 'bg-orange-50 text-orange-700 hover:bg-orange-100'
                 };
 
@@ -357,9 +357,9 @@ export default function AIAssistant() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border border-purple-200 p-4">
+          <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 rounded-xl border border-brand-200 p-4">
             <div className="flex items-start gap-3">
-              <Sparkles className="text-purple-600 flex-shrink-0" size={20} />
+              <Sparkles className="text-brand-600 flex-shrink-0" size={20} />
               <div>
                 <h4 className="font-medium text-gray-900 mb-1">AI Capabilities</h4>
                 <ul className="text-sm text-gray-700 space-y-1">

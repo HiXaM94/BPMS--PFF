@@ -48,31 +48,31 @@ export default function Login() {
 
         {/* ───── LEFT PANEL — Brand + Contact ───── */}
         <div className="hidden md:flex md:w-[420px] flex-col justify-between relative overflow-hidden
-                        bg-gradient-to-br from-brand-600 via-brand-500 to-indigo-400 p-10 text-white">
+                        bg-gradient-to-br from-[#FFFDEE] to-[#E3EF26] p-10 text-gray-900">
           {/* Decorative shapes */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full border border-white/10" />
-            <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full border border-white/10" />
-            <div className="absolute top-1/2 right-0 w-32 h-32 rounded-full bg-white/[0.06] blur-2xl" />
-            <div className="absolute bottom-20 left-10 w-20 h-20 rounded-full bg-white/[0.05]" />
+            <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full border border-black/[0.06]" />
+            <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full border border-black/[0.06]" />
+            <div className="absolute top-1/2 right-0 w-32 h-32 rounded-full bg-[#E3EF26]/30 blur-2xl" />
+            <div className="absolute bottom-20 left-10 w-20 h-20 rounded-full bg-[#E3EF26]/20" />
           </div>
 
           {/* Top: Logo */}
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-10">
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20">
-                <Workflow size={24} className="text-white" />
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-black/10 backdrop-blur-sm border border-black/10">
+                <Workflow size={24} className="text-gray-900" />
               </div>
               <div>
                 <span className="text-xl font-bold tracking-tight">BPMS</span>
-                <span className="block text-xs text-white/60 font-medium tracking-wide">Platform</span>
+                <span className="block text-xs text-gray-900/50 font-medium tracking-wide">Platform</span>
               </div>
             </div>
 
             <h2 className="text-2xl font-bold leading-snug mb-3">
               Streamline Your<br />Business Processes
             </h2>
-            <p className="text-sm text-white/70 leading-relaxed max-w-[280px]">
+            <p className="text-sm text-gray-700 leading-relaxed max-w-[280px]">
               The all-in-one HR management and workflow automation platform built for modern enterprises.
             </p>
 
@@ -84,30 +84,30 @@ export default function Login() {
                 { icon: Sparkles, text: 'AI-powered Insights' },
               ].map(({ icon: Icon, text }) => (
                 <div key={text} className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10">
-                    <Icon size={15} className="text-white/90" />
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-black/[0.06]">
+                    <Icon size={15} className="text-gray-800" />
                   </div>
-                  <span className="text-sm text-white/80 font-medium">{text}</span>
+                  <span className="text-sm text-gray-700 font-medium">{text}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Bottom: Contact info */}
-          <div className="relative z-10 space-y-2.5 pt-6 border-t border-white/15">
-            <div className="flex items-center gap-2.5 text-sm text-white/60">
+          <div className="relative z-10 space-y-2.5 pt-6 border-t border-black/10">
+            <div className="flex items-center gap-2.5 text-sm text-gray-600">
               <Globe size={14} />
               <span>www.bpms-platform.com</span>
             </div>
-            <div className="flex items-center gap-2.5 text-sm text-white/60">
+            <div className="flex items-center gap-2.5 text-sm text-gray-600">
               <Mail size={14} />
               <span>contact@bpms-platform.com</span>
             </div>
-            <div className="flex items-center gap-2.5 text-sm text-white/60">
+            <div className="flex items-center gap-2.5 text-sm text-gray-600">
               <Phone size={14} />
               <span>+212 6 00 00 00 00</span>
             </div>
-            <div className="flex items-center gap-2.5 text-sm text-white/60">
+            <div className="flex items-center gap-2.5 text-sm text-gray-600">
               <MapPin size={14} />
               <span>Casablanca, Morocco</span>
             </div>
