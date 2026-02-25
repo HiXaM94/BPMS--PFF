@@ -215,7 +215,7 @@ export default function AIAssistant() {
                       >
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">{renderMarkdown(message.content)}</div>
                       </div>
-
+                      
                       {message.role === 'assistant' && !message.error && (
                         <div className="flex items-center gap-2 mt-2 ml-2">
                           <button
@@ -269,7 +269,7 @@ export default function AIAssistant() {
                     )}
                   </div>
                 ))}
-
+                
                 {loading && (
                   <div className="flex gap-3">
                     <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
@@ -288,7 +288,7 @@ export default function AIAssistant() {
               </>
             )}
           </div>
-
+        
           {/* Input Area */}
           <div className="border-t border-gray-200 p-4">
             <form

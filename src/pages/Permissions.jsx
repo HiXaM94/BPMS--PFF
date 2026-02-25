@@ -6,11 +6,14 @@ import {
 import PageHeader from '../components/ui/PageHeader';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import { auditService } from '../services/AuditService';
+import { cacheService } from '../services/CacheService';
 
 export default function Permissions() {
   const { profile } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('roles');
   const [permissions, setPermissions] = useState([]);
   const [rolePermissions, setRolePermissions] = useState([]);
@@ -39,13 +42,15 @@ export default function Permissions() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('permissions')
-        .select('*')
-        .order('category', { ascending: true });
-
-      if (error) throw error;
-      setPermissions(data || []);
+      const data = await cacheService.getOrSet('permissions:all', async () => {
+        const { data, error } = await supabase
+          .from('permissions')
+          .select('*')
+          .order('category', { ascending: true });
+        if (error) throw error;
+        return data || [];
+      }, 300);
+      setPermissions(data);
     } catch (error) {
       console.error('Failed to load permissions:', error);
     } finally {
@@ -57,13 +62,15 @@ export default function Permissions() {
     if (!supabase || !profile?.entreprise_id) return;
 
     try {
-      const { data, error } = await supabase
-        .from('role_permissions')
-        .select('*, permissions(*)')
-        .eq('entreprise_id', profile.entreprise_id);
-
-      if (error) throw error;
-      setRolePermissions(data || []);
+      const data = await cacheService.getOrSet(`role_perms:${profile.entreprise_id}`, async () => {
+        const { data, error } = await supabase
+          .from('role_permissions')
+          .select('*, permissions(*)')
+          .eq('entreprise_id', profile.entreprise_id);
+        if (error) throw error;
+        return data || [];
+      }, 180);
+      setRolePermissions(data);
     } catch (error) {
       console.error('Failed to load role permissions:', error);
     }
@@ -118,6 +125,7 @@ export default function Permissions() {
         { permissions: selectedPermissions }
       );
 
+      cacheService.invalidatePattern('^role_perms:');
       await loadRolePermissions();
       setShowModal(false);
       setEditingRole(null);
@@ -163,8 +171,8 @@ export default function Permissions() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Permissions & Roles"
-        subtitle="Manage role-based access control and permissions"
+        title={t('permissions.title')}
+        subtitle={t('permissions.roleManagement')}
         icon={Shield}
       />
 
@@ -173,8 +181,8 @@ export default function Permissions() {
         <div className="border-b border-gray-200">
           <div className="flex gap-1 p-1">
             {[
-              { id: 'roles', label: 'Role Management', icon: Users },
-              { id: 'permissions', label: 'Permissions', icon: Key }
+              { id: 'roles', label: t('permissions.roleManagement'), icon: Users },
+              { id: 'permissions', label: t('permissions.permissionAssignment'), icon: Key }
             ].map(tab => {
               const Icon = tab.icon;
               return (
@@ -254,7 +262,7 @@ export default function Permissions() {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search permissions..."
+                  placeholder={t('permissions.searchPermissions')}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 />
               </div>
@@ -376,7 +384,7 @@ export default function Permissions() {
                 }}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleSaveRolePermissions}
@@ -386,12 +394,12 @@ export default function Permissions() {
                 {loading ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    Saving...
+                    {t('common.loading')}
                   </>
                 ) : (
                   <>
                     <Save size={18} />
-                    Save Changes
+                    {t('permissions.savePermissions')}
                   </>
                 )}
               </button>

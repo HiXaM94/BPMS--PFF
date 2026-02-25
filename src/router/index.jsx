@@ -21,6 +21,7 @@ import VacationRequest from '../pages/modules/VacationRequest';
 import DocumentRequest from '../pages/modules/DocumentRequest';
 import Payroll from '../pages/modules/Payroll';
 import Recruitment from '../pages/modules/Recruitment';
+import HRWorkflow from '../pages/modules/HRWorkflow';
 import Settings from '../pages/Settings';
 import Permissions from '../pages/Permissions';
 import AIAssistant from '../pages/AIAssistant';
@@ -49,7 +50,8 @@ const router = createBrowserRouter([
       { path: 'tasks',     element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><TaskPerformance /></RoleGuard> },
       { path: 'vacation',  element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><VacationRequest /></RoleGuard> },
       { path: 'documents', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><DocumentRequest /></RoleGuard> },
-      { path: 'payroll',   element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Payroll /></RoleGuard> },
+      { path: 'payroll',      element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Payroll /></RoleGuard> },
+      { path: 'hr-workflow',  element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><HRWorkflow /></RoleGuard> },
 
       // Intelligence
       { path: 'analytics',     element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><PlaceholderPage title="Analytics" /></RoleGuard> },

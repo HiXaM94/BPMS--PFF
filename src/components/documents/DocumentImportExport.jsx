@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { fileUploadService } from '../../services/FileUploadService';
 import { auditService } from '../../services/AuditService';
+import { cacheService } from '../../services/CacheService';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function DocumentImportExport({ 
   entityType = 'documents',
@@ -12,6 +14,7 @@ export default function DocumentImportExport({
   onImportComplete,
   onExportComplete 
 }) {
+  const { t } = useLanguage();
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
@@ -77,6 +80,7 @@ export default function DocumentImportExport({
       // Log audit trail
       await auditService.logDataImport(entityType, importedData.length);
 
+      cacheService.invalidatePattern('^documents:');
       if (onImportComplete) {
         onImportComplete(importedData);
       }
@@ -110,7 +114,7 @@ export default function DocumentImportExport({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Download className="text-brand-600" size={20} />
-            <h3 className="font-semibold text-gray-900">Export Data</h3>
+            <h3 className="font-semibold text-gray-900">{t('common.export')} Data</h3>
           </div>
           <span className="text-sm text-gray-600">{data.length} records</span>
         </div>
@@ -126,7 +130,7 @@ export default function DocumentImportExport({
             ) : (
               <FileSpreadsheet size={18} />
             )}
-            Export CSV
+            {t('common.export')} CSV
           </button>
 
           <button
@@ -139,7 +143,7 @@ export default function DocumentImportExport({
             ) : (
               <FileJson size={18} />
             )}
-            Export JSON
+            {t('common.export')} JSON
           </button>
         </div>
       </div>
@@ -148,7 +152,7 @@ export default function DocumentImportExport({
       <div className="bg-white rounded-lg border border-gray-200 p-4">
         <div className="flex items-center gap-2 mb-3">
           <Upload className="text-brand-600" size={20} />
-          <h3 className="font-semibold text-gray-900">Import Data</h3>
+          <h3 className="font-semibold text-gray-900">{t('common.import')} Data</h3>
         </div>
 
         <div className="space-y-3">

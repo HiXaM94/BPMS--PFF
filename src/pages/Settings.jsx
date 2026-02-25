@@ -6,11 +6,14 @@ import {
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import { auditService } from '../services/AuditService';
+import { cacheService } from '../services/CacheService';
 
 export default function Settings() {
   const { profile } = useAuth();
+  const { t, switchLanguage, locale } = useLanguage();
   const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
@@ -70,12 +73,18 @@ export default function Settings() {
     if (!supabase || !profile?.entreprise_id) return;
 
     try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('*')
-        .eq('entreprise_id', profile.entreprise_id);
-
-      if (error) throw error;
+      const data = await cacheService.getOrSet(
+        `settings:${profile.entreprise_id}`,
+        async () => {
+          const { data, error } = await supabase
+            .from('system_settings')
+            .select('*')
+            .eq('entreprise_id', profile.entreprise_id);
+          if (error) throw error;
+          return data;
+        },
+        300
+      );
 
       if (data && data.length > 0) {
         const loadedSettings = { ...settings };
@@ -126,6 +135,7 @@ export default function Settings() {
         );
       }
 
+      cacheService.invalidatePattern('^settings:');
       setSaveStatus('success');
       setTimeout(() => setSaveStatus(null), 3000);
     } catch (error) {
@@ -147,18 +157,18 @@ export default function Settings() {
   };
 
   const tabs = [
-    { id: 'general', label: 'General', icon: SettingsIcon },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'ai', label: 'AI Features', icon: Zap },
-    { id: 'integrations', label: 'Integrations', icon: Database }
+    { id: 'general', label: t('settings.general'), icon: SettingsIcon },
+    { id: 'notifications', label: t('settings.notificationSettings'), icon: Bell },
+    { id: 'security', label: t('settings.security'), icon: Shield },
+    { id: 'ai', label: t('settings.aiFeatures'), icon: Zap },
+    { id: 'integrations', label: t('settings.integrations'), icon: Database }
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Settings"
-        subtitle="Manage system configuration and preferences"
+        title={t('settings.title')}
+        subtitle={t('settings.general')}
         icon={SettingsIcon}
       />
 
@@ -250,14 +260,12 @@ export default function Settings() {
                         Language
                       </label>
                       <select
-                        value={settings.general.language}
-                        onChange={(e) => updateSetting('general', 'language', e.target.value)}
+                        value={locale}
+                        onChange={(e) => { switchLanguage(e.target.value); updateSetting('general', 'language', e.target.value); }}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                       >
                         <option value="en">English</option>
                         <option value="fr">Français</option>
-                        <option value="ar">العربية</option>
-                        <option value="es">Español</option>
                       </select>
                     </div>
                   </div>
@@ -602,7 +610,7 @@ export default function Settings() {
                 {saveStatus === 'success' && (
                   <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle2 size={20} />
-                    <span className="text-sm font-medium">Settings saved successfully</span>
+                    <span className="text-sm font-medium">{t('settings.saved')}</span>
                   </div>
                 )}
                 {saveStatus === 'error' && (
@@ -621,12 +629,12 @@ export default function Settings() {
                 {loading ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    Saving...
+                    {t('common.loading')}
                   </>
                 ) : (
                   <>
                     <Save size={20} />
-                    Save Changes
+                    {t('settings.saveChanges')}
                   </>
                 )}
               </button>
