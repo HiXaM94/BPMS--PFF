@@ -17,7 +17,10 @@ import {
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { cacheService } from '../../services/CacheService';
+import { supabase, isSupabaseReady } from '../../services/supabase';
+import { auditService } from '../../services/AuditService';
 
 /* ─── Custom Node Components ─── */
 
@@ -124,19 +127,21 @@ const defaultEdgeOpts = {
   markerEnd: { type: MarkerType.ArrowClosed, color: '#6366f1' },
 };
 
-const workflows = {
+/** Build workflow templates with i18n labels. Called inside component so t() is available. */
+function buildWorkflows(t) {
+  return {
   onboarding: {
     nodes: [
-      { id: 'start', type: 'start', position: { x: 60, y: 200 }, data: { label: 'New Hire' } },
-      { id: 'create-account', type: 'action', position: { x: 260, y: 80 }, data: { label: 'Create Account', description: 'IT creates user credentials' } },
-      { id: 'assign-manager', type: 'action', position: { x: 260, y: 220 }, data: { label: 'Assign Manager', description: 'HR assigns reporting line' } },
-      { id: 'collect-docs', type: 'action', position: { x: 260, y: 360 }, data: { label: 'Collect Documents', description: 'CNSS, CIN, Diploma, RIB' } },
-      { id: 'verify-docs', type: 'approval', position: { x: 520, y: 220 }, data: { label: 'Verify Documents', approver: 'HR Manager' } },
-      { id: 'docs-ok', type: 'condition', position: { x: 760, y: 220 }, data: { label: 'Documents Valid?', condition: 'All docs approved' } },
-      { id: 'notify-team', type: 'notification', position: { x: 1000, y: 120 }, data: { label: 'Notify Team', channel: 'Email + App' } },
-      { id: 'schedule-training', type: 'action', position: { x: 1000, y: 300 }, data: { label: 'Schedule Training', description: 'First week orientation' } },
-      { id: 'request-resubmit', type: 'notification', position: { x: 760, y: 400 }, data: { label: 'Request Resubmit', channel: 'Email' } },
-      { id: 'end', type: 'end', position: { x: 1250, y: 200 }, data: { label: 'Onboarded' } },
+      { id: 'start', type: 'start', position: { x: 60, y: 200 }, data: { label: t('workflow.nodeNewHire') } },
+      { id: 'create-account', type: 'action', position: { x: 260, y: 80 }, data: { label: t('workflow.nodeCreateAccount'), description: t('workflow.nodeCreateAccountDesc') } },
+      { id: 'assign-manager', type: 'action', position: { x: 260, y: 220 }, data: { label: t('workflow.nodeAssignManager'), description: t('workflow.nodeAssignManagerDesc') } },
+      { id: 'collect-docs', type: 'action', position: { x: 260, y: 360 }, data: { label: t('workflow.nodeCollectDocs'), description: 'CNSS, CIN, Diploma, RIB' } },
+      { id: 'verify-docs', type: 'approval', position: { x: 520, y: 220 }, data: { label: t('workflow.nodeVerifyDocs'), approver: t('workflow.approverHR') } },
+      { id: 'docs-ok', type: 'condition', position: { x: 760, y: 220 }, data: { label: t('workflow.nodeDocsValid'), condition: t('workflow.condAllApproved') } },
+      { id: 'notify-team', type: 'notification', position: { x: 1000, y: 120 }, data: { label: t('workflow.nodeNotifyTeam'), channel: 'Email + App' } },
+      { id: 'schedule-training', type: 'action', position: { x: 1000, y: 300 }, data: { label: t('workflow.nodeScheduleTraining'), description: t('workflow.nodeScheduleTrainingDesc') } },
+      { id: 'request-resubmit', type: 'notification', position: { x: 760, y: 400 }, data: { label: t('workflow.nodeResubmit'), channel: 'Email' } },
+      { id: 'end', type: 'end', position: { x: 1250, y: 200 }, data: { label: t('workflow.nodeOnboarded') } },
     ],
     edges: [
       { id: 'e1', source: 'start', target: 'create-account' },
@@ -156,16 +161,16 @@ const workflows = {
   },
   leaveApproval: {
     nodes: [
-      { id: 'start', type: 'start', position: { x: 60, y: 180 }, data: { label: 'Leave Request' } },
-      { id: 'check-balance', type: 'condition', position: { x: 280, y: 180 }, data: { label: 'Check Balance', condition: 'Days remaining ≥ requested' } },
-      { id: 'auto-reject', type: 'notification', position: { x: 280, y: 370 }, data: { label: 'Auto-Reject', channel: 'Email + App' } },
-      { id: 'manager-review', type: 'approval', position: { x: 530, y: 100 }, data: { label: 'Manager Review', approver: 'Direct Manager' } },
-      { id: 'hr-review', type: 'approval', position: { x: 530, y: 280 }, data: { label: 'HR Review', approver: 'HR Manager' } },
-      { id: 'check-coverage', type: 'condition', position: { x: 780, y: 180 }, data: { label: 'Team Coverage OK?', condition: '≥ 70% team present' } },
-      { id: 'approved', type: 'action', position: { x: 1020, y: 100 }, data: { label: 'Approve Leave', description: 'Deduct from balance' } },
-      { id: 'waitlist', type: 'action', position: { x: 1020, y: 300 }, data: { label: 'Add to Waitlist', description: 'Notify when slot opens' } },
-      { id: 'notify-all', type: 'notification', position: { x: 1250, y: 180 }, data: { label: 'Notify All Parties', channel: 'Email + Calendar' } },
-      { id: 'end', type: 'end', position: { x: 1470, y: 180 }, data: { label: 'Complete' } },
+      { id: 'start', type: 'start', position: { x: 60, y: 180 }, data: { label: t('workflow.nodeLeaveRequest') } },
+      { id: 'check-balance', type: 'condition', position: { x: 280, y: 180 }, data: { label: t('workflow.nodeCheckBalance'), condition: t('workflow.condBalanceSufficient') } },
+      { id: 'auto-reject', type: 'notification', position: { x: 280, y: 370 }, data: { label: t('workflow.nodeAutoReject'), channel: 'Email + App' } },
+      { id: 'manager-review', type: 'approval', position: { x: 530, y: 100 }, data: { label: t('workflow.nodeManagerReview'), approver: t('workflow.approverManager') } },
+      { id: 'hr-review', type: 'approval', position: { x: 530, y: 280 }, data: { label: t('workflow.nodeHRReview'), approver: t('workflow.approverHR') } },
+      { id: 'check-coverage', type: 'condition', position: { x: 780, y: 180 }, data: { label: t('workflow.nodeTeamCoverage'), condition: t('workflow.condCoverage70') } },
+      { id: 'approved', type: 'action', position: { x: 1020, y: 100 }, data: { label: t('workflow.nodeApproveLeave'), description: t('workflow.nodeDeductBalance') } },
+      { id: 'waitlist', type: 'action', position: { x: 1020, y: 300 }, data: { label: t('workflow.nodeWaitlist'), description: t('workflow.nodeWaitlistDesc') } },
+      { id: 'notify-all', type: 'notification', position: { x: 1250, y: 180 }, data: { label: t('workflow.nodeNotifyAll'), channel: 'Email + Calendar' } },
+      { id: 'end', type: 'end', position: { x: 1470, y: 180 }, data: { label: t('workflow.nodeComplete') } },
     ],
     edges: [
       { id: 'e1', source: 'start', target: 'check-balance' },
@@ -182,16 +187,16 @@ const workflows = {
   },
   recruitment: {
     nodes: [
-      { id: 'start', type: 'start', position: { x: 60, y: 200 }, data: { label: 'Job Opening' } },
-      { id: 'post-job', type: 'action', position: { x: 280, y: 200 }, data: { label: 'Post Job', description: 'Internal + external boards' } },
-      { id: 'screen-apps', type: 'action', position: { x: 500, y: 200 }, data: { label: 'Screen Applications', description: 'AI-assisted scoring' } },
-      { id: 'hr-screen', type: 'approval', position: { x: 720, y: 100 }, data: { label: 'HR Screen Call', approver: 'HR Recruiter' } },
-      { id: 'tech-interview', type: 'approval', position: { x: 720, y: 300 }, data: { label: 'Technical Interview', approver: 'Tech Lead' } },
-      { id: 'qualified', type: 'condition', position: { x: 950, y: 200 }, data: { label: 'Qualified?', condition: 'Score ≥ 70/100' } },
-      { id: 'final-interview', type: 'approval', position: { x: 1180, y: 120 }, data: { label: 'Final Interview', approver: 'Department Head' } },
-      { id: 'reject-notify', type: 'notification', position: { x: 1180, y: 340 }, data: { label: 'Rejection Email', channel: 'Email' } },
-      { id: 'offer', type: 'action', position: { x: 1400, y: 120 }, data: { label: 'Send Offer', description: 'Generate & send contract' } },
-      { id: 'end', type: 'end', position: { x: 1600, y: 200 }, data: { label: 'Hired / Closed' } },
+      { id: 'start', type: 'start', position: { x: 60, y: 200 }, data: { label: t('workflow.nodeJobOpening') } },
+      { id: 'post-job', type: 'action', position: { x: 280, y: 200 }, data: { label: t('workflow.nodePostJob'), description: t('workflow.nodePostJobDesc') } },
+      { id: 'screen-apps', type: 'action', position: { x: 500, y: 200 }, data: { label: t('workflow.nodeScreenApps'), description: t('workflow.nodeScreenAppsDesc') } },
+      { id: 'hr-screen', type: 'approval', position: { x: 720, y: 100 }, data: { label: t('workflow.nodeHRScreen'), approver: t('workflow.approverRecruiter') } },
+      { id: 'tech-interview', type: 'approval', position: { x: 720, y: 300 }, data: { label: t('workflow.nodeTechInterview'), approver: t('workflow.approverTechLead') } },
+      { id: 'qualified', type: 'condition', position: { x: 950, y: 200 }, data: { label: t('workflow.nodeQualified'), condition: t('workflow.condScore70') } },
+      { id: 'final-interview', type: 'approval', position: { x: 1180, y: 120 }, data: { label: t('workflow.nodeFinalInterview'), approver: t('workflow.approverDeptHead') } },
+      { id: 'reject-notify', type: 'notification', position: { x: 1180, y: 340 }, data: { label: t('workflow.nodeRejection'), channel: 'Email' } },
+      { id: 'offer', type: 'action', position: { x: 1400, y: 120 }, data: { label: t('workflow.nodeSendOffer'), description: t('workflow.nodeSendOfferDesc') } },
+      { id: 'end', type: 'end', position: { x: 1600, y: 200 }, data: { label: t('workflow.nodeHired') } },
     ],
     edges: [
       { id: 'e1', source: 'start', target: 'post-job' },
@@ -209,15 +214,15 @@ const workflows = {
   },
   performanceReview: {
     nodes: [
-      { id: 'start', type: 'start', position: { x: 60, y: 180 }, data: { label: 'Review Cycle' } },
-      { id: 'self-eval', type: 'action', position: { x: 280, y: 180 }, data: { label: 'Self-Evaluation', description: 'Employee fills form' } },
-      { id: 'manager-eval', type: 'action', position: { x: 500, y: 100 }, data: { label: 'Manager Evaluation', description: 'Rate performance KPIs' } },
-      { id: 'peer-review', type: 'action', position: { x: 500, y: 280 }, data: { label: 'Peer Review', description: '360° feedback' } },
-      { id: 'calibration', type: 'approval', position: { x: 730, y: 180 }, data: { label: 'Calibration Meeting', approver: 'HR + Department Heads' } },
-      { id: 'rating-ok', type: 'condition', position: { x: 960, y: 180 }, data: { label: 'Rating Finalized?', condition: 'All scores aligned' } },
-      { id: 'notify-employee', type: 'notification', position: { x: 1190, y: 100 }, data: { label: 'Notify Employee', channel: 'Email + Meeting invite' } },
-      { id: 'revision', type: 'action', position: { x: 960, y: 360 }, data: { label: 'Request Revision', description: 'Adjust scores' } },
-      { id: 'end', type: 'end', position: { x: 1400, y: 180 }, data: { label: 'Review Complete' } },
+      { id: 'start', type: 'start', position: { x: 60, y: 180 }, data: { label: t('workflow.nodeReviewCycle') } },
+      { id: 'self-eval', type: 'action', position: { x: 280, y: 180 }, data: { label: t('workflow.nodeSelfEval'), description: t('workflow.nodeSelfEvalDesc') } },
+      { id: 'manager-eval', type: 'action', position: { x: 500, y: 100 }, data: { label: t('workflow.nodeManagerEval'), description: t('workflow.nodeManagerEvalDesc') } },
+      { id: 'peer-review', type: 'action', position: { x: 500, y: 280 }, data: { label: t('workflow.nodePeerReview'), description: t('workflow.nodePeerReviewDesc') } },
+      { id: 'calibration', type: 'approval', position: { x: 730, y: 180 }, data: { label: t('workflow.nodeCalibration'), approver: t('workflow.approverCalibration') } },
+      { id: 'rating-ok', type: 'condition', position: { x: 960, y: 180 }, data: { label: t('workflow.nodeRatingFinalized'), condition: t('workflow.condScoresAligned') } },
+      { id: 'notify-employee', type: 'notification', position: { x: 1190, y: 100 }, data: { label: t('workflow.nodeNotifyEmployee'), channel: 'Email + Meeting invite' } },
+      { id: 'revision', type: 'action', position: { x: 960, y: 360 }, data: { label: t('workflow.nodeRequestRevision'), description: t('workflow.nodeRequestRevisionDesc') } },
+      { id: 'end', type: 'end', position: { x: 1400, y: 180 }, data: { label: t('workflow.nodeReviewComplete') } },
     ],
     edges: [
       { id: 'e1', source: 'start', target: 'self-eval' },
@@ -233,14 +238,17 @@ const workflows = {
     ],
   },
 };
+}
 
 /* ─── Main Component ─── */
 
 export default function HRWorkflow() {
   const { t } = useLanguage();
+  const { profile } = useAuth();
   const [activeWorkflow, setActiveWorkflow] = useState('onboarding');
   const [saved, setSaved] = useState(false);
 
+  const workflows = useMemo(() => buildWorkflows(t), [t]);
   const wf = workflows[activeWorkflow];
   const [nodes, setNodes, onNodesChange] = useNodesState(wf.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(
@@ -260,8 +268,24 @@ export default function HRWorkflow() {
     setSaved(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // 1. Cache locally
     cacheService.set(`workflow:${activeWorkflow}`, { nodes, edges }, 600);
+    // 2. Persist to Supabase if available
+    if (isSupabaseReady && profile?.entreprise_id) {
+      try {
+        await supabase.from('hr_workflows').upsert({
+          entreprise_id: profile.entreprise_id,
+          workflow_key: activeWorkflow,
+          nodes_json: nodes,
+          edges_json: edges,
+          updated_by: profile.id,
+        }, { onConflict: 'entreprise_id,workflow_key' });
+        auditService.log('WORKFLOW_SAVED', 'hr_workflow', activeWorkflow, null, { nodeCount: nodes.length, edgeCount: edges.length }).catch(() => {});
+      } catch (err) {
+        console.error('[HRWorkflow] Supabase save failed:', err.message);
+      }
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

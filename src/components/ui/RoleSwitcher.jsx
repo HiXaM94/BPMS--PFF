@@ -4,6 +4,7 @@ import { useRole } from '../../contexts/RoleContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { ChevronDown, Check, Shield, AlertTriangle } from 'lucide-react';
 import { cacheService } from '../../services/CacheService';
+import { auditService } from '../../services/AuditService';
 
 /**
  * Role switcher dropdown for simulating role-based views.
@@ -23,7 +24,7 @@ export default function RoleSwitcher() {
 
   const confirmSwitch = () => {
     if (!confirmRole) return;
-    // Log role switch for audit trail
+    // Log role switch to localStorage + Supabase audit trail
     const logEntry = {
       timestamp: new Date().toISOString(),
       from: currentRole.id,
@@ -32,6 +33,14 @@ export default function RoleSwitcher() {
     const history = JSON.parse(localStorage.getItem('bpms_role_audit') || '[]');
     history.push(logEntry);
     localStorage.setItem('bpms_role_audit', JSON.stringify(history.slice(-50)));
+    // Fire-and-forget Supabase audit log
+    auditService.log(
+      'ROLE_SWITCH',
+      'role',
+      confirmRole.id,
+      { from: currentRole.id, fromLabel: currentRole.label },
+      { to: confirmRole.id, toLabel: confirmRole.label }
+    ).catch(() => {});
     cacheService.clear();
     switchRole(confirmRole.id);
     setConfirmRole(null);

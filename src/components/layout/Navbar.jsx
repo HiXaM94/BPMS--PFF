@@ -65,8 +65,13 @@ export default function Navbar() {
 
       {/* Right */}
       <div className="flex items-center gap-1.5">
-        <RoleSwitcher />
-        <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1" />
+        {/* Role switching restricted to privileged admin roles only */}
+        {(currentRole.id === 'super_admin' || currentRole.id === 'company_admin') && (
+          <>
+            <RoleSwitcher />
+            <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1" />
+          </>
+        )}
         <button className="flex items-center justify-center w-9 h-9 rounded-xl
                            hover:bg-surface-tertiary transition-colors duration-200 cursor-pointer group"
           aria-label="Search">
