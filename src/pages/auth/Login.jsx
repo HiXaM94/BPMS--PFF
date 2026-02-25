@@ -41,7 +41,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-gray-50/40 flex items-center justify-center p-4">
       {/* Subtle background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-brand-500/[0.04] blur-[100px]" />
@@ -201,7 +201,7 @@ export default function Login() {
               type="submit"
               disabled={loading}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
-                         bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold text-sm
+                         bg-brand-500 text-white font-semibold text-sm
                          shadow-lg shadow-brand-500/20
                          hover:shadow-xl hover:shadow-brand-500/25 hover:-translate-y-0.5
                          active:translate-y-0 active:shadow-md
