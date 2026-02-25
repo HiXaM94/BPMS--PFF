@@ -19,6 +19,12 @@ export default function Login() {
   const [showPw, setShowPw]     = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  const [leaving, setLeaving]   = useState(false);
+
+  const navigateWithTransition = (to) => {
+    setLeaving(true);
+    setTimeout(() => navigate(to), 350);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -44,7 +50,9 @@ export default function Login() {
       </div>
 
       {/* Two-panel card */}
-      <div className="relative w-full max-w-[960px] min-h-[560px] bg-white rounded-3xl shadow-2xl shadow-black/[0.06] border border-gray-100 overflow-hidden flex animate-fade-in">
+      <div className={`relative w-full max-w-[960px] min-h-[560px] bg-white rounded-3xl shadow-2xl shadow-black/[0.06] border border-gray-100 overflow-hidden flex
+                      transition-all duration-350 ease-[cubic-bezier(0.4,0,0.2,1)]
+                      ${leaving ? 'opacity-0 translate-y-4 scale-[0.98]' : 'animate-fade-in'}`}>
 
         {/* ───── LEFT PANEL — Brand + Contact ───── */}
         <div className="hidden md:flex md:w-[420px] flex-col justify-between relative overflow-hidden
@@ -208,9 +216,13 @@ export default function Login() {
 
           <p className="text-center text-sm text-text-secondary mt-7">
             {t('auth.noAccount')}{' '}
-            <Link to="/register" className="text-brand-500 hover:text-brand-600 font-semibold transition-colors">
+            <button
+              type="button"
+              onClick={() => navigateWithTransition('/register')}
+              className="text-brand-500 hover:text-brand-600 font-semibold transition-colors cursor-pointer bg-transparent border-none p-0"
+            >
               {t('auth.register')}
-            </Link>
+            </button>
           </p>
 
           {/* Demo hint */}

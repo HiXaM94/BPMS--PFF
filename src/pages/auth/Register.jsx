@@ -14,6 +14,12 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
+  const navigateWithTransition = (to) => {
+    setLeaving(true);
+    setTimeout(() => navigate(to), 350);
+  };
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -67,7 +73,9 @@ export default function Register() {
         <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-brand-500/[0.04] blur-[100px]" />
       </div>
 
-      <div className="relative w-full max-w-md animate-fade-in">
+      <div className={`relative w-full max-w-md
+                      transition-all duration-350 ease-[cubic-bezier(0.4,0,0.2,1)]
+                      ${leaving ? 'opacity-0 translate-y-4 scale-[0.98]' : 'animate-fade-in'}`}>
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-lg shadow-brand-500/20">
@@ -147,7 +155,13 @@ export default function Register() {
 
           <p className="text-center text-sm text-text-secondary mt-6">
             {t('auth.hasAccount')}{' '}
-            <Link to="/login" className="text-brand-500 hover:text-brand-600 font-semibold transition-colors">{t('auth.login')}</Link>
+            <button
+              type="button"
+              onClick={() => navigateWithTransition('/login')}
+              className="text-brand-500 hover:text-brand-600 font-semibold transition-colors cursor-pointer bg-transparent border-none p-0"
+            >
+              {t('auth.login')}
+            </button>
           </p>
         </div>
       </div>
