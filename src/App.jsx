@@ -4,6 +4,7 @@ import { SidebarProvider } from './contexts/SidebarContext';
 import { RoleProvider } from './contexts/RoleContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import router from './router';
 
 function AppInner() {
@@ -21,10 +22,12 @@ function AppInner() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppInner />
-      </AuthProvider>
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppInner />
+        </AuthProvider>
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }

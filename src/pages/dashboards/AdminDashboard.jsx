@@ -18,6 +18,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
 import { adminData } from '../../data/mockData';
 import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 
 /* ─── Asset-style cards with colored backgrounds matching template ─── */
 const assetCards = [
@@ -38,8 +39,8 @@ const assetCards = [
     sub: '89 active today',
     change: '+0.31%',
     positive: true,
-    bg: 'bg-[#f3ecfb]',
-    darkBg: 'dark:bg-purple-500/10',
+    bg: 'bg-brand-50',
+    darkBg: 'dark:bg-brand-500/10',
     icon: Users,
     iconBg: 'bg-[#8e55ea]',
   },
@@ -156,13 +157,14 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!isSupabaseReady) return;
 
-    // Counts
-    Promise.all([
-      supabase.from('entreprises').select('id', { count: 'exact', head: true }),
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-    ]).then(([ents, users]) => {
-      const entCount = ents.count ?? 0;
-      const userCount = users.count ?? 0;
+    // Counts – served from cache when warm, otherwise fetched & cached
+    cacheService.getOrSet('admin:counts', async () => {
+      const [ents, users] = await Promise.all([
+        supabase.from('entreprises').select('id', { count: 'exact', head: true }),
+        supabase.from('users').select('id', { count: 'exact', head: true }),
+      ]);
+      return { entCount: ents.count ?? 0, userCount: users.count ?? 0 };
+    }, 120).then(({ entCount, userCount }) => {
       setTotalUsers(userCount.toLocaleString());
       setCards(prev => [
         { ...prev[0], value: entCount.toString(), sub: `${userCount} employees` },
@@ -171,40 +173,44 @@ export default function AdminDashboard() {
       ]);
     });
 
-    // Organisations table
-    supabase.from('entreprises')
-      .select('id, name, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5)
-      .then(({ data }) => {
-        if (!data || data.length === 0) return;
-        setOrgs(data.map((e, i) => ({
-          id: e.id,
-          name: e.name,
-          tag: e.name.slice(0, 4).toUpperCase(),
-          plan: 'Business',
-          users: '-',
-          growth: '',
-          positive: true,
-          status: e.status || 'active',
-        })));
-      });
+    // Organisations table – cached 2 min
+    cacheService.getOrSet('admin:orgs', async () => {
+      const { data } = await supabase.from('entreprises')
+        .select('id, name, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      return data;
+    }, 120).then((data) => {
+      if (!data || data.length === 0) return;
+      setOrgs(data.map((e) => ({
+        id: e.id,
+        name: e.name,
+        tag: e.name.slice(0, 4).toUpperCase(),
+        plan: 'Business',
+        users: '-',
+        growth: '',
+        positive: true,
+        status: e.status || 'active',
+      })));
+    });
 
-    // System logs
-    supabase.from('system_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(6)
-      .then(({ data }) => {
-        if (!data || data.length === 0) return;
-        setSystemLogs(data.map(l => ({
-          id: l.id,
-          severity: l.level || 'info',
-          event: l.action || l.message || 'System event',
-          details: l.details || '',
-          time: new Date(l.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        })));
-      });
+    // System logs – cached 1 min
+    cacheService.getOrSet('admin:logs', async () => {
+      const { data } = await supabase.from('system_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(6);
+      return data;
+    }, 60).then((data) => {
+      if (!data || data.length === 0) return;
+      setSystemLogs(data.map(l => ({
+        id: l.id,
+        severity: l.level || 'info',
+        event: l.action || l.message || 'System event',
+        details: l.details || '',
+        time: new Date(l.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      })));
+    });
   }, []);
 
   return (

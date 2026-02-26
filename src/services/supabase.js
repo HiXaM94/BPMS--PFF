@@ -11,7 +11,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        // Bypass navigator.locks to avoid "lock is not a function" / timeout errors
+        lock: (name, acquireTimeout, fn) => fn(),
+      },
+    })
   : null;
 
 export const isSupabaseReady = !!supabase;

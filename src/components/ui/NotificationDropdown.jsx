@@ -4,6 +4,7 @@ import {
   Bell, CheckCircle2, AlertCircle, Info, X, Check, ExternalLink, Loader2,
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 function typeStyle(type) {
   switch (type) {
@@ -26,6 +27,7 @@ function timeAgo(dateStr) {
 
 export default function NotificationDropdown() {
   const { notifications, loading, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -67,7 +69,7 @@ export default function NotificationDropdown() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-secondary">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-text-primary">Notifications</h3>
+            <h3 className="text-sm font-bold text-text-primary">{t('notifications.title')}</h3>
             {unreadCount > 0 && (
               <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full
                               text-[10px] font-bold bg-danger-500 text-white">{unreadCount}</span>
@@ -77,7 +79,7 @@ export default function NotificationDropdown() {
             <button onClick={markAllAsRead}
               className="text-[11px] font-medium text-brand-500 hover:text-brand-600
                          transition-colors cursor-pointer flex items-center gap-1">
-              <Check size={12} /> Mark all read
+              <Check size={12} /> {t('notifications.markAllRead')}
             </button>
           )}
         </div>
@@ -91,7 +93,7 @@ export default function NotificationDropdown() {
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-text-tertiary">
               <Bell size={28} className="mb-2 opacity-30" />
-              <span className="text-sm">All caught up!</span>
+              <span className="text-sm">{t('notifications.noNotifications')}</span>
             </div>
           ) : (
             notifications.map((notif, i) => {
@@ -133,7 +135,7 @@ export default function NotificationDropdown() {
           <Link to="/notifications" onClick={() => setIsOpen(false)}
             className="w-full text-center text-xs font-medium text-brand-500 hover:text-brand-600
                        transition-colors cursor-pointer py-1 flex items-center justify-center gap-1">
-            View all notifications <ExternalLink size={10} />
+            {t('common.viewAll')} <ExternalLink size={10} />
           </Link>
         </div>
       </div>

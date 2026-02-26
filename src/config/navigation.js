@@ -14,6 +14,7 @@ import {
   File,
   Banknote,
   Briefcase,
+  GitBranch,
 } from 'lucide-react';
 
 /**
@@ -44,6 +45,7 @@ export const navigationItems = [
       { id: 'vacation', label: 'Vacation Request', icon: Palmtree, path: '/vacation', roles: ['super_admin', 'company_admin', 'hr', 'manager', 'employee'] },
       { id: 'documents', label: 'Document Request', icon: File, path: '/documents', roles: ['super_admin', 'company_admin', 'hr', 'manager', 'employee'] },
       { id: 'payroll', label: 'Payroll', icon: Banknote, path: '/payroll', roles: ['super_admin', 'company_admin', 'hr'] },
+      { id: 'hr-workflow', label: 'HR Workflow', icon: GitBranch, path: '/hr-workflow', roles: ['super_admin', 'company_admin', 'hr', 'manager'] },
     ],
   },
 

@@ -7,6 +7,8 @@ import StatCard from '../../components/ui/StatCard';
 import MiniChart from '../../components/ui/MiniChart';
 import Modal from '../../components/ui/Modal';
 import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
+import { aiService } from '../../services/AIService';
 
 // ── Fallback mock data (used when Supabase is not configured) ──
 const MOCK_JOBS = [
@@ -31,14 +33,14 @@ const pipelineData = [
 const depts = ['Engineering', 'Product', 'Design', 'Analytics', 'Marketing', 'HR', 'Finance', 'Operations'];
 const locs  = ['Casablanca', 'Rabat', 'Marrakech', 'Fes', 'Remote'];
 const types = ['Full-time', 'Part-time', 'Contract', 'Internship'];
-const stageColors  = { 'HR Screen': 'neutral', 'Portfolio Review': 'info', 'Technical Interview': 'brand', 'Final Interview': 'violet', 'Offer': 'success', 'Rejected': 'danger' };
+const stageColors  = { 'HR Screen': 'neutral', 'Portfolio Review': 'info', 'Technical Interview': 'brand', 'Final Interview': 'brand', 'Offer': 'success', 'Rejected': 'danger' };
 const candColors = { 'in-progress': 'brand', offer: 'success', rejected: 'danger', pending: 'neutral' };
 const jobColors  = { open: 'success', closed: 'danger', draft: 'neutral' };
 
 const inp = 'w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition-all duration-200 text-text-primary placeholder:text-text-tertiary';
 const lbl = 'block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider';
 const emptyForm = { title: '', department: 'Engineering', location: 'Casablanca', type: 'Full-time', salaryMin: '', salaryMax: '', description: '' };
-const btnPrimary = (g = 'from-indigo-500 to-violet-600') => `px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r ${g} shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer flex items-center gap-2`;
+const btnPrimary = (g = 'from-brand-500 to-brand-600') => `px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r ${g} shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer flex items-center gap-2`;
 const btnSecondary = 'px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:bg-surface-tertiary border border-border-secondary transition-all cursor-pointer';
 
 function fmtDate(d) {
@@ -61,6 +63,8 @@ export default function Recruitment() {
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
+  const [aiScoring, setAiScoring] = useState(false);
+
   const fetchData = useCallback(async () => {
     if (!isSupabaseReady) {
       setJobs(MOCK_JOBS);
@@ -69,9 +73,15 @@ export default function Recruitment() {
       return;
     }
     setLoading(true);
-    const [{ data: jobsData }, { data: candsData }] = await Promise.all([
-      supabase.from('recrutements').select('*').order('created_at', { ascending: false }),
-      supabase.from('candidates').select('*').order('created_at', { ascending: false }),
+    const [jobsData, candsData] = await Promise.all([
+      cacheService.getOrSet('recruit:jobs', async () => {
+        const { data } = await supabase.from('recrutements').select('*').order('created_at', { ascending: false });
+        return data;
+      }, 120),
+      cacheService.getOrSet('recruit:candidates', async () => {
+        const { data } = await supabase.from('candidates').select('*').order('created_at', { ascending: false });
+        return data;
+      }, 120),
     ]);
     setJobs((jobsData || []).map(j => ({
       id: j.id,
@@ -135,6 +145,8 @@ export default function Recruitment() {
     if (error) { flash('Error: ' + error.message); return; }
     setForm(emptyForm); setShowNew(false);
     flash('Job posted successfully!');
+    cacheService.invalidatePattern('^recruit:');
+    cacheService.invalidatePattern('^hr:');
     fetchData();
   };
 
@@ -156,7 +168,32 @@ export default function Recruitment() {
     }).eq('id', editJob.id);
     if (error) { flash('Error: ' + error.message); return; }
     setEditJob(null); flash('Job posting updated.');
+    cacheService.invalidatePattern('^recruit:');
     fetchData();
+  };
+
+  const handleAiScore = async () => {
+    if (candidates.length === 0) return;
+    setAiScoring(true);
+    try {
+      const firstOpenJob = jobs.find(j => j.status === 'open');
+      const jobDesc = firstOpenJob?.description || firstOpenJob?.title || 'Open position';
+      const scored = await aiService.recommendCandidates(
+        jobDesc,
+        candidates.map(c => ({ ...c, experience: c.position, skills: [c.stage] }))
+      );
+      setCandidates(scored.map(c => ({
+        ...c,
+        rating: c.aiScore ? (c.aiScore / 20).toFixed(1) : c.rating,
+        aiScore: c.aiScore ? Math.round(c.aiScore) : undefined,
+        aiReasoning: c.aiReasoning,
+      })));
+      flash('AI scoring complete – candidates re-ranked!');
+    } catch (err) {
+      flash('AI scoring failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setAiScoring(false);
+    }
   };
 
   const jobCols = [
@@ -203,8 +240,8 @@ export default function Recruitment() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Recruitment" description="Job postings, candidate pipeline, and hiring management"
-        icon={Briefcase} iconColor="from-indigo-500 to-violet-600"
-        actionLabel="Post New Job" actionIcon={Plus} actionColor="from-indigo-500 to-violet-600"
+        icon={Briefcase} iconColor="from-brand-500 to-brand-600"
+        actionLabel="Post New Job" actionIcon={Plus} actionColor="from-brand-500 to-brand-600"
         onAction={() => setShowNew(true)} />
 
       {toast && (
@@ -214,7 +251,7 @@ export default function Recruitment() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Open Positions" value={openCount.toString()} icon={Briefcase} iconColor="bg-gradient-to-br from-indigo-500 to-violet-600" delay={0}/>
+        <StatCard title="Open Positions" value={openCount.toString()} icon={Briefcase} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" delay={0}/>
         <StatCard title="Total Applicants" value={totalApps.toString()} icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" change="+28%" changeType="positive" delay={80}/>
         <StatCard title="Shortlisted" value={totalShort.toString()} icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-600" delay={160}/>
         <StatCard title="Avg Time to Hire" value="18 days" icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" change="-3d" changeType="positive" delay={240}/>
@@ -236,7 +273,16 @@ export default function Recruitment() {
       <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in" style={{ animationDelay: '550ms' }}>
         <div className="px-5 pt-5 pb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-text-primary">Active Candidates</h2>
-          <button className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors cursor-pointer flex items-center gap-1">View All <ArrowUpRight size={12}/></button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAiScore}
+              disabled={aiScoring || candidates.length === 0}
+              className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {aiScoring ? <><Loader2 size={12} className="animate-spin"/>Scoring...</> : <><Star size={12}/>AI Score</>}
+            </button>
+            <button className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors cursor-pointer flex items-center gap-1">View All <ArrowUpRight size={12}/></button>
+          </div>
         </div>
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -382,7 +428,7 @@ export default function Recruitment() {
         {viewCand && (
           <div className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold text-lg shrink-0">
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 text-white font-bold text-lg shrink-0">
                 {viewCand.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
               </div>
               <div>

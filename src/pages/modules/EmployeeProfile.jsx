@@ -2,12 +2,14 @@ import { useState } from 'react';
 import {
   User, Mail, Phone, MapPin, Calendar, Briefcase, Award,
   Edit, Building2, Clock, Star, GraduationCap, FileText, ShieldAlert,
-  Search, CreditCard, Landmark, Hash,
+  Search, CreditCard, Landmark, Hash, Camera, Upload, Loader2, CheckCircle2,
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Modal from '../../components/ui/Modal';
 import { useRole } from '../../contexts/RoleContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * All mock employees — each has the card fields (name, email, phone, cnss, rib, department)
@@ -226,7 +228,7 @@ const allEmployees = [
 
 const avatarColors = [
   'from-brand-500 to-brand-600',
-  'from-violet-500 to-purple-600',
+  'from-brand-500 to-brand-600',
   'from-pink-500 to-rose-600',
   'from-amber-500 to-orange-600',
   'from-emerald-500 to-teal-600',
@@ -247,11 +249,51 @@ function InfoItem({ icon: Icon, label, value }) {
   );
 }
 
+// Inline profile image upload for employee's own profile
+function AvatarUpload({ initials, colorClass, imageUrl, onImageChange }) {
+  const [preview, setPreview] = useState(imageUrl || null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreview(reader.result);
+      setUploading(false);
+      if (onImageChange) onImageChange(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="relative inline-block">
+      <div className={`flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br ${colorClass} text-white text-2xl font-bold shadow-lg shrink-0 overflow-hidden`}>
+        {preview ? (
+          <img src={preview} alt="Profile" className="w-full h-full object-cover" />
+        ) : (
+          initials
+        )}
+      </div>
+      <label className="absolute -bottom-1 -right-1 p-1.5 bg-white border-2 border-gray-200 rounded-full shadow-md hover:bg-brand-50 hover:border-brand-500 transition-colors cursor-pointer">
+        {uploading
+          ? <Loader2 size={14} className="text-brand-600 animate-spin" />
+          : <Camera size={14} className="text-gray-600" />}
+        <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
+      </label>
+    </div>
+  );
+}
+
 export default function EmployeeProfile() {
   const { currentRole } = useRole();
+  const { t } = useLanguage();
+  const { profile: authProfile } = useAuth();
   const [search, setSearch] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [deptFilter, setDeptFilter] = useState('all');
+  const [avatarImages, setAvatarImages] = useState({});
 
   const isEmployee = currentRole.id === 'employee';
 
@@ -273,10 +315,10 @@ export default function EmployeeProfile() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Employee Profiles"
+        title={t('profile.title')}
         description={isEmployee
-          ? 'View your profile information'
-          : `${visibleEmployees.length} employees in the organization`}
+          ? t('profile.viewRestrictedMsg')
+          : `${visibleEmployees.length} ${t('profile.inOrganization')}`}
         icon={User}
         iconColor="from-brand-500 to-brand-600"
       />
@@ -287,7 +329,7 @@ export default function EmployeeProfile() {
                         border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm animate-fade-in">
           <ShieldAlert size={18} className="shrink-0" />
           <span>
-            <strong>View restricted.</strong> You can only view your own profile information.
+            <strong>{t('profile.viewRestricted')}</strong> {t('profile.viewRestrictedMsg')}
           </span>
         </div>
       )}
@@ -300,7 +342,7 @@ export default function EmployeeProfile() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
             <input
               type="text"
-              placeholder="Search employees..."
+              placeholder={t('profile.searchEmployees')}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm bg-surface-primary border border-border-secondary
@@ -315,7 +357,7 @@ export default function EmployeeProfile() {
                        focus:outline-none focus:ring-2 focus:ring-brand-500/30 cursor-pointer
                        text-text-primary"
           >
-            <option value="all">All Departments</option>
+            <option value="all">{t('profile.allDepartments')}</option>
             {departments.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
@@ -383,7 +425,7 @@ export default function EmployeeProfile() {
 
       {filtered.length === 0 && (
         <div className="text-center py-12 text-text-tertiary text-sm animate-fade-in">
-          No employees found matching your search.
+          {t('profile.noEmployees')}
         </div>
       )}
 
@@ -391,18 +433,29 @@ export default function EmployeeProfile() {
       <Modal
         isOpen={!!selectedEmployee}
         onClose={() => setSelectedEmployee(null)}
-        title="Employee Details"
+        title={t('profile.employeeDetails')}
         maxWidth="max-w-2xl"
       >
         {selectedEmployee && (
           <div className="space-y-6">
             {/* Header row */}
             <div className="flex items-start gap-4">
-              <div className={`flex items-center justify-center w-16 h-16 rounded-2xl
-                               bg-gradient-to-br ${avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
-                               text-white text-xl font-bold shadow-lg shrink-0`}>
-                {selectedEmployee.avatar}
-              </div>
+              {isEmployee ? (
+                <AvatarUpload
+                  initials={selectedEmployee.avatar}
+                  colorClass={avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
+                  imageUrl={avatarImages[selectedEmployee.id]}
+                  onImageChange={(url) => setAvatarImages(prev => ({ ...prev, [selectedEmployee.id]: url }))}
+                />
+              ) : (
+                <div className={`flex items-center justify-center w-16 h-16 rounded-2xl
+                                 bg-gradient-to-br ${avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
+                                 text-white text-xl font-bold shadow-lg shrink-0 overflow-hidden`}>
+                  {avatarImages[selectedEmployee.id]
+                    ? <img src={avatarImages[selectedEmployee.id]} alt="" className="w-full h-full object-cover" />
+                    : selectedEmployee.avatar}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-bold text-text-primary">{selectedEmployee.name}</h3>
                 <p className="text-sm text-text-secondary">{selectedEmployee.title}</p>
@@ -454,7 +507,7 @@ export default function EmployeeProfile() {
             {/* Skills */}
             {selectedEmployee.skills?.length > 0 && (
               <div>
-                <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">Skills</h4>
+                <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">{t('profile.skills')}</h4>
                 <div className="space-y-2.5">
                   {selectedEmployee.skills.map(skill => (
                     <div key={skill.name}>
@@ -477,7 +530,7 @@ export default function EmployeeProfile() {
             {/* Certifications */}
             {selectedEmployee.certifications?.length > 0 && (
               <div>
-                <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">Certifications</h4>
+                <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">{t('profile.certifications')}</h4>
                 <div className="space-y-2">
                   {selectedEmployee.certifications.map(cert => (
                     <div key={cert.name} className="flex items-start gap-3 p-3 rounded-xl bg-surface-secondary

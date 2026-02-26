@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
+import { cacheService } from '../services/CacheService';
 
 const AuthContext = createContext(undefined);
 
@@ -8,24 +9,62 @@ export function AuthProvider({ children }) {
   const [profile, setProfile]   = useState(null);
   const [loading, setLoading]   = useState(true);
 
-  // Fetch the users row that extends auth.users
-  const fetchProfile = useCallback(async (userId) => {
+  // Fetch the users row that extends auth.users with retry logic
+  const fetchProfile = useCallback(async (userId, retries = 3) => {
     if (!supabase || !userId) return null;
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    return data ?? null;
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // Profile not found, wait and retry (trigger might still be running)
+            console.log(`Profile not found, retry ${i + 1}/${retries}...`);
+            await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+            continue;
+          }
+          console.error('Profile fetch error:', error);
+          return null;
+        }
+        
+        if (data) cacheService.set(`user:${userId}`, data, 600);
+        return data ?? null;
+      } catch (err) {
+        console.error('Profile fetch failed:', err);
+        if (i === retries - 1) return null;
+        await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+      }
+    }
+    
+    return null;
   }, []);
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
+    if (!supabase) { 
+      console.log('[AuthContext] Supabase not ready, setting loading to false');
+      setLoading(false); 
+      return; 
+    }
 
     // Get initial session
+    console.log('[AuthContext] Fetching initial session...');
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+      console.log('[AuthContext] Session fetched:', s?.user?.email || 'No user');
       setSession(s);
-      if (s?.user) setProfile(await fetchProfile(s.user.id));
+      if (s?.user) {
+        console.log('[AuthContext] Fetching profile for user:', s.user.id);
+        const profile = await fetchProfile(s.user.id);
+        console.log('[AuthContext] Profile fetched:', profile?.email || 'No profile');
+        setProfile(profile);
+        // Warm up cache with frequent queries after login
+        if (profile) cacheService.warmUp(s.user.id, profile.entreprise_id);
+      }
+      console.log('[AuthContext] Setting loading to false');
       setLoading(false);
     });
 
@@ -62,6 +101,7 @@ export function AuthProvider({ children }) {
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
+    cacheService.clear();
     await supabase.auth.signOut();
   }, []);
 

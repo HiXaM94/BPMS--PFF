@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
     ShieldCheck, AlertTriangle, FileText, CheckCircle2,
-    Send, Clock, UserPlus, FileCheck, Mail
+    Send, Clock, UserPlus, FileCheck, Mail, Plus, Eye
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
+import { cacheService } from '../../../services/CacheService';
 
 export default function HRManagerDocuments() {
     const [activeTab, setActiveTab] = useState('compliance');
@@ -13,7 +14,10 @@ export default function HRManagerDocuments() {
 
     useEffect(() => {
         if (!isSupabaseReady) return;
-        supabase.from('documents').select('status').then(({ data }) => {
+        cacheService.getOrSet('documents:stats', async () => {
+            const { data } = await supabase.from('documents').select('status');
+            return data;
+        }, 120).then((data) => {
             if (!data || data.length === 0) return;
             const pending   = data.filter(d => d.status === 'pending').length;
             const approved  = data.filter(d => d.status === 'approved').length;

@@ -24,9 +24,9 @@ const defaultUsers = [
   { id: 10, name: 'Amira Belkacem', email: 'amira.b@bpms.io', role: 'Employee', department: 'Finance', status: 'active', lastLogin: '45 min ago', avatar: 'AB' },
 ];
 
-const roleColors = { Admin: 'violet', Manager: 'warning', HR: 'pink', Employee: 'brand', Observer: 'neutral' };
+const roleColors = { Admin: 'brand', Manager: 'warning', HR: 'pink', Employee: 'info', Observer: 'neutral' };
 const avatarColors = {
-  Admin: 'from-violet-500 to-purple-600',
+  Admin: 'from-brand-500 to-brand-600',
   Manager: 'from-amber-500 to-orange-600',
   HR: 'from-pink-500 to-rose-600',
   Employee: 'from-brand-500 to-brand-600',
@@ -180,10 +180,10 @@ export default function UserManagement() {
         title="User Management"
         description="Manage users, roles, and access permissions"
         icon={Users}
-        iconColor="from-violet-500 to-purple-600"
+        iconColor="from-brand-500 to-brand-600"
         actionLabel={canCreate ? createLabel : undefined}
         actionIcon={canCreate ? UserPlus : undefined}
-        actionColor="from-violet-500 to-purple-600"
+        actionColor="from-brand-500 to-brand-600"
         onAction={canCreate ? () => setShowCreateModal(true) : undefined}
       />
 
@@ -200,7 +200,7 @@ export default function UserManagement() {
         <StatCard title="Total Users" value={users.length.toString()} icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" delay={0} />
         <StatCard title="Active Users" value={activeCount.toString()} icon={UserCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-600" delay={80} />
         <StatCard title="Pending Invites" value={pendingCount.toString()} icon={UserCog} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" delay={160} />
-        <StatCard title="Roles Defined" value="5" icon={Shield} iconColor="bg-gradient-to-br from-violet-500 to-purple-600" subtitle="Admin, Manager, HR, Employee, Observer" delay={240} />
+        <StatCard title="Roles Defined" value="5" icon={Shield} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" subtitle="Admin, Manager, HR, Employee, Observer" delay={240} />
       </div>
 
       {/* Role Distribution */}
@@ -333,7 +333,7 @@ export default function UserManagement() {
             <button
               type="submit"
               className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-                         bg-gradient-to-r from-violet-500 to-purple-600
+                         bg-gradient-to-r from-brand-500 to-brand-600
                          shadow-md hover:shadow-lg hover:-translate-y-0.5
                          active:translate-y-0 transition-all duration-200 cursor-pointer"
             >
@@ -497,7 +497,7 @@ export default function UserManagement() {
               <button
                 type="submit"
                 className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-                           bg-gradient-to-r from-violet-500 to-purple-600
+                           bg-gradient-to-r from-brand-500 to-brand-600
                            shadow-md hover:shadow-lg hover:-translate-y-0.5
                            active:translate-y-0 transition-all duration-200 cursor-pointer"
               >

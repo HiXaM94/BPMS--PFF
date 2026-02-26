@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useRole } from '../../contexts/RoleContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { ShieldAlert } from 'lucide-react';
 
 /**
@@ -11,6 +12,7 @@ import { ShieldAlert } from 'lucide-react';
  */
 export default function RoleGuard({ allowedRoles = [], children }) {
   const { currentRole } = useRole();
+  const { t } = useLanguage();
 
   // 'all' means every role is allowed
   if (allowedRoles.includes('all') || allowedRoles.includes(currentRole.id)) {
@@ -24,10 +26,10 @@ export default function RoleGuard({ allowedRoles = [], children }) {
                         bg-gradient-to-br from-red-500/15 to-rose-500/15">
           <ShieldAlert size={28} className="text-red-500" />
         </div>
-        <h2 className="text-xl font-bold text-text-primary mb-2">Access Denied</h2>
+        <h2 className="text-xl font-bold text-text-primary mb-2">{t('common.error')}: {t('permissions.denied')}</h2>
         <p className="text-sm text-text-secondary mb-6">
-          Your current role <strong className="text-text-primary">({currentRole.label})</strong> does not have
-          permission to access this page. Please contact your administrator if you believe this is an error.
+          {t('roleSwitcher.currentRole')}: <strong className="text-text-primary">{currentRole.label}</strong>.
+          {' '}{t('profile.viewRestrictedMsg')}
         </p>
         <a
           href="/"
@@ -36,7 +38,7 @@ export default function RoleGuard({ allowedRoles = [], children }) {
                      text-sm font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5
                      active:translate-y-0 transition-all duration-200"
         >
-          Return to Dashboard
+          {t('common.back')} → {t('nav.dashboard')}
         </a>
       </div>
     </div>

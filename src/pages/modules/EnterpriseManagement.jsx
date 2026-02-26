@@ -52,7 +52,7 @@ function getColumns(onView, onEdit) {
     {
       key: 'plan', label: 'Plan',
       render: (val) => (
-        <StatusBadge variant={val === 'Enterprise' ? 'violet' : val === 'Business' ? 'brand' : 'neutral'} size="sm">
+        <StatusBadge variant={val === 'Enterprise' ? 'brand' : val === 'Business' ? 'brand' : 'neutral'} size="sm">
           {val}
         </StatusBadge>
       ),
@@ -83,7 +83,7 @@ function getColumns(onView, onEdit) {
 
 const industryStats = [
   { label: 'Technology', count: 1, color: 'brand' },
-  { label: 'Finance', count: 1, color: 'violet' },
+  { label: 'Finance', count: 1, color: 'brand' },
   { label: 'Healthcare', count: 1, color: 'success' },
   { label: 'Education', count: 1, color: 'info' },
   { label: 'Retail', count: 1, color: 'warning' },
@@ -223,7 +223,7 @@ export default function EnterpriseManagement() {
         {[
           { label: 'Total Organizations', value: visibleEnterprises.length, icon: Building2, color: 'from-brand-500 to-brand-600' },
           { label: 'Active', value: activeCount, icon: Globe, color: 'from-emerald-500 to-teal-600' },
-          { label: 'Total Employees', value: totalEmployees.toLocaleString(), icon: Users, color: 'from-violet-500 to-purple-600' },
+          { label: 'Total Employees', value: totalEmployees.toLocaleString(), icon: Users, color: 'from-brand-500 to-brand-600' },
           { label: 'Industries', value: visibleIndustries.length, icon: Globe, color: 'from-amber-500 to-orange-600' },
         ].map((card, i) => (
           <div key={i} className="bg-surface-primary rounded-2xl border border-border-secondary p-4
@@ -307,7 +307,7 @@ export default function EnterpriseManagement() {
             <div className="divide-y divide-border-secondary">
               {[
                 { label: 'Status', value: <StatusBadge variant={{ active: 'success', trial: 'warning', suspended: 'danger' }[viewEnterprise.status]} dot size="sm">{viewEnterprise.status}</StatusBadge> },
-                { label: 'Plan', value: <StatusBadge variant={viewEnterprise.plan === 'Enterprise' ? 'violet' : viewEnterprise.plan === 'Business' ? 'brand' : 'neutral'} size="sm">{viewEnterprise.plan}</StatusBadge> },
+                { label: 'Plan', value: <StatusBadge variant={viewEnterprise.plan === 'Enterprise' ? 'brand' : viewEnterprise.plan === 'Business' ? 'brand' : 'neutral'} size="sm">{viewEnterprise.plan}</StatusBadge> },
                 { label: 'Location', value: viewEnterprise.location },
                 { label: 'Email', value: viewEnterprise.email },
                 { label: 'Phone', value: viewEnterprise.phone || '—' },
