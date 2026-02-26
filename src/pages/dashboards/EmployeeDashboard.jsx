@@ -138,38 +138,68 @@ export default function EmployeeDashboard() {
         {/* Task summary */}
         <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5
                         animate-fade-in" style={{ animationDelay: '500ms' }}>
-          <h2 className="text-sm font-bold text-text-primary mb-4">Task Summary</h2>
-          <div className="flex flex-col gap-3">
-            {[
-              { label: 'In Progress', count: inProgress, variant: 'brand', color: 'bg-[#2a85ff]', pct: (inProgress / employeeData.myTasks.length) * 100 },
-              { label: 'Pending', count: pending, variant: 'warning', color: 'bg-[#ff9a55]', pct: (pending / employeeData.myTasks.length) * 100 },
-              { label: 'Not Started', count: notStarted, variant: 'neutral', color: 'bg-[#9a9fa5]', pct: (notStarted / employeeData.myTasks.length) * 100 },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-3">
-                <StatusBadge variant={item.variant} size="sm" dot>{item.label}</StatusBadge>
-                <div className="flex-1 h-2 rounded-full bg-border-secondary overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${item.color} transition-all duration-500`}
-                    style={{ width: `${item.pct}%` }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-text-secondary w-5 text-right">{item.count}</span>
+          <h2 className="text-sm font-bold text-text-primary mb-4">My Leave Balance</h2>
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl bg-brand-500/5 border border-brand-500/10">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-text-secondary uppercase">Annual Leave</span>
+                <span className="text-sm font-bold text-brand-600">14 Left</span>
               </div>
-            ))}
+              <div className="h-1.5 w-full bg-border-secondary rounded-full overflow-hidden">
+                <div className="h-full bg-brand-500 w-[65%]" />
+              </div>
+            </div>
+            <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/10">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-text-secondary uppercase">Sick Leave</span>
+                <span className="text-sm font-bold text-amber-600">8 Left</span>
+              </div>
+              <div className="h-1.5 w-full bg-border-secondary rounded-full overflow-hidden">
+                <div className="h-full bg-amber-500 w-[20%]" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* My Tasks Table */}
-      <div className="bg-surface-primary rounded-2xl border border-border-secondary
-                      animate-fade-in overflow-hidden" style={{ animationDelay: '600ms' }}>
-        <div className="flex items-center justify-between px-5 pt-5 pb-2">
-          <h2 className="text-sm font-bold text-text-primary">My Tasks</h2>
-          <StatusBadge variant="brand" size="sm">
-            {employeeData.myTasks.length} total
-          </StatusBadge>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 animate-fade-in" style={{ animationDelay: '600ms' }}>
+        <div className="lg:col-span-2 bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden">
+          <div className="flex items-center justify-between px-5 pt-5 pb-2">
+            <h2 className="text-sm font-bold text-text-primary">My Tasks</h2>
+            <StatusBadge variant="brand" size="sm">
+              {employeeData.myTasks.length} total
+            </StatusBadge>
+          </div>
+          <DataTable columns={taskColumns} data={employeeData.myTasks} />
         </div>
-        <DataTable columns={taskColumns} data={employeeData.myTasks} />
+
+        {/* Upcoming Leave Widget */}
+        <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5">
+          <h2 className="text-sm font-bold text-text-primary mb-4">Upcoming Leave</h2>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-secondary border border-border-secondary group hover:border-brand-500/30 transition-all">
+              <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex flex-col items-center justify-center text-brand-600 shrink-0">
+                <span className="text-[10px] font-bold uppercase">Feb</span>
+                <span className="text-sm font-black leading-none">20</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text-primary">Annual Leave</p>
+                <p className="text-[10px] text-text-tertiary uppercase">5 Days • Pending</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-secondary border border-border-secondary group hover:border-emerald-500/30 transition-all">
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex flex-col items-center justify-center text-emerald-600 shrink-0">
+                <span className="text-[10px] font-bold uppercase">Mar</span>
+                <span className="text-sm font-black leading-none">15</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text-primary">Sick Leave</p>
+                <p className="text-[10px] text-text-tertiary uppercase">1 Day • Approved</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* My Requests + Recent Activity */}

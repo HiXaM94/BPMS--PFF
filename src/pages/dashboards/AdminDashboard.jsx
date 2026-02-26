@@ -10,6 +10,7 @@ import {
   Globe,
   BarChart3,
   Star,
+  Palmtree
 } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
@@ -133,9 +134,25 @@ const orgColumns = [
 
 export default function AdminDashboard() {
   const [cards, setCards] = useState(assetCards);
-  const [orgs, setOrgs]   = useState(orgTableData);
+  const [orgs, setOrgs] = useState(orgTableData);
   const [totalUsers, setTotalUsers] = useState('1,846');
   const [systemLogs, setSystemLogs] = useState(adminData.systemLogs);
+  const [globalLeave, setGlobalLeave] = useState(adminData.globalLeaveRequests || []);
+
+  const leaveColumns = [
+    { key: 'employeeName', label: 'Employee', cellClassName: 'font-semibold text-text-primary text-sm' },
+    { key: 'org', label: 'Organization', cellClassName: 'text-text-tertiary text-xs font-bold uppercase' },
+    { key: 'type', label: 'Type', render: (val) => <StatusBadge variant="neutral" size="sm">{val}</StatusBadge> },
+    { key: 'dates', label: 'Period', cellClassName: 'text-text-secondary text-xs' },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (val) => {
+        const map = { approved: 'success', pending: 'warning', rejected: 'danger' };
+        return <StatusBadge variant={map[val] || 'neutral'} dot size="sm">{val}</StatusBadge>;
+      },
+    },
+  ];
 
   useEffect(() => {
     if (!isSupabaseReady) return;
@@ -282,8 +299,52 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+            {/* Global Leave Stats Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-border-secondary animate-fade-in flex flex-col justify-between"
+              style={{ animationDelay: '240ms' }}>
+              <div>
+                <span className="text-sm font-semibold text-text-secondary block mb-2 uppercase tracking-wider">Global Leave</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <span className="text-xl font-bold text-text-primary block">
+                      {globalLeave.filter(r => r.status === 'pending').length}
+                    </span>
+                    <span className="text-[10px] text-text-tertiary uppercase font-bold">Pending</span>
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-xl font-bold text-text-primary block">
+                      {globalLeave.filter(r => r.status === 'approved').length}
+                    </span>
+                    <span className="text-[10px] text-text-tertiary uppercase font-bold">Approved</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-border-secondary flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-medium text-text-secondary">Normal Load</span>
+                </div>
+                <Palmtree size={14} className="text-text-tertiary" />
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Global Vacation Requests Table */}
+      <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in"
+        style={{ animationDelay: '350ms' }}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-text-primary">Cross-Organization Leave Activity</h2>
+            <StatusBadge variant="info" size="sm">Demo Data</StatusBadge>
+          </div>
+          <button onClick={() => window.location.href = '/modules/vacation'}
+            className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors">
+            Configure Policies
+          </button>
+        </div>
+        <DataTable columns={leaveColumns} data={globalLeave} />
       </div>
 
       {/* Bottom Row: Organizations table + Promo card */}
@@ -319,7 +380,7 @@ export default function AdminDashboard() {
         {/* Promo / CTA Card — dark card matching template */}
         <div className="lg:col-span-4 bg-[#1a1d1f] rounded-2xl p-6 flex flex-col justify-between
                         min-h-[280px] animate-fade-in relative overflow-hidden"
-             style={{ animationDelay: '400ms' }}>
+          style={{ animationDelay: '400ms' }}>
           {/* Decorative geometric lines */}
           <div className="absolute -bottom-8 -right-8 w-40 h-40 border border-white/5 rounded-2xl
                           rotate-12" />
