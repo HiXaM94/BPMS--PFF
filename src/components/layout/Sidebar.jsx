@@ -7,8 +7,10 @@ import {
   ChevronsLeft,
   ChevronsRight,
   X,
-  Workflow,
 } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
+import IconWhite from '../../logo/ICONWHITE.svg';
+import IconBlack from '../../logo/ICONBLACK.svg';
 
 // Map navigation item ids → i18n keys
 const navLabelKeys = {
@@ -49,13 +51,13 @@ function SidebarLink({ item, isCollapsed, t }) {
         `group relative flex items-center rounded-xl
          transition-all duration-200 ease-in-out
          ${isCollapsed
-           ? 'justify-center w-11 h-11'
-           : 'w-full gap-3 px-3 py-2.5'
-         }
+          ? 'justify-center w-11 h-11'
+          : 'w-full gap-3 px-3 py-2.5'
+        }
          ${isActive
           ? 'bg-sidebar-active text-sidebar-text-active'
           : 'text-sidebar-text hover:bg-sidebar-hover hover:text-sidebar-text-active'
-         }
+        }
         `
       }
       title={isCollapsed ? label : undefined}
@@ -99,6 +101,7 @@ export default function Sidebar() {
   const { isCollapsed, isMobileOpen, toggleCollapse, closeMobile } = useSidebar();
   const { currentRole } = useRole();
   const { t } = useLanguage();
+  const { isDark } = useTheme();
 
   // Filter navigation items based on current role
   const filteredNavigation = navigationItems
@@ -123,9 +126,8 @@ export default function Sidebar() {
           {/* Logo */}
           <div className={`flex items-center h-[72px] shrink-0
                            ${isCollapsed ? 'justify-center' : 'px-5 gap-3'}`}>
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                            bg-gradient-to-br from-brand-500 to-brand-600 shadow-sm">
-              <Workflow size={20} className="text-white" />
+            <div className="flex items-center justify-center w-10 h-10 shrink-0">
+              <img src={isDark ? IconWhite : IconBlack} alt="Logo" className="w-8 h-8 object-contain" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
@@ -201,9 +203,8 @@ export default function Sidebar() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center h-[72px] px-5 gap-3 shrink-0">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                            bg-gradient-to-br from-brand-500 to-brand-600">
-              <Workflow size={20} className="text-white" />
+            <div className="flex items-center justify-center w-10 h-10 shrink-0">
+              <img src={isDark ? IconWhite : IconBlack} alt="Logo" className="w-8 h-8 object-contain" />
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
