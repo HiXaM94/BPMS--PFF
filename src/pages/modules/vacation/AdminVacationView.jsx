@@ -45,7 +45,7 @@ export default function AdminVacationView() {
             label: 'Employee',
             render: (val, row) => (
                 <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-600 dark:text-white border border-brand-500/20 dark:border-white/20 font-bold text-[10px]">
+                    <div className="w-7 h-7 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-600 border border-brand-500/20 font-bold text-[10px]">
                         {(val || 'U').charAt(0)}
                     </div>
                     <span className="font-semibold text-text-primary text-sm">{val}</span>
@@ -75,7 +75,7 @@ export default function AdminVacationView() {
         {
             key: 'name', label: 'Name', render: (val, row) => (
                 <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] ${row.role === 'Team Manager' ? 'bg-amber-500/10 text-amber-600 dark:text-white border border-amber-500/20 dark:border-white/20' : 'bg-brand-500/10 text-brand-600 dark:text-white border border-brand-500/20 dark:border-white/20'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] ${row.role === 'Team Manager' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-brand-500/10 text-brand-600 border border-brand-500/20'}`}>
                         {val.charAt(0)}
                     </div>
                     <div>
@@ -101,7 +101,7 @@ export default function AdminVacationView() {
         {
             key: 'name', label: 'Name', render: (val, row) => (
                 <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] ${row.role === 'Team Manager' ? 'bg-amber-500/10 text-amber-600 dark:text-white border border-amber-500/20 dark:border-white/20' : 'bg-brand-500/10 text-brand-600 dark:text-white border border-brand-500/20 dark:border-white/20'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] ${row.role === 'Team Manager' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-brand-500/10 text-brand-600 border border-brand-500/20'}`}>
                         {val.charAt(0)}
                     </div>
                     <div>
@@ -178,7 +178,7 @@ export default function AdminVacationView() {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${activeTab === tab.id
-                            ? 'bg-surface-primary text-emerald-600 dark:text-white shadow-sm ring-1 ring-border-primary'
+                            ? 'bg-surface-primary text-text-primary shadow-sm ring-1 ring-border-primary'
                             : 'text-text-secondary hover:text-text-primary hover:bg-surface-secondary'
                             }`}
                     >

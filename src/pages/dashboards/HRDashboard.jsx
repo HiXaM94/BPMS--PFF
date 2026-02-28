@@ -256,7 +256,7 @@ export default function HRDashboard() {
       </div>
 
       {/* Action Required (Pending Approvals) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-amber-500/20 p-5 animate-fade-in"
+      <div className="bg-surface-primary rounded-2xl border border-amber-500/20 p-5 animate-fade-in"
         style={{ animationDelay: '650ms' }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
