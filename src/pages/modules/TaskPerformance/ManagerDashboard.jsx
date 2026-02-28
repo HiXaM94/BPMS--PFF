@@ -13,7 +13,7 @@ import StatusBadge from '../../../components/ui/StatusBadge';
 import { managerData } from '../../../data/mockData';
 import {
     LayoutDashboard, Users, CheckCircle, AlertCircle,
-    FileText, Briefcase, CheckSquare, XCircle, Plus, Search, Trash2, Edit, Clock, Calendar, TrendingUp, Activity, ArrowUpRight, CheckCircle2
+    FileText, Briefcase, CheckSquare, XCircle, Plus, Search, Trash2, Edit, Clock, Calendar, TrendingUp, Activity, ArrowUpRight, CheckCircle2, MessageSquare
 } from 'lucide-react';
 
 export default function ManagerDashboard() {
@@ -279,6 +279,27 @@ export default function ManagerDashboard() {
                         <StatusBadge variant="warning" size="sm">{pendingValidation.length} Awaiting</StatusBadge>
                     </div>
                     <DataTable columns={taskValidationColumns} data={pendingValidation} emptyMessage="No tasks waiting for validation." />
+                </div>
+            </div>
+
+            {/* Admin Feedback (Mocked) */}
+            <div className="bg-surface-primary rounded-2xl border border-border-secondary p-6 shadow-sm flex flex-col justify-center animate-fade-in" style={{ animationDelay: '600ms' }}>
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                        <MessageSquare size={18} />
+                    </div>
+                    <div>
+                        <h2 className="text-sm font-bold text-text-primary">Administrative Feedback</h2>
+                        <p className="text-xs text-text-tertiary">Notes from Leadership</p>
+                    </div>
+                </div>
+                <div className="p-4 bg-surface-secondary rounded-xl border border-border-secondary group relative">
+                    <p className="text-sm font-medium text-text-primary italic">"Great job on the recent sprint. Team efficiency is looking highly positive. Keep focusing on the redesign project delivery."</p>
+                    <div className="flex justify-between items-center mt-3">
+                        <div className="flex items-center text-[10px] font-semibold text-text-tertiary">
+                            <Clock size={10} className="mr-1" /> 2 hours ago • Admin Team
+                        </div>
+                    </div>
                 </div>
             </div>
 

@@ -16,6 +16,7 @@ import EmployeeVacationView from './vacation/EmployeeVacationView';
 import TeamVacationView from './vacation/TeamVacationView';
 import HRVacationView from './vacation/HRVacationView';
 import AdminVacationView from './vacation/AdminVacationView';
+import SuperAdminVacationView from './vacation/SuperAdminVacationView';
 
 const leaveTypes = ['Annual Leave', 'Sick Leave', 'Remote Work', 'Maternity', 'Unpaid Leave'];
 
@@ -140,8 +141,9 @@ export default function VacationRequest() {
 
   const renderRoleView = () => {
     switch (currentRole.id) {
-      case 'company_admin':
       case 'super_admin':
+        return <SuperAdminVacationView />;
+      case 'company_admin':
         return <AdminVacationView />;
       case 'hr':
         return (
