@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogIn, ScanLine, X, Camera, CheckCircle2 } from 'lucide-react';
+import { LogIn, ScanLine, X, Camera, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { BrowserQRCodeReader } from '@zxing/browser';
+import { validateScanToken } from './qrcode/qrCodeService';
 
 export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, onClockIn, onStartLunch }) {
     const [showScanner, setShowScanner] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [scanComplete, setScanComplete] = useState(false);
     const [cameraError, setCameraError] = useState(null);
+    const [validationError, setValidationError] = useState(null);
     const videoRef = useRef(null);
     const controlsRef = useRef(null);
 
@@ -19,21 +21,36 @@ export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, 
         async function startCamera() {
             try {
                 // start decoding from default video device
-                const controls = await codeReader.decodeFromVideoDevice(undefined, videoRef.current, (result, err) => {
+                const controls = await codeReader.decodeFromVideoDevice(undefined, videoRef.current, async (result, err) => {
                     if (mounted && result) {
-                        console.log("QR Code Scanned:", result.getText());
-                        setScanning(false);
-                        setScanComplete(true);
+                        const scannedText = result.getText();
+                        console.log("QR Code Scanned:", scannedText);
 
-                        // Laissez le message de succès visible pendant 1,5 seconde, puis fermez la fenêtre
-                        setTimeout(() => {
-                            if (mounted) {
-                                setShowScanner(false);
-                                if (onClockIn) onClockIn(result.getText());
-                            }
-                        }, 1500);
+                        // Validate the scanned token against today's daily token
+                        const validation = await validateScanToken(scannedText, 'demo');
 
-                        if (controlsRef.current) controlsRef.current.stop();
+                        if (validation.valid) {
+                            setScanning(false);
+                            setScanComplete(true);
+                            setValidationError(null);
+
+                            // Close and clock in after showing success
+                            setTimeout(() => {
+                                if (mounted) {
+                                    setShowScanner(false);
+                                    if (onClockIn) onClockIn(scannedText);
+                                }
+                            }, 1500);
+
+                            if (controlsRef.current) controlsRef.current.stop();
+                        } else {
+                            // Invalid token — keep scanning but show error
+                            setValidationError(validation.message);
+                            // Clear error after 3 seconds
+                            setTimeout(() => {
+                                if (mounted) setValidationError(null);
+                            }, 3000);
+                        }
                     }
                 });
 
@@ -64,6 +81,7 @@ export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, 
         setScanning(true);
         setScanComplete(false);
         setCameraError(null);
+        setValidationError(null);
     };
 
 
@@ -204,8 +222,16 @@ export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, 
                             </div>
 
                             <p className="relative z-10 mt-8 text-white/90 text-sm font-medium text-center max-w-[250px] drop-shadow-md">
-                                {scanning && !cameraError ? 'Align the QR code within the frame to clock in.' : scanComplete ? 'Success!' : ''}
+                                {validationError ? '' : scanning && !cameraError ? 'Align the QR code within the frame to clock in.' : scanComplete ? 'Success!' : ''}
                             </p>
+
+                            {/* Validation Error Toast */}
+                            {validationError && (
+                                <div className="relative z-10 mt-4 bg-red-500/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl flex items-center gap-2 animate-fade-in max-w-[300px]">
+                                    <AlertTriangle size={18} className="shrink-0" />
+                                    <span className="text-sm font-semibold">{validationError}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

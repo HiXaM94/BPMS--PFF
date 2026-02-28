@@ -27,6 +27,7 @@ import Permissions from '../pages/Permissions';
 import AIAssistant from '../pages/AIAssistant';
 import Analytics from '../pages/modules/Analytics';
 import RealAnalyticsRouter from '../pages/modules/RealAnalyticsRouter';
+import QRKiosk from '../pages/modules/attendance/qrcode/QRKiosk';
 
 const router = createBrowserRouter([
   // ── Public auth routes ──
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
   { path: '/register', element: <Register /> },
   { path: '/forgot-password', element: <ForgotPassword /> },
   { path: '/reset-password', element: <ResetPassword /> },
+  { path: '/kiosk', element: <QRKiosk /> },
 
   // ── Protected app routes ──
   {
