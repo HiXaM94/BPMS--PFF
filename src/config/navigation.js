@@ -53,6 +53,7 @@ export const navigationItems = [
   {
     section: 'Intelligence',
     items: [
+      { id: 'subscriptions', label: 'Subscriptions', icon: Banknote, path: '/subscriptions', roles: ['super_admin'] },
       { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics', roles: ['super_admin', 'company_admin', 'manager'] },
       { id: 'ai-assistant', label: 'AI Assistant', icon: Sparkles, path: '/ai-assistant', roles: ['super_admin', 'company_admin', 'hr', 'manager'] },
       { id: 'notifications', label: 'Notifications', icon: Bell, path: '/notifications', roles: ['all'] },

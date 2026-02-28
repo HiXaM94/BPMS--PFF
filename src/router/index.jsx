@@ -25,6 +25,8 @@ import HRWorkflow from '../pages/modules/HRWorkflow';
 import Settings from '../pages/Settings';
 import Permissions from '../pages/Permissions';
 import AIAssistant from '../pages/AIAssistant';
+import Analytics from '../pages/modules/Analytics';
+import RealAnalyticsRouter from '../pages/modules/RealAnalyticsRouter';
 
 const router = createBrowserRouter([
   // ── Public auth routes ──
@@ -54,7 +56,8 @@ const router = createBrowserRouter([
       { path: 'hr-workflow', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><HRWorkflow /></RoleGuard> },
 
       // Intelligence
-      { path: 'analytics', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><PlaceholderPage title="Analytics" /></RoleGuard> },
+      { path: 'subscriptions', element: <RoleGuard allowedRoles={['super_admin']}><Analytics /></RoleGuard> },
+      { path: 'analytics', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><RealAnalyticsRouter /></RoleGuard> },
       { path: 'ai-assistant', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><AIAssistant /></RoleGuard> },
       { path: 'notifications', element: <PlaceholderPage title="Notifications" /> },
 
