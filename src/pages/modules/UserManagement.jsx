@@ -9,6 +9,7 @@ import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import StatCard from '../../components/ui/StatCard';
 import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useRole } from '../../contexts/RoleContext';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
@@ -100,6 +101,8 @@ export default function UserManagement() {
   const [viewUser, setViewUser] = useState(null);
   const [editUser, setEditUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', role: '', department: '', status: '' });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
   const isHR = currentRole.id === 'hr';
@@ -149,21 +152,24 @@ export default function UserManagement() {
   const [form, setForm] = useState(emptyForm);
 
   // ── Delete user ──
-  const handleDeleteUser = async (user) => {
-    if (!confirm(`Delete user "${user.name}"?`)) return;
-    // Optimistic
-    setUsers(prev => prev.filter(u => u.id !== user.id));
-    showToast(`User "${user.name}" deleted.`);
+  const handleDeleteUser = (user) => setDeleteTarget(user);
+  const confirmDeleteUser = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setUsers(prev => prev.filter(u => u.id !== deleteTarget.id));
+    showToast(`User "${deleteTarget.name}" deleted.`);
 
     if (isSupabaseReady) {
-      const { error } = await supabase.from('users').delete().eq('id', user.id);
+      const { error } = await supabase.from('users').delete().eq('id', deleteTarget.id);
       if (error) {
         showToast(`Error: ${error.message}`);
-        fetchUsers(); // rollback
+        fetchUsers();
       }
       cacheService.invalidatePattern('^users:');
       cacheService.invalidatePattern('^admin:');
     }
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   // Build columns with action callbacks
@@ -595,6 +601,17 @@ export default function UserManagement() {
           </form>
         )}
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteUser}
+        title="Delete User"
+        message={deleteTarget ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.` : ''}
+        confirmLabel="Delete User"
+        loading={deleting}
+      />
     </div>
   );
 }

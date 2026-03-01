@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Briefcase, Plus, MapPin, Clock, Eye, Edit, Users, CheckCircle2, ArrowUpRight, Building2, Star, Loader2 } from 'lucide-react';
+import { Briefcase, Plus, MapPin, Clock, Eye, Edit, Trash2, Users, CheckCircle2, ArrowUpRight, Building2, Star, Loader2 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import StatCard from '../../components/ui/StatCard';
 import MiniChart from '../../components/ui/MiniChart';
 import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
 import { aiService } from '../../services/AIService';
@@ -60,6 +61,8 @@ export default function Recruitment() {
   const [editForm, setEditForm] = useState(emptyForm);
   const [toast, setToast]       = useState('');
   const [saving, setSaving]     = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
@@ -196,6 +199,32 @@ export default function Recruitment() {
     }
   };
 
+  // ── Delete job or candidate ──
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const isJob = deleteTarget._type === 'job';
+    if (isJob) {
+      setJobs(prev => prev.filter(j => j.id !== deleteTarget.id));
+      if (isSupabaseReady) {
+        const { error } = await supabase.from('recrutements').delete().eq('id', deleteTarget.id);
+        if (error) { flash('Error: ' + error.message); fetchData(); }
+        else { cacheService.invalidatePattern('^recruit:'); }
+      }
+      flash(`Job "${deleteTarget.title}" deleted.`);
+    } else {
+      setCandidates(prev => prev.filter(c => c.id !== deleteTarget.id));
+      if (isSupabaseReady) {
+        const { error } = await supabase.from('candidates').delete().eq('id', deleteTarget.id);
+        if (error) { flash('Error: ' + error.message); fetchData(); }
+        else { cacheService.invalidatePattern('^recruit:'); }
+      }
+      flash(`Candidate "${deleteTarget.name}" removed.`);
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
   const jobCols = [
     { key: 'title', label: 'Position', render: (val, row) => (
       <div>
@@ -215,6 +244,7 @@ export default function Recruitment() {
       <div className="flex items-center gap-1">
         <button onClick={() => setViewJob(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary"/></button>
         <button onClick={() => { setEditJob(row); setEditForm({ title: row.title, department: row.department, location: row.location, type: row.type, salaryMin: '', salaryMax: '', description: row.description || '' }); }} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit"><Edit size={14} className="text-text-tertiary"/></button>
+        <button onClick={() => setDeleteTarget({ ...row, _type: 'job' })} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400"/></button>
       </div>
     )},
   ];
@@ -233,7 +263,10 @@ export default function Recruitment() {
     { key: 'appliedDate', label: 'Applied', cellClassName: 'text-text-tertiary text-xs' },
     { key: 'status', label: 'Status', render: (val) => <StatusBadge variant={candColors[val]} dot size="sm">{val}</StatusBadge> },
     { key: 'actions', label: '', render: (_, row) => (
-      <button onClick={() => setViewCand(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary"/></button>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setViewCand(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary"/></button>
+        <button onClick={() => setDeleteTarget({ ...row, _type: 'candidate' })} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400"/></button>
+      </div>
     )},
   ];
 
@@ -457,6 +490,19 @@ export default function Recruitment() {
           </div>
         )}
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title={deleteTarget?._type === 'job' ? 'Delete Job Posting' : 'Remove Candidate'}
+        message={deleteTarget?._type === 'job'
+          ? `Are you sure you want to delete "${deleteTarget?.title}"? This will remove the posting and all associated data.`
+          : `Are you sure you want to remove "${deleteTarget?.name}" from the pipeline?`}
+        confirmLabel={deleteTarget?._type === 'job' ? 'Delete Job' : 'Remove'}
+        loading={deleting}
+      />
     </div>
   );
 }

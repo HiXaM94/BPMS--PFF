@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Palmtree, Send, CheckCircle2, Loader2, Sparkles, CalendarDays
+  Palmtree, Send, CheckCircle2, Loader2, Sparkles, CalendarDays, Trash2
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useRole } from '../../contexts/RoleContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -44,6 +45,8 @@ export default function VacationRequest() {
   const [toast, setToast] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionModal, setActionModal] = useState({ isOpen: false, type: '', requestId: null, reason: '' });
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
@@ -138,6 +141,22 @@ export default function VacationRequest() {
     }
   };
 
+  const handleCancelRequest = (req) => setCancelTarget(req);
+  const confirmCancelRequest = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      await vacationController.cancelRequest(cancelTarget.id);
+      showToast('Leave request cancelled.');
+      fetchData();
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setCancelling(false);
+      setCancelTarget(null);
+    }
+  };
+
   const renderRoleView = () => {
     switch (currentRole.id) {
       case 'company_admin':
@@ -179,6 +198,7 @@ export default function VacationRequest() {
             leaveBalance={leaveBalance}
             onNewRequest={() => setShowNewModal(true)}
             onViewRequest={setViewRequest}
+            onCancelRequest={handleCancelRequest}
           />
         );
     }
@@ -358,6 +378,18 @@ export default function VacationRequest() {
           </div>
         </div>
       </Modal>
+
+      {/* Cancel Request Confirmation */}
+      <ConfirmDialog
+        isOpen={!!cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={confirmCancelRequest}
+        title="Cancel Leave Request"
+        message={cancelTarget ? `Are you sure you want to cancel your ${cancelTarget.leaveType || cancelTarget.type || 'leave'} request? This action cannot be undone.` : ''}
+        confirmLabel="Cancel Request"
+        variant="warning"
+        loading={cancelling}
+      />
     </div>
   );
 }

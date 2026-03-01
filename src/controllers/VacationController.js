@@ -119,6 +119,20 @@ class VacationController {
     }
 
     /**
+     * Cancel / delete a leave request (only if still pending).
+     */
+    async cancelRequest(requestId) {
+        if (isSupabaseReady) {
+            const { error } = await supabase
+                .from('vacances')
+                .delete()
+                .eq('id', requestId);
+            if (error) throw error;
+        }
+        return true;
+    }
+
+    /**
      * Detect conflicts using AI (Internal simulation).
      */
     async detectConflicts(request) {

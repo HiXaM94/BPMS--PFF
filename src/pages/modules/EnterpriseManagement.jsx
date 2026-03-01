@@ -7,6 +7,7 @@ import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useRole } from '../../contexts/RoleContext';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
@@ -25,7 +26,7 @@ const defaultEnterprises = [
   { id: 7, company_id: 7, name: 'LogiTrans SARL', industry: 'Logistics', employees: 134, location: 'Kenitra, Morocco', email: 'contact@logitrans.ma', phone: '+212 537 234 567', status: 'active', plan: 'Business', created: 'Feb 10, 2026' },
 ];
 
-function getColumns(onView, onEdit, onToggleStatus) {
+function getColumns(onView, onEdit, onToggleStatus, onDelete) {
   return [
     {
       key: 'name', label: 'Organization',
@@ -85,6 +86,9 @@ function getColumns(onView, onEdit, onToggleStatus) {
           <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit">
             <Edit size={14} className="text-text-tertiary" />
           </button>
+          <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete">
+            <Trash2 size={14} className="text-red-400" />
+          </button>
         </div>
       ),
     },
@@ -126,6 +130,8 @@ export default function EnterpriseManagement() {
   const [editEnterprise, setEditEnterprise] = useState(null);
   const [editForm, setEditForm] = useState(emptyCompanyForm);
   const [loading, setLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const { currentRole } = useRole();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
@@ -239,10 +245,28 @@ export default function EnterpriseManagement() {
     }
   };
 
+  // ── Delete enterprise ──
+  const handleDeleteEnterprise = (ent) => setDeleteTarget(ent);
+  const confirmDeleteEnterprise = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setEnterprises(prev => prev.filter(e => e.id !== deleteTarget.id));
+    showToast(`"${deleteTarget.name}" deleted.`);
+    if (isSupabaseReady) {
+      const { error } = await supabase.from('entreprises').delete().eq('id', deleteTarget.id);
+      if (error) { showToast(`Error: ${error.message}`); fetchEnterprises(); }
+      cacheService.invalidatePattern('^enterprises:');
+      cacheService.invalidatePattern('^admin:');
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
   const columns = getColumns(
     (ent) => setViewEnterprise(ent),
     (ent) => { setEditEnterprise(ent); setEditForm({ name: ent.name, industry: ent.industry, location: ent.location, email: ent.email, phone: ent.phone || '', plan: ent.plan }); },
-    handleToggleStatus
+    handleToggleStatus,
+    handleDeleteEnterprise
   );
 
   const handleCreateCompany = async (e) => {
@@ -591,6 +615,17 @@ export default function EnterpriseManagement() {
           </div>
         </form>
       </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteEnterprise}
+        title="Delete Organization"
+        message={deleteTarget ? `Are you sure you want to delete "${deleteTarget.name}"? All associated data will be permanently removed.` : ''}
+        confirmLabel="Delete Organization"
+        loading={deleting}
+      />
     </div>
   );
 }

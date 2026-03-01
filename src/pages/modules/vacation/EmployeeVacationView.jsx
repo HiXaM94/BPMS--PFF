@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import {
     CalendarDays, Send, Clock, CheckCircle2,
-    XCircle, AlertCircle, Info, Sparkles
+    XCircle, AlertCircle, Info, Sparkles, Trash2
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
@@ -12,7 +12,8 @@ export default function EmployeeVacationView({
     requests,
     leaveBalance,
     onNewRequest,
-    onViewRequest
+    onViewRequest,
+    onCancelRequest
 }) {
     const pendingRequests = requests.filter(r => r.status === 'pending');
     const approvedRequests = requests.filter(r => r.status === 'approved');
@@ -43,12 +44,24 @@ export default function EmployeeVacationView({
         },
         {
             key: 'actions', label: '', render: (_, row) => (
-                <button
-                    onClick={() => onViewRequest(row)}
-                    className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors text-text-tertiary"
-                >
-                    <Info size={14} />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => onViewRequest(row)}
+                        className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors text-text-tertiary"
+                        title="View"
+                    >
+                        <Info size={14} />
+                    </button>
+                    {row.status === 'pending' && onCancelRequest && (
+                        <button
+                            onClick={() => onCancelRequest(row)}
+                            className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title="Cancel Request"
+                        >
+                            <Trash2 size={14} className="text-red-400" />
+                        </button>
+                    )}
+                </div>
             )
         }
     ];

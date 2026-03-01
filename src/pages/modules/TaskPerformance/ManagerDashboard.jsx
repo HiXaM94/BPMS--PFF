@@ -19,6 +19,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import StatCard from '../../../components/ui/StatCard';
 
 import DataTable from '../../../components/ui/DataTable';
+import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 
 import StatusBadge from '../../../components/ui/StatusBadge';
 
@@ -87,6 +88,17 @@ export default function ManagerDashboard() {
 
 
     const [processing, setProcessing] = useState(null);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+
+    const confirmDeleteTask = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
+        taskController.delete(deleteTarget.id);
+        await refreshTasks();
+        setDeleting(false);
+        setDeleteTarget(null);
+    };
 
 
 
@@ -334,6 +346,15 @@ export default function ManagerDashboard() {
 
                         <XCircle size={14} />
 
+                    </button>
+
+                    <button
+                        onClick={() => setDeleteTarget(row)}
+                        className="p-1.5 rounded-lg bg-gray-500/10 text-gray-500 hover:bg-red-500 hover:text-white transition-all"
+                        disabled={processing === row.id}
+                        title="Delete Task"
+                    >
+                        <Trash2 size={14} />
                     </button>
 
                 </div>
@@ -1115,6 +1136,17 @@ export default function ManagerDashboard() {
                 document.body
 
             )}
+
+            {/* Delete Task Confirmation */}
+            <ConfirmDialog
+                isOpen={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={confirmDeleteTask}
+                title="Delete Task"
+                message={deleteTarget ? `Are you sure you want to delete "${deleteTarget.title}"? This action cannot be undone.` : ''}
+                confirmLabel="Delete Task"
+                loading={deleting}
+            />
 
         </div>
 
