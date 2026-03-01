@@ -11,6 +11,11 @@ import { cacheService } from '../../../services/CacheService';
 export default function HRManagerDocuments() {
     const [activeTab, setActiveTab] = useState('compliance');
     const [docStats, setDocStats] = useState({ overdue: 3, pending: 2, complete: 72, total: 87, generated: 14 });
+    const [toast, setToast] = useState('');
+    const [requestSent, setRequestSent] = useState(false);
+    const [reviewStatus, setReviewStatus] = useState(null);
+    const [certGenerated, setCertGenerated] = useState(false);
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
     useEffect(() => {
         if (!isSupabaseReady) return;
@@ -35,6 +40,12 @@ export default function HRManagerDocuments() {
 
     return (
         <div className="space-y-6 animate-fade-in">
+
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
 
             {/* 7.3 Compliance Dashboard Overview */}
             <div className="flex justify-between items-center mb-6 block sm:flex">
@@ -85,21 +96,21 @@ export default function HRManagerDocuments() {
                                         <span className="font-semibold text-text-primary">CNSS Card</span>
                                         <div className="flex items-center gap-3">
                                             <span className="text-text-secondary">8 Employees</span>
-                                            <button className="px-2 py-1 bg-surface-secondary rounded hover:bg-border-secondary transition-colors text-xs font-medium">Auto-Remind</button>
+                                            <button onClick={() => flash('Auto-reminder sent for CNSS Card (8 employees)')} className="px-2 py-1 bg-surface-secondary rounded hover:bg-border-secondary transition-colors text-xs font-medium cursor-pointer">Auto-Remind</button>
                                         </div>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-surface-secondary pb-3">
                                         <span className="font-semibold text-text-primary">Updated Diploma</span>
                                         <div className="flex items-center gap-3">
                                             <span className="text-text-secondary">3 Employees</span>
-                                            <button className="px-2 py-1 bg-surface-secondary rounded hover:bg-border-secondary transition-colors text-xs font-medium">Auto-Remind</button>
+                                            <button onClick={() => flash('Auto-reminder sent for Updated Diploma (3 employees)')} className="px-2 py-1 bg-surface-secondary rounded hover:bg-border-secondary transition-colors text-xs font-medium cursor-pointer">Auto-Remind</button>
                                         </div>
                                     </div>
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="font-semibold text-text-primary">Marriage Certificate</span>
                                         <div className="flex items-center gap-3">
                                             <span className="text-text-secondary">1 Employee</span>
-                                            <button className="px-2 py-1 bg-surface-secondary rounded hover:bg-border-secondary transition-colors text-xs font-medium">Auto-Remind</button>
+                                            <button onClick={() => flash('Auto-reminder sent for Marriage Certificate (1 employee)')} className="px-2 py-1 bg-surface-secondary rounded hover:bg-border-secondary transition-colors text-xs font-medium cursor-pointer">Auto-Remind</button>
                                         </div>
                                     </div>
                                 </div>
@@ -115,7 +126,7 @@ export default function HRManagerDocuments() {
                             <p className="text-sm text-text-secondary mb-6 max-w-sm">
                                 Upcoming CNSS audit? Use the Bulk Request feature to ask all 87 employees for their updated cards simultaneously, complete with auto-reminders.
                             </p>
-                            <button className="py-2.5 px-6 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm w-full font-semibold">
+                            <button onClick={() => flash('Bulk document request sent to all 87 employees')} className="py-2.5 px-6 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm w-full font-semibold cursor-pointer">
                                 Start Bulk Request
                             </button>
                         </div>
@@ -175,8 +186,11 @@ export default function HRManagerDocuments() {
                                 </div>
                             </div>
 
-                            <button className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm flex items-center justify-center gap-2">
-                                <Send size={18} /> Send Request to Employee
+                            <button
+                                onClick={() => { setRequestSent(true); flash('Document request sent to Omar Fahmi'); }}
+                                disabled={requestSent}
+                                className={`w-full py-3 rounded-xl font-bold transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer ${requestSent ? 'bg-emerald-500 text-white' : 'bg-brand-500 text-white hover:bg-brand-600'} disabled:cursor-not-allowed`}>
+                                {requestSent ? <><CheckCircle2 size={18} /> Request Sent</> : <><Send size={18} /> Send Request to Employee</>}
                             </button>
                         </div>
                     </div>
@@ -237,14 +251,20 @@ export default function HRManagerDocuments() {
 
                             </div>
 
-                            <div className="flex gap-2">
-                                <button className="flex-1 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm text-sm opacity-50 cursor-not-allowed">
-                                    Approve Application
-                                </button>
-                                <button className="flex-1 py-2.5 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors text-sm">
-                                    Request Changes
-                                </button>
-                            </div>
+                            {reviewStatus ? (
+                                <div className={`py-2.5 text-center text-sm font-bold rounded-xl ${reviewStatus === 'approved' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                                    {reviewStatus === 'approved' ? 'Application Approved' : 'Changes Requested'}
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setReviewStatus('approved'); flash('Omar Fahmi onboarding application approved'); }} className="flex-1 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm text-sm cursor-pointer">
+                                        Approve Application
+                                    </button>
+                                    <button onClick={() => { setReviewStatus('changes'); flash('Change request sent to Omar Fahmi'); }} className="flex-1 py-2.5 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors text-sm cursor-pointer">
+                                        Request Changes
+                                    </button>
+                                </div>
+                            )}
                             <p className="text-xs text-text-tertiary text-center mt-3">You must review remaining 3 documents before approving.</p>
                         </div>
                     </div>
@@ -266,13 +286,16 @@ export default function HRManagerDocuments() {
                                     <FileCheck size={16} className="text-emerald-500" /> Auto-Generated Draft Ready
                                 </h4>
                                 <p className="text-text-secondary mb-3">System successfully pulled Mar 2026 data. Employee is active. Purpose aligned with policy.</p>
-                                <button className="w-full py-2 bg-surface-primary border border-border-secondary text-text-primary font-medium rounded-lg hover:bg-border-secondary transition-colors flex items-center justify-center gap-2">
+                                <button onClick={() => flash('Opening certificate preview...')} className="w-full py-2 bg-surface-primary border border-border-secondary text-text-primary font-medium rounded-lg hover:bg-border-secondary transition-colors flex items-center justify-center gap-2 cursor-pointer">
                                     <Eye size={16} /> Preview Certificate PDF
                                 </button>
                             </div>
 
-                            <button className="w-full py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm text-sm">
-                                Generate & Send Document
+                            <button
+                                onClick={() => { setCertGenerated(true); flash('Salary certificate generated and sent to Ahmed Benali'); }}
+                                disabled={certGenerated}
+                                className={`w-full py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm cursor-pointer ${certGenerated ? 'bg-emerald-500 text-white' : 'bg-brand-500 text-white hover:bg-brand-600'} disabled:cursor-not-allowed`}>
+                                {certGenerated ? 'Document Generated & Sent' : 'Generate & Send Document'}
                             </button>
                         </div>
                     </div>

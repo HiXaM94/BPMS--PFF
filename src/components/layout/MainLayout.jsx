@@ -38,7 +38,7 @@ export default function MainLayout() {
           {/* Footer */}
           <footer className="flex items-center justify-between px-4 sm:px-6 lg:px-10 py-4
                              text-xs text-text-tertiary">
-            <span>© 2026 BPMS Platform — Ynov Campus</span>
+            <span>© 2026 Flowly — Ynov Campus</span>
             <span className="hidden sm:block">v1.2.0</span>
           </footer>
         </div>

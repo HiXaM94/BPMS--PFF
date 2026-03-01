@@ -23,7 +23,7 @@ async function callAI(messages) {
     if (last.includes('performance') || last.includes('trend'))
       return `**Team Performance Analysis — Q4 2025**\n\n� **Top Performers:**\n• Clara Dupont — 94/100 (Exceptional HR management)\n• Ibrahim Rouass — 90/100 (Strong leadership)\n\n� **Needs Attention:**\n• Ahmed Hassan — 76/100 (Task delays noted)\n• Bob Tanaka — 78/100 (Documentation gaps)\n\n**Recommendation:** Schedule 1:1 coaching sessions for Ahmed and Bob. Consider Ibrahim for team lead promotion.`;
     if (last.includes('job') || last.includes('description') || last.includes('draft'))
-      return `**Draft Job Description — UX Designer**\n\n**Position:** Senior UX Designer\n**Department:** Design\n**Location:** Casablanca, Morocco\n\n**Responsibilities:**\n• Lead end-to-end UX design for BPMS platform features\n• Conduct user research and usability testing\n• Create wireframes, prototypes, and design systems\n• Collaborate with engineering and product teams\n\n**Requirements:**\n• 3+ years UX design experience\n• Proficiency in Figma, user research methods\n• Portfolio demonstrating complex product design\n\nShall I refine this further or adjust the requirements?`;
+      return `**Draft Job Description — UX Designer**\n\n**Position:** Senior UX Designer\n**Department:** Design\n**Location:** Casablanca, Morocco\n\n**Responsibilities:**\n• Lead end-to-end UX design for Flowly product features\n• Conduct user research and usability testing\n• Create wireframes, prototypes, and design systems\n• Collaborate with engineering and product teams\n\n**Requirements:**\n• 3+ years UX design experience\n• Proficiency in Figma, user research methods\n• Portfolio demonstrating complex product design\n\nShall I refine this further or adjust the requirements?`;
     return `I'm your **HR AI Assistant**. I can help you:\n\n• 📋 **Rank & screen candidates** from your recruitment pipeline\n• 📊 **Analyze performance** trends across your team\n• 🗓 **Summarize leave requests** and flag conflicts\n• ✍️ **Draft job descriptions** and HR policies\n• 🔍 **Parse CVs** and extract key qualifications\n\nWhat would you like to explore?`;
   }
 
@@ -146,7 +146,7 @@ export default function AIAssistant() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-white leading-tight">AI Assistant</h3>
-              <span className="text-[10px] text-white/70">BPMS Intelligence</span>
+              <span className="text-[10px] text-white/70">Flowly Intelligence</span>
             </div>
           </div>
           <div className="flex items-center gap-1">

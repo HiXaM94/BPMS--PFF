@@ -2,7 +2,7 @@
  * NotificationService.js
  *
  * Centralized notification dispatcher for workflow events, approvals,
- * and role-based actions across the entire BPMS platform.
+ * and role-based actions across the entire Flowly system.
  *
  * - Inserts notifications into Supabase `notifications` table
  * - Real-time delivery via Supabase Realtime (NotificationContext subscribes)

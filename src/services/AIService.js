@@ -1,6 +1,6 @@
 /**
  * AIService.js
- * Production-grade AI service for BPMS
+ * Production-grade AI service for Flowly
  * Integrates with OpenAI/Anthropic for intelligent features
  * Falls back to rich, context-aware mock responses when no API key is set.
  */
@@ -50,7 +50,7 @@ class AIService {
           body: JSON.stringify({
             model: this.model,
             messages: [
-              { role: 'system', content: 'You are an AI assistant for a Business Process Management System (BPMS). Help HR managers, team leads, and employees with tasks, analytics, and recommendations. Be professional, concise, and actionable.' },
+              { role: 'system', content: 'You are an AI assistant for Flowly. Help HR managers, team leads, and employees with tasks, analytics, and recommendations. Be professional, concise, and actionable.' },
               { role: 'user', content: message },
             ],
             temperature: 0.7,
@@ -125,7 +125,7 @@ Would you like me to help with a specific document task?`;
     if (q.includes('workflow') || q.includes('process') || q.includes('optimize') || q.includes('automate')) {
       return `⚡ **Workflow Optimization Suggestions**
 
-Based on typical BPMS patterns, here are my recommendations:
+Based on typical Flowly patterns, here are my recommendations:
 
 **Quick Wins:**
 1. **Auto-approve routine leaves** — Sick leaves ≤ 1 day can be auto-approved to reduce HR workload by ~30%

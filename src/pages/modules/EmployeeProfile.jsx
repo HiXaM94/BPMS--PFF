@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   User, Mail, Phone, MapPin, Calendar, Briefcase, Award,
   Edit, Building2, Clock, Star, GraduationCap, FileText, ShieldAlert,
@@ -10,6 +10,8 @@ import Modal from '../../components/ui/Modal';
 import { useRole } from '../../contexts/RoleContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 
 /**
  * All mock employees — each has the card fields (name, email, phone, cnss, rib, department)
@@ -19,7 +21,7 @@ const allEmployees = [
   {
     id: 1,
     name: 'Ibrahim Rouass',
-    email: 'ibrahim.rouass@bpms.io',
+    email: 'ibrahim.rouass@flowly.io',
     phone: '+212 661 123 456',
     cnss: '1234567890',
     rib: 'MA76 0011 1110 0000 0123 4567 890',
@@ -31,7 +33,7 @@ const allEmployees = [
     employeeId: 'EMP-2025-001',
     status: 'active',
     avatar: 'IR',
-    bio: 'Experienced full-stack developer specializing in React, Node.js, and cloud architecture. Passionate about building scalable SaaS platforms.',
+    bio: 'Experienced full-stack developer specializing in React, Node.js, and cloud architecture. Passionate about building scalable SaaS products.',
     skills: [
       { name: 'React.js', level: 95 },
       { name: 'Node.js', level: 88 },
@@ -46,7 +48,7 @@ const allEmployees = [
   {
     id: 2,
     name: 'Sarah Martinez',
-    email: 'sarah.m@bpms.io',
+    email: 'sarah.m@flowly.io',
     phone: '+212 662 234 567',
     cnss: '2345678901',
     rib: 'MA76 0022 2220 0000 0234 5678 901',
@@ -72,7 +74,7 @@ const allEmployees = [
   {
     id: 3,
     name: 'Ahmed Hassan',
-    email: 'ahmed.h@bpms.io',
+    email: 'ahmed.h@flowly.io',
     phone: '+212 663 345 678',
     cnss: '3456789012',
     rib: 'MA76 0033 3330 0000 0345 6789 012',
@@ -99,7 +101,7 @@ const allEmployees = [
   {
     id: 4,
     name: 'Clara Dupont',
-    email: 'clara.d@bpms.io',
+    email: 'clara.d@flowly.io',
     phone: '+212 664 456 789',
     cnss: '4567890123',
     rib: 'MA76 0044 4440 0000 0456 7890 123',
@@ -125,7 +127,7 @@ const allEmployees = [
   {
     id: 5,
     name: 'John Chen',
-    email: 'john.c@bpms.io',
+    email: 'john.c@flowly.io',
     phone: '+212 665 567 890',
     cnss: '5678901234',
     rib: 'MA76 0055 5550 0000 0567 8901 234',
@@ -151,7 +153,7 @@ const allEmployees = [
   {
     id: 6,
     name: 'Fatima Zahra',
-    email: 'fatima.z@bpms.io',
+    email: 'fatima.z@flowly.io',
     phone: '+212 666 678 901',
     cnss: '6789012345',
     rib: 'MA76 0066 6660 0000 0678 9012 345',
@@ -177,7 +179,7 @@ const allEmployees = [
   {
     id: 7,
     name: 'Bob Tanaka',
-    email: 'bob.t@bpms.io',
+    email: 'bob.t@flowly.io',
     phone: '+212 667 789 012',
     cnss: '7890123456',
     rib: 'MA76 0077 7770 0000 0789 0123 456',
@@ -201,7 +203,7 @@ const allEmployees = [
   {
     id: 8,
     name: 'Amira Belkacem',
-    email: 'amira.b@bpms.io',
+    email: 'amira.b@flowly.io',
     phone: '+212 668 890 123',
     cnss: '8901234567',
     rib: 'MA76 0088 8880 0000 0890 1234 567',
@@ -294,17 +296,58 @@ export default function EmployeeProfile() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [deptFilter, setDeptFilter] = useState('all');
   const [avatarImages, setAvatarImages] = useState({});
+  const [employees, setEmployees] = useState(allEmployees);
 
   const isEmployee = currentRole.id === 'employee';
 
-  // Employee can only see themselves (mock: Ahmed Hassan, id=3)
+  useEffect(() => {
+    if (!isSupabaseReady) return;
+    cacheService.getOrSet('profile:employees', async () => {
+      const { data } = await supabase.from('employees')
+        .select('*, users(name, email, phone, role, status)')
+        .order('created_at', { ascending: false });
+      return data;
+    }, 120).then(data => {
+      if (!data || data.length === 0) return;
+      setEmployees(data.map((e, idx) => {
+        const u = e.users || {};
+        const name = u.name || e.first_name ? `${e.first_name || ''} ${e.last_name || ''}`.trim() : `Employee ${idx + 1}`;
+        return {
+          id: e.id,
+          name,
+          email: u.email || e.email || '-',
+          phone: u.phone || e.phone || '-',
+          cnss: e.cnss_number || '-',
+          rib: e.bank_rib || '-',
+          department: e.department || '-',
+          title: e.position || e.job_title || '-',
+          location: e.location || 'Morocco',
+          manager: e.manager_name || '-',
+          joinDate: e.hire_date ? new Date(e.hire_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
+          employeeId: e.employee_code || `EMP-${e.id?.toString().slice(0, 8)}`,
+          status: u.status || e.status || 'active',
+          avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+          bio: e.bio || '',
+          skills: e.skills || [],
+          certifications: e.certifications || [],
+          user_id: e.user_id,
+        };
+      }));
+    });
+  }, []);
+
   const visibleEmployees = isEmployee
+    ? employees.filter(e => e.user_id === authProfile?.id || e.email === authProfile?.email)
+    : employees;
+
+  // Fallback: if employee role but no match found, show first mock
+  const effectiveVisible = isEmployee && visibleEmployees.length === 0
     ? allEmployees.filter(e => e.id === 3)
-    : allEmployees;
+    : visibleEmployees;
 
-  const departments = [...new Set(allEmployees.map(e => e.department))];
+  const departments = [...new Set(employees.map(e => e.department))];
 
-  const filtered = visibleEmployees.filter(e => {
+  const filtered = effectiveVisible.filter(e => {
     const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) ||
                         e.email.toLowerCase().includes(search.toLowerCase()) ||
                         e.department.toLowerCase().includes(search.toLowerCase());
@@ -318,7 +361,7 @@ export default function EmployeeProfile() {
         title={t('profile.title')}
         description={isEmployee
           ? t('profile.viewRestrictedMsg')
-          : `${visibleEmployees.length} ${t('profile.inOrganization')}`}
+          : `${effectiveVisible.length} ${t('profile.inOrganization')}`}
         icon={User}
         iconColor="from-brand-500 to-brand-600"
       />

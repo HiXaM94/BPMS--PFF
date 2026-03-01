@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Users, UserPlus, Shield, Mail, Eye, Edit, Trash2,
   Search, Filter, UserCheck, UserX, UserCog,
@@ -10,18 +10,20 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import StatCard from '../../components/ui/StatCard';
 import Modal from '../../components/ui/Modal';
 import { useRole } from '../../contexts/RoleContext';
+import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 
 const defaultUsers = [
-  { id: 1, name: 'Ibrahim Rouass', email: 'ibrahim@bpms.io', role: 'Admin', department: 'Engineering', status: 'active', lastLogin: '2 min ago', avatar: 'IR' },
-  { id: 2, name: 'Sarah Martinez', email: 'sarah.m@bpms.io', role: 'Manager', department: 'Marketing', status: 'active', lastLogin: '15 min ago', avatar: 'SM' },
-  { id: 3, name: 'Ahmed Hassan', email: 'ahmed.h@bpms.io', role: 'Employee', department: 'Engineering', status: 'active', lastLogin: '1h ago', avatar: 'AH' },
-  { id: 4, name: 'Clara Dupont', email: 'clara.d@bpms.io', role: 'HR', department: 'Human Resources', status: 'active', lastLogin: '3h ago', avatar: 'CD' },
-  { id: 5, name: 'John Chen', email: 'john.c@bpms.io', role: 'Employee', department: 'Design', status: 'inactive', lastLogin: '5 days ago', avatar: 'JC' },
-  { id: 6, name: 'Fatima Zahra', email: 'fatima.z@bpms.io', role: 'Manager', department: 'QA', status: 'active', lastLogin: '30 min ago', avatar: 'FZ' },
-  { id: 7, name: 'Bob Tanaka', email: 'bob.t@bpms.io', role: 'Employee', department: 'Engineering', status: 'active', lastLogin: '2h ago', avatar: 'BT' },
-  { id: 8, name: 'Diana Kim', email: 'diana.k@bpms.io', role: 'Employee', department: 'Engineering', status: 'pending', lastLogin: 'Never', avatar: 'DK' },
-  { id: 9, name: 'Carlos Ruiz', email: 'carlos.r@bpms.io', role: 'Observer', department: 'Design', status: 'active', lastLogin: '1 day ago', avatar: 'CR' },
-  { id: 10, name: 'Amira Belkacem', email: 'amira.b@bpms.io', role: 'Employee', department: 'Finance', status: 'active', lastLogin: '45 min ago', avatar: 'AB' },
+  { id: 1, name: 'Ibrahim Rouass', email: 'ibrahim@flowly.io', role: 'Admin', department: 'Engineering', status: 'active', lastLogin: '2 min ago', avatar: 'IR' },
+  { id: 2, name: 'Sarah Martinez', email: 'sarah.m@flowly.io', role: 'Manager', department: 'Marketing', status: 'active', lastLogin: '15 min ago', avatar: 'SM' },
+  { id: 3, name: 'Ahmed Hassan', email: 'ahmed.h@flowly.io', role: 'Employee', department: 'Engineering', status: 'active', lastLogin: '1h ago', avatar: 'AH' },
+  { id: 4, name: 'Clara Dupont', email: 'clara.d@flowly.io', role: 'HR', department: 'Human Resources', status: 'active', lastLogin: '3h ago', avatar: 'CD' },
+  { id: 5, name: 'John Chen', email: 'john.c@flowly.io', role: 'Employee', department: 'Design', status: 'inactive', lastLogin: '5 days ago', avatar: 'JC' },
+  { id: 6, name: 'Fatima Zahra', email: 'fatima.z@flowly.io', role: 'Manager', department: 'QA', status: 'active', lastLogin: '30 min ago', avatar: 'FZ' },
+  { id: 7, name: 'Bob Tanaka', email: 'bob.t@flowly.io', role: 'Employee', department: 'Engineering', status: 'active', lastLogin: '2h ago', avatar: 'BT' },
+  { id: 8, name: 'Diana Kim', email: 'diana.k@flowly.io', role: 'Employee', department: 'Engineering', status: 'pending', lastLogin: 'Never', avatar: 'DK' },
+  { id: 9, name: 'Carlos Ruiz', email: 'carlos.r@flowly.io', role: 'Observer', department: 'Design', status: 'active', lastLogin: '1 day ago', avatar: 'CR' },
+  { id: 10, name: 'Amira Belkacem', email: 'amira.b@flowly.io', role: 'Employee', department: 'Finance', status: 'active', lastLogin: '45 min ago', avatar: 'AB' },
 ];
 
 const roleColors = { Admin: 'brand', Manager: 'warning', HR: 'pink', Employee: 'info', Observer: 'neutral' };
@@ -33,7 +35,7 @@ const avatarColors = {
   Observer: 'from-gray-400 to-gray-500',
 };
 
-function getColumns(onView, onEdit) {
+function getColumns(onView, onEdit, onDelete) {
   return [
     {
       key: 'name', label: 'User',
@@ -60,8 +62,8 @@ function getColumns(onView, onEdit) {
     {
       key: 'status', label: 'Status',
       render: (val) => {
-        const map = { active: 'success', inactive: 'danger', pending: 'warning' };
-        return <StatusBadge variant={map[val]} dot size="sm">{val}</StatusBadge>;
+        const map = { active: 'success', inactive: 'danger', pending: 'warning', suspended: 'danger' };
+        return <StatusBadge variant={map[val] || 'neutral'} dot size="sm">{val}</StatusBadge>;
       },
     },
     { key: 'lastLogin', label: 'Last Login', cellClassName: 'text-text-tertiary text-xs' },
@@ -71,7 +73,7 @@ function getColumns(onView, onEdit) {
         <div className="flex items-center gap-1">
           <button onClick={() => onView(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary" /></button>
           <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit"><Edit size={14} className="text-text-tertiary" /></button>
-          <button className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400" /></button>
+          <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400" /></button>
         </div>
       ),
     },
@@ -101,6 +103,37 @@ export default function UserManagement() {
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
   const isHR = currentRole.id === 'hr';
+  const showToast = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000); };
+
+  // ── Map DB role enums to display labels ──
+  const roleMap = { ADMIN: 'Admin', HR: 'HR', TEAM_MANAGER: 'Manager', EMPLOYEE: 'Employee' };
+  const roleMapReverse = { Admin: 'ADMIN', HR: 'HR', Manager: 'TEAM_MANAGER', Employee: 'EMPLOYEE', Observer: 'EMPLOYEE' };
+
+  // ── Fetch users from Supabase ──
+  const fetchUsers = useCallback(async () => {
+    if (!isSupabaseReady) { setUsers(defaultUsers); return; }
+    const data = await cacheService.getOrSet('users:list', async () => {
+      const { data, error } = await supabase.from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) { console.error('Fetch users error:', error.message); return null; }
+      return data;
+    }, 90);
+    if (data && data.length > 0) {
+      setUsers(data.map(u => ({
+        id: u.id,
+        name: u.name || u.email.split('@')[0],
+        email: u.email,
+        role: roleMap[u.role] || u.role || 'Employee',
+        department: '-',
+        status: u.status || 'active',
+        lastLogin: u.last_login_at ? new Date(u.last_login_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never',
+        avatar: u.avatar_initials || u.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??',
+      })));
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   // Determine what type of account can be created
   const canCreate = isAdmin || isHR;
@@ -115,6 +148,24 @@ export default function UserManagement() {
   };
   const [form, setForm] = useState(emptyForm);
 
+  // ── Delete user ──
+  const handleDeleteUser = async (user) => {
+    if (!confirm(`Delete user "${user.name}"?`)) return;
+    // Optimistic
+    setUsers(prev => prev.filter(u => u.id !== user.id));
+    showToast(`User "${user.name}" deleted.`);
+
+    if (isSupabaseReady) {
+      const { error } = await supabase.from('users').delete().eq('id', user.id);
+      if (error) {
+        showToast(`Error: ${error.message}`);
+        fetchUsers(); // rollback
+      }
+      cacheService.invalidatePattern('^users:');
+      cacheService.invalidatePattern('^admin:');
+    }
+  };
+
   // Build columns with action callbacks
   const columns = getColumns(
     (user) => setViewUser(user),
@@ -122,6 +173,7 @@ export default function UserManagement() {
       setEditUser(user);
       setEditForm({ name: user.name, email: user.email, role: user.role, department: user.department, status: user.status });
     },
+    handleDeleteUser,
   );
 
   const filtered = users.filter(u => {
@@ -138,40 +190,76 @@ export default function UserManagement() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleCreateUser = (e) => {
+  const handleCreateUser = async (e) => {
     e.preventDefault();
     const fullName = `${form.firstName} ${form.lastName}`.trim();
     const initials = `${form.firstName.charAt(0)}${form.lastName.charAt(0)}`.toUpperCase();
     const emailPrefix = `${form.firstName.toLowerCase()}.${form.lastName.charAt(0).toLowerCase()}`;
+    const email = form.email || `${emailPrefix}@flowly.io`;
 
-    const newUser = {
-      id: users.length + 1,
-      name: fullName,
-      email: form.email || `${emailPrefix}@bpms.io`,
-      role: createRoleType,
-      department: form.department || (createRoleType === 'HR' ? 'Human Resources' : 'Engineering'),
-      status: 'pending',
-      lastLogin: 'Never',
-      avatar: initials,
-    };
+    if (!isSupabaseReady) {
+      const newUser = {
+        id: users.length + 1, name: fullName, email,
+        role: createRoleType, department: form.department || (createRoleType === 'HR' ? 'Human Resources' : 'Engineering'),
+        status: 'pending', lastLogin: 'Never', avatar: initials,
+      };
+      setUsers(prev => [newUser, ...prev]);
+      setForm(emptyForm); setShowCreateModal(false);
+      showToast(`${createRoleType} account for "${fullName}" created successfully!`);
+      return;
+    }
 
-    setUsers(prev => [newUser, ...prev]);
-    setForm(emptyForm);
-    setShowCreateModal(false);
-    setSuccessMsg(`${createRoleType} account for "${fullName}" created successfully!`);
-    setTimeout(() => setSuccessMsg(''), 4000);
+    // Create auth user via Supabase signUp (they'll get a confirmation email)
+    const dbRole = roleMapReverse[createRoleType] || 'EMPLOYEE';
+    const { data: authData, error: authErr } = await supabase.auth.signUp({
+      email,
+      password: crypto.randomUUID().slice(0, 12), // temp password
+      options: { data: { name: fullName, role: dbRole } },
+    });
+    if (authErr) { showToast(`Error: ${authErr.message}`); return; }
+
+    // The trigger on auth.users auto-creates the public.users row
+    setUsers(prev => [{
+      id: authData.user?.id || Date.now(),
+      name: fullName, email, role: createRoleType,
+      department: form.department || '-', status: 'pending',
+      lastLogin: 'Never', avatar: initials,
+    }, ...prev]);
+    setForm(emptyForm); setShowCreateModal(false);
+    showToast(`${createRoleType} account for "${fullName}" created! Confirmation email sent.`);
+    cacheService.invalidatePattern('^users:');
+    cacheService.invalidatePattern('^admin:');
   };
 
-  const handleEditSave = (e) => {
+  const handleEditSave = async (e) => {
     e.preventDefault();
+    const newAvatar = editForm.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    // Optimistic
     setUsers(prev => prev.map(u =>
       u.id === editUser.id
-        ? { ...u, name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department, status: editForm.status, avatar: `${editForm.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}` }
+        ? { ...u, name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department, status: editForm.status, avatar: newAvatar }
         : u
     ));
-    setSuccessMsg(`User "${editForm.name}" updated successfully!`);
-    setTimeout(() => setSuccessMsg(''), 4000);
+    showToast(`User "${editForm.name}" updated successfully!`);
     setEditUser(null);
+
+    if (isSupabaseReady) {
+      const dbRole = roleMapReverse[editForm.role] || 'EMPLOYEE';
+      const { error } = await supabase.from('users').update({
+        name: editForm.name,
+        email: editForm.email,
+        role: dbRole,
+        status: editForm.status,
+        avatar_initials: newAvatar,
+      }).eq('id', editUser.id);
+      if (error) {
+        showToast(`Error: ${error.message}`);
+        fetchUsers(); // rollback
+        return;
+      }
+      cacheService.invalidatePattern('^users:');
+      cacheService.invalidatePattern('^admin:');
+    }
   };
 
   return (
@@ -301,7 +389,7 @@ export default function UserManagement() {
               required
               value={form.email}
               onChange={e => handleInputChange('email', e.target.value)}
-              placeholder="e.g. sarah.m@bpms.io"
+              placeholder="e.g. sarah.m@flowly.io"
               className={inputClassName}
             />
           </div>

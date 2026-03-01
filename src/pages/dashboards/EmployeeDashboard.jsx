@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
   ListChecks,
@@ -12,6 +14,9 @@ import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
 import { employeeData } from '../../data/mockData';
+import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const statIcons = [ListChecks, CheckCircle2, Clock, TrendingUp];
 const statColors = [
@@ -77,10 +82,80 @@ const requestColumns = [
 ];
 
 export default function EmployeeDashboard() {
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [stats, setStats] = useState(employeeData.stats);
+  const [myTasks, setMyTasks] = useState(employeeData.myTasks);
+  const [myRequests, setMyRequests] = useState(employeeData.myRequests);
+  const [activity, setActivity] = useState(employeeData.recentActivity);
+  const [weeklyActivity, setWeeklyActivity] = useState(employeeData.weeklyActivity);
+
+  useEffect(() => {
+    if (!isSupabaseReady || !profile?.id) return;
+
+    // Fetch employee's tasks
+    cacheService.getOrSet(`emp:tasks:${profile.id}`, async () => {
+      const { data } = await supabase.from('tasks')
+        .select('*, projects(title)')
+        .eq('created_by', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      return data;
+    }, 90).then(data => {
+      if (!data || data.length === 0) return;
+      const statusMap = { NOT_STARTED: 'not-started', IN_PROGRESS: 'in-progress', COMPLETED: 'completed' };
+      const prioMap = { Low: 'low', Medium: 'medium', High: 'high', Critical: 'high' };
+      setMyTasks(data.map(t => ({
+        id: t.id,
+        title: t.title,
+        process: t.projects?.title || '-',
+        priority: prioMap[t.priority] || 'medium',
+        deadline: t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-',
+        status: statusMap[t.status] || 'pending',
+      })));
+    });
+
+    // Fetch employee's leave requests
+    cacheService.getOrSet(`emp:requests:${profile.id}`, async () => {
+      const { data } = await supabase.from('vacances')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      return data;
+    }, 90).then(data => {
+      if (!data || data.length === 0) return;
+      setMyRequests(data.map(r => ({
+        id: r.id,
+        type: r.leave_type || 'Leave Request',
+        submitted: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        details: `${r.days_count || 0} days`,
+        status: (r.status || 'pending').toLowerCase(),
+      })));
+    });
+
+    // Update stats from real counts
+    cacheService.getOrSet(`emp:stats:${profile.id}`, async () => {
+      const [allTasks, completed, pending] = await Promise.all([
+        supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('created_by', profile.id),
+        supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('created_by', profile.id).eq('status', 'COMPLETED'),
+        supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('created_by', profile.id).eq('status', 'NOT_STARTED'),
+      ]);
+      return { total: allTasks.count ?? 0, completed: completed.count ?? 0, pending: pending.count ?? 0 };
+    }, 120).then(({ total, completed, pending }) => {
+      setStats(prev => [
+        { ...prev[0], value: total.toString() },
+        { ...prev[1], value: completed.toString() },
+        { ...prev[2], value: pending.toString() },
+        prev[3],
+      ]);
+    });
+  }, [profile?.id]);
+
   // Calculate task summary
-  const inProgress = employeeData.myTasks.filter(t => t.status === 'in-progress').length;
-  const pending = employeeData.myTasks.filter(t => t.status === 'pending').length;
-  const notStarted = employeeData.myTasks.filter(t => t.status === 'not-started').length;
+  const inProgress = myTasks.filter(t => t.status === 'in-progress').length;
+  const pending = myTasks.filter(t => t.status === 'pending').length;
+  const notStarted = myTasks.filter(t => t.status === 'not-started').length;
 
   return (
     <div className="space-y-6">
@@ -94,7 +169,9 @@ export default function EmployeeDashboard() {
             Your tasks, requests, and personal workflow overview
           </p>
         </div>
-        <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+        <button
+          onClick={() => navigate('/vacation')}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
                            bg-[#1a1d1f] text-white dark:bg-white dark:text-[#1a1d1f]
                            text-sm font-semibold shadow-sm
                            hover:-translate-y-0.5 active:translate-y-0
@@ -106,7 +183,7 @@ export default function EmployeeDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {employeeData.stats.map((stat, i) => (
+        {stats.map((stat, i) => (
           <StatCard
             key={stat.id}
             title={stat.title}
@@ -127,7 +204,7 @@ export default function EmployeeDashboard() {
                         animate-fade-in" style={{ animationDelay: '400ms' }}>
           <h2 className="text-sm font-bold text-text-primary mb-4">Weekly Activity</h2>
           <MiniChart
-            data={employeeData.weeklyActivity}
+            data={weeklyActivity}
             label="Tasks completed per day"
             height={100}
             colorFrom="#83bf6e"
@@ -141,9 +218,9 @@ export default function EmployeeDashboard() {
           <h2 className="text-sm font-bold text-text-primary mb-4">Task Summary</h2>
           <div className="flex flex-col gap-3">
             {[
-              { label: 'In Progress', count: inProgress, variant: 'brand', color: 'bg-[#2a85ff]', pct: (inProgress / employeeData.myTasks.length) * 100 },
-              { label: 'Pending', count: pending, variant: 'warning', color: 'bg-[#ff9a55]', pct: (pending / employeeData.myTasks.length) * 100 },
-              { label: 'Not Started', count: notStarted, variant: 'neutral', color: 'bg-[#9a9fa5]', pct: (notStarted / employeeData.myTasks.length) * 100 },
+              { label: 'In Progress', count: inProgress, variant: 'brand', color: 'bg-[#2a85ff]', pct: myTasks.length > 0 ? (inProgress / myTasks.length) * 100 : 0 },
+              { label: 'Pending', count: pending, variant: 'warning', color: 'bg-[#ff9a55]', pct: myTasks.length > 0 ? (pending / myTasks.length) * 100 : 0 },
+              { label: 'Not Started', count: notStarted, variant: 'neutral', color: 'bg-[#9a9fa5]', pct: myTasks.length > 0 ? (notStarted / myTasks.length) * 100 : 0 },
             ].map(item => (
               <div key={item.label} className="flex items-center gap-3">
                 <StatusBadge variant={item.variant} size="sm" dot>{item.label}</StatusBadge>
@@ -166,10 +243,10 @@ export default function EmployeeDashboard() {
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <h2 className="text-sm font-bold text-text-primary">My Tasks</h2>
           <StatusBadge variant="brand" size="sm">
-            {employeeData.myTasks.length} total
+            {myTasks.length} total
           </StatusBadge>
         </div>
-        <DataTable columns={taskColumns} data={employeeData.myTasks} />
+        <DataTable columns={taskColumns} data={myTasks} />
       </div>
 
       {/* My Requests + Recent Activity */}
@@ -179,12 +256,14 @@ export default function EmployeeDashboard() {
                         animate-fade-in overflow-hidden" style={{ animationDelay: '700ms' }}>
           <div className="flex items-center justify-between px-5 pt-5 pb-2">
             <h2 className="text-sm font-bold text-text-primary">My Requests</h2>
-            <button className="text-xs font-medium text-[#2a85ff] hover:text-[#1a6dff]
+            <button
+              onClick={() => navigate('/vacation')}
+              className="text-xs font-medium text-[#2a85ff] hover:text-[#1a6dff]
                                transition-colors cursor-pointer flex items-center gap-1">
               View All <ArrowUpRight size={12} />
             </button>
           </div>
-          <DataTable columns={requestColumns} data={employeeData.myRequests} />
+          <DataTable columns={requestColumns} data={myRequests} />
         </div>
 
         {/* Recent Activity */}
@@ -192,7 +271,7 @@ export default function EmployeeDashboard() {
                         animate-fade-in" style={{ animationDelay: '800ms' }}>
           <h2 className="text-sm font-bold text-text-primary mb-3">Recent Activity</h2>
           <div className="space-y-3">
-            {employeeData.recentActivity.map((item) => (
+            {activity.map((item) => (
               <div key={item.id} className="flex items-start gap-3 group">
                 <div className="mt-1.5">
                   <CircleDot size={10} className="text-[#2a85ff] group-hover:text-[#1a6dff] transition-colors" />

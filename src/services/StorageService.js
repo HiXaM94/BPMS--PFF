@@ -5,10 +5,10 @@
  */
 
 const DATA_KEYS = {
-  PROJECTS: 'bpms_projects',
-  TASKS: 'bpms_tasks',
-  PERFORMANCE: 'bpms_performance',
-  NOTIFICATIONS: 'bpms_notifications',
+  PROJECTS: 'flowly_projects',
+  TASKS: 'flowly_tasks',
+  PERFORMANCE: 'flowly_performance',
+  NOTIFICATIONS: 'flowly_notifications',
 };
 
 // Initial Mock Data

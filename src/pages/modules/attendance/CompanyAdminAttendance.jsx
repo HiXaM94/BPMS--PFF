@@ -1,11 +1,22 @@
-import { Settings, BarChart2, Users, AlertTriangle, CheckSquare, XSquare, Clock, ShieldCheck, MapPin } from 'lucide-react';
+import { useState } from 'react';
+import { Settings, BarChart2, Users, AlertTriangle, CheckSquare, XSquare, Clock, ShieldCheck, MapPin, CheckCircle2 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import DataTable from '../../../components/ui/DataTable';
 
 export default function CompanyAdminAttendance() {
+    const [massCorrectionStatus, setMassCorrectionStatus] = useState(null);
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+
     return (
         <div className="space-y-6 animate-fade-in">
+
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
 
             {/* Company Overview (CA-02) */}
             <div>
@@ -68,10 +79,16 @@ export default function CompanyAdminAttendance() {
                                     No additional payroll impact (Standard hours, no overtime).
                                 </div>
                             </div>
-                            <div className="flex gap-3">
-                                <button className="flex-1 py-2 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition-colors">Approve All</button>
-                                <button className="flex-1 py-2 bg-surface-secondary text-text-primary rounded-lg font-medium border border-border-secondary hover:bg-border-secondary transition-colors">Review Individually</button>
-                            </div>
+                            {massCorrectionStatus ? (
+                                <div className={`py-2 text-center text-sm font-medium rounded-lg ${massCorrectionStatus === 'approved' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-blue-500/10 text-blue-600'}`}>
+                                    {massCorrectionStatus === 'approved' ? 'All 87 corrections approved' : 'Reviewing individually...'}
+                                </div>
+                            ) : (
+                                <div className="flex gap-3">
+                                    <button onClick={() => { setMassCorrectionStatus('approved'); flash('All 87 corrections approved and applied'); }} className="flex-1 py-2 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition-colors cursor-pointer">Approve All</button>
+                                    <button onClick={() => { setMassCorrectionStatus('reviewing'); flash('Opening individual review mode...'); }} className="flex-1 py-2 bg-surface-secondary text-text-primary rounded-lg font-medium border border-border-secondary hover:bg-border-secondary transition-colors cursor-pointer">Review Individually</button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -112,7 +129,7 @@ export default function CompanyAdminAttendance() {
                             </div>
                         </div>
 
-                        <button className="w-full py-2 bg-surface-secondary text-brand-500 font-medium rounded-lg hover:bg-brand-500/10 transition-colors">
+                        <button onClick={() => flash('Policy editor opened')} className="w-full py-2 bg-surface-secondary text-brand-500 font-medium rounded-lg hover:bg-brand-500/10 transition-colors cursor-pointer">
                             Edit Policies
                         </button>
                     </div>

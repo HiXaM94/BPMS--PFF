@@ -12,8 +12,8 @@ import { aiService } from '../../services/AIService';
 
 // ── Fallback mock data (used when Supabase is not configured) ──
 const MOCK_JOBS = [
-  { id: 1, title: 'Senior React Developer', department: 'Engineering', location: 'Casablanca', type: 'Full-time', applicants: 48, shortlisted: 12, status: 'open', postedDate: 'Jan 20, 2026', salary: '18K-22K MAD', description: 'Build and maintain React applications for our BPMS platform.' },
-  { id: 2, title: 'Product Manager', department: 'Product', location: 'Rabat', type: 'Full-time', applicants: 35, shortlisted: 8, status: 'open', postedDate: 'Jan 25, 2026', salary: '20K-25K MAD', description: 'Lead product strategy and roadmap for our SaaS platform.' },
+  { id: 1, title: 'Senior React Developer', department: 'Engineering', location: 'Casablanca', type: 'Full-time', applicants: 48, shortlisted: 12, status: 'open', postedDate: 'Jan 20, 2026', salary: '18K-22K MAD', description: 'Build and maintain React applications for the Flowly product suite.' },
+  { id: 2, title: 'Product Manager', department: 'Product', location: 'Rabat', type: 'Full-time', applicants: 35, shortlisted: 8, status: 'open', postedDate: 'Jan 25, 2026', salary: '20K-25K MAD', description: 'Lead product strategy and roadmap for our SaaS product.' },
   { id: 3, title: 'UI/UX Designer', department: 'Design', location: 'Remote', type: 'Full-time', applicants: 62, shortlisted: 15, status: 'open', postedDate: 'Feb 1, 2026', salary: '14K-18K MAD', description: 'Design intuitive user experiences for enterprise software.' },
   { id: 4, title: 'Data Analyst', department: 'Analytics', location: 'Casablanca', type: 'Full-time', applicants: 28, shortlisted: 6, status: 'closed', postedDate: 'Dec 15, 2025', salary: '13K-16K MAD', description: 'Analyze business data and produce actionable insights.' },
   { id: 5, title: 'QA Engineer', department: 'Engineering', location: 'Casablanca', type: 'Full-time', applicants: 22, shortlisted: 5, status: 'open', postedDate: 'Feb 5, 2026', salary: '12K-16K MAD', description: 'Build automated test suites and ensure product quality.' },

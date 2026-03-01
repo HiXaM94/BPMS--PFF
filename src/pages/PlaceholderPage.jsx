@@ -22,7 +22,7 @@ export default function PlaceholderPage({ title }) {
       <h1 className="text-2xl font-bold text-text-primary mb-2">{displayTitle}</h1>
       <p className="text-sm text-text-secondary text-center max-w-md">
         This module is under construction. It will be available once implemented
-        in the BPMS platform.
+        in Flowly.
       </p>
     </div>
   );

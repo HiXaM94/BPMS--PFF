@@ -58,15 +58,15 @@ export default function SuperAdminDocuments() {
     return (
         <div className="space-y-6 animate-fade-in">
 
-            {/* Platform Level Stats */}
+            {/* Global Level Stats */}
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                     <ShieldCheck size={20} className="text-brand-500" />
-                    Platform Compliance Overview
+                    Global Compliance Overview
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard title="Total Monitored" value="484" subtitle="Employees across 4 orgs" icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-indigo-500" />
-                    <StatCard title="Platform Compliance" value="85%" subtitle="Overall document completion" icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" change="-2.1%" changeType="negative" />
+                    <StatCard title="Overall Compliance" value="85%" subtitle="Overall document completion" icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" change="-2.1%" changeType="negative" />
                     <StatCard title="Missing Documents" value="56" subtitle="Pending uploads" icon={FileText} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
                     <StatCard title="Overdue Requests" value="17" subtitle="Past deadline" icon={AlertTriangle} iconColor="bg-gradient-to-br from-red-500 to-rose-500" change="+5" changeType="negative" />
                 </div>

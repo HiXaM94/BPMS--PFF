@@ -5,7 +5,7 @@ const LanguageContext = createContext(null);
 
 export function LanguageProvider({ children }) {
   const [locale, setLocale] = useState(() => {
-    const saved = localStorage.getItem('bpms_lang');
+    const saved = localStorage.getItem('flowly_lang');
     return saved && languages[saved] ? saved : 'en';
   });
 
@@ -34,7 +34,7 @@ export function LanguageProvider({ children }) {
   const switchLanguage = useCallback((lang) => {
     if (languages[lang]) {
       setLocale(lang);
-      localStorage.setItem('bpms_lang', lang);
+      localStorage.setItem('flowly_lang', lang);
       document.documentElement.lang = lang;
       document.documentElement.dir = 'ltr';
     }

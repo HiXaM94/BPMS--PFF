@@ -1,15 +1,26 @@
+import { useState } from 'react';
 import { Server, Activity, Users, AlertTriangle, Monitor, HardDrive, Cpu, CheckCircle2, AlertOctagon } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 
 export default function SuperAdminAttendance() {
+    const [ticketStatus, setTicketStatus] = useState(null);
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Platform Statistics */}
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
+
+            {/* Global Statistics */}
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                     <Activity size={20} className="text-brand-500" />
-                    Platform Statistics (All Companies)
+                    Global Statistics (All Companies)
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard title="Active Companies" value="47" icon={Building} iconColor="bg-gradient-to-br from-blue-500 to-cyan-500" />
@@ -115,8 +126,14 @@ export default function SuperAdminAttendance() {
                         <p className="text-brand-500 mt-2 font-medium">→ Temporary Workaround Activated: Enabled direct mobile clock-in (bypass kiosk) for Acme Corp</p>
                     </div>
                     <div className="pt-2 flex gap-3">
-                        <button className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors">Resolve Ticket</button>
-                        <button className="px-4 py-2 bg-surface-secondary text-text-primary hover:bg-border-secondary rounded-lg font-medium transition-colors">Contact Company</button>
+                        {ticketStatus === 'resolved' ? (
+                            <div className="px-4 py-2 bg-emerald-500/10 text-emerald-600 rounded-lg font-medium text-sm">Ticket #1247 Resolved</div>
+                        ) : (
+                            <>
+                                <button onClick={() => { setTicketStatus('resolved'); flash('Ticket #1247 resolved. Acme Corporation notified.'); }} className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors cursor-pointer">Resolve Ticket</button>
+                                <button onClick={() => flash('Contacting Acme Corporation admin...')} className="px-4 py-2 bg-surface-secondary text-text-primary hover:bg-border-secondary rounded-lg font-medium transition-colors cursor-pointer">Contact Company</button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>

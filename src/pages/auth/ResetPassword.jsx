@@ -89,12 +89,14 @@ export default function ResetPassword() {
 
       <div className="relative w-full max-w-md animate-fade-in">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-lg shadow-brand-500/20">
-            <Workflow size={24} className="text-white" />
-          </div>
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 shrink-0">
+              <rect width="32" height="32" rx="8" className="fill-black dark:fill-white" />
+              <path d="M8 8 V18 C8 24 16 24 16 18 V8" className="stroke-white dark:stroke-black" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+              <path d="M16 8 V18 C16 24 24 24 24 18 V8" className="stroke-white dark:stroke-black" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+            </svg>
           <div>
-            <span className="text-xl font-bold text-text-primary tracking-tight">BPMS</span>
-            <span className="block text-xs text-text-tertiary font-medium tracking-wide">Platform</span>
+            <span className="text-xl font-bold text-text-primary tracking-tight">Flowly</span>
+            <span className="block text-xs text-text-tertiary font-medium tracking-wide">Business Suite</span>
           </div>
         </div>
 

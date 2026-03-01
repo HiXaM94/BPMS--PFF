@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users,
   ListChecks,
@@ -10,6 +12,9 @@ import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
 import { managerData } from '../../data/mockData';
+import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const statIcons = [Users, ListChecks, ClipboardCheck, TrendingUp];
 const statColors = [
@@ -98,6 +103,60 @@ function TeamMemberCard({ member }) {
 }
 
 export default function ManagerDashboard() {
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [stats, setStats] = useState(managerData.stats);
+  const [teamMembers, setTeamMembers] = useState(managerData.teamMembers);
+  const [approvals, setApprovals] = useState(managerData.pendingApprovals);
+  const [teamPerf, setTeamPerf] = useState(managerData.teamPerformance);
+  const [processComp, setProcessComp] = useState(managerData.processCompletion);
+
+  useEffect(() => {
+    if (!isSupabaseReady || !profile?.id) return;
+
+    // Fetch team stats
+    cacheService.getOrSet('manager:stats', async () => {
+      const [teamRes, tasksRes, pendingRes] = await Promise.all([
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'EMPLOYEE'),
+        supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('status', 'COMPLETED'),
+        supabase.from('vacances').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
+      ]);
+      return {
+        teamCount: teamRes.count ?? 0,
+        completedTasks: tasksRes.count ?? 0,
+        pendingCount: pendingRes.count ?? 0,
+      };
+    }, 120).then(({ teamCount, completedTasks, pendingCount }) => {
+      setStats(prev => [
+        { ...prev[0], value: teamCount.toString() },
+        { ...prev[1], value: completedTasks.toString() },
+        { ...prev[2], value: pendingCount.toString() },
+        prev[3],
+      ]);
+    });
+
+    // Fetch pending leave requests as approvals
+    cacheService.getOrSet('manager:approvals', async () => {
+      const { data } = await supabase.from('vacances')
+        .select('*, users(name)')
+        .eq('status', 'PENDING')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      return data;
+    }, 90).then(data => {
+      if (!data || data.length === 0) return;
+      setApprovals(data.map(r => ({
+        id: r.id,
+        title: `${r.leave_type || 'Leave'} Request`,
+        requester: r.users?.name || 'Unknown',
+        type: 'Leave',
+        priority: r.days_count > 5 ? 'high' : r.days_count > 2 ? 'medium' : 'low',
+        amount: `${r.days_count || 0} days`,
+        submitted: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      })));
+    });
+  }, [profile?.id]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -110,7 +169,9 @@ export default function ManagerDashboard() {
             Team performance, approvals, and process oversight
           </p>
         </div>
-        <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+        <button
+          onClick={() => navigate('/vacation')}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
                            bg-[#1a1d1f] text-white dark:bg-white dark:text-[#1a1d1f]
                            text-sm font-semibold shadow-sm
                            hover:-translate-y-0.5 active:translate-y-0
@@ -122,7 +183,7 @@ export default function ManagerDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {managerData.stats.map((stat, i) => (
+        {stats.map((stat, i) => (
           <StatCard
             key={stat.id}
             title={stat.title}
@@ -143,7 +204,7 @@ export default function ManagerDashboard() {
                         animate-fade-in" style={{ animationDelay: '400ms' }}>
           <h2 className="text-sm font-bold text-text-primary mb-4">Team Performance</h2>
           <MiniChart
-            data={managerData.teamPerformance}
+            data={teamPerf}
             label="Tasks completed per day"
             height={100}
             colorFrom="#ff9a55"
@@ -155,7 +216,7 @@ export default function ManagerDashboard() {
                         animate-fade-in" style={{ animationDelay: '500ms' }}>
           <h2 className="text-sm font-bold text-text-primary mb-4">Process Completion Trend</h2>
           <MiniChart
-            data={managerData.processCompletion}
+            data={processComp}
             label="Processes completed per week"
             height={100}
             colorFrom="#ff6a55"
@@ -170,11 +231,11 @@ export default function ManagerDashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-text-primary">Team Members</h2>
           <StatusBadge variant="warning" size="sm">
-            <Star size={10} /> {managerData.teamMembers.length} members
+            <Star size={10} /> {teamMembers.length} members
           </StatusBadge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {managerData.teamMembers.map(member => (
+          {teamMembers.map(member => (
             <TeamMemberCard key={member.id} member={member} />
           ))}
         </div>
@@ -186,10 +247,10 @@ export default function ManagerDashboard() {
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <h2 className="text-sm font-bold text-text-primary">Pending Approvals</h2>
           <StatusBadge variant="danger" size="sm" dot>
-            {managerData.pendingApprovals.length} pending
+            {approvals.length} pending
           </StatusBadge>
         </div>
-        <DataTable columns={approvalColumns} data={managerData.pendingApprovals} />
+        <DataTable columns={approvalColumns} data={approvals} />
       </div>
     </div>
   );

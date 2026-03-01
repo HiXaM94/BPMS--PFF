@@ -422,13 +422,6 @@ export default function ManagerDashboard() {
                 {renderTeamTasks()}
             </div>
 
-            import React, {useState} from 'react';
-            import {createPortal} from 'react-dom';
-            import {useRole} from '../../../contexts/RoleContext';
-            // ... existing imports
-
-            // ... inside component ...
-
             {/* Create Task Modal */}
             {isCreateOpen && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">

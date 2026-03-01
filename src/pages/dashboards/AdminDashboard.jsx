@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2,
   Users,
@@ -73,74 +74,176 @@ const orgAvatarColors = [
   'from-[#ff9a55] to-[#ffbe7b]',
 ];
 
-const orgColumns = [
-  {
-    key: 'name',
-    label: 'Name',
-    render: (val, row, idx) => (
-      <div className="flex items-center gap-3">
-        <div className={`flex items-center justify-center w-9 h-9 rounded-xl
-                         bg-gradient-to-br ${orgAvatarColors[(row.id - 1) % orgAvatarColors.length]}
-                         text-white text-[10px] font-bold shrink-0 shadow-sm`}>
-          {row.tag}
+function getOrgColumns(toggleFavorite, favorites) {
+  return [
+    {
+      key: 'name',
+      label: 'Name',
+      render: (val, row) => (
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center justify-center w-9 h-9 rounded-xl
+                           bg-gradient-to-br ${orgAvatarColors[(row.id - 1) % orgAvatarColors.length]}
+                           text-white text-[10px] font-bold shrink-0 shadow-sm`}>
+            {row.tag}
+          </div>
+          <div>
+            <span className="font-semibold text-text-primary block text-sm">{val}</span>
+            <span className="text-[11px] text-text-tertiary">{row.tag}</span>
+          </div>
         </div>
-        <div>
-          <span className="font-semibold text-text-primary block text-sm">{val}</span>
-          <span className="text-[11px] text-text-tertiary">{row.tag}</span>
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: 'users',
-    label: 'Users',
-    cellClassName: 'font-semibold text-text-primary text-sm',
-  },
-  {
-    key: 'growth',
-    label: 'Change',
-    render: (val, row) => (
-      <span className={`text-sm font-medium ${row.positive ? 'text-[#83bf6e]' : 'text-[#ff6a55]'}`}>
-        {val}
-      </span>
-    ),
-  },
-  {
-    key: 'plan',
-    label: 'Plan',
-    render: (val) => (
-      <span className="text-sm text-text-secondary">{val}</span>
-    ),
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    render: (val) => {
-      const map = { active: 'success', trial: 'warning', suspended: 'danger' };
-      return <StatusBadge variant={map[val] || 'neutral'} dot size="sm">{val}</StatusBadge>;
+      ),
     },
-  },
-  {
-    key: 'watch',
-    label: '',
-    render: () => (
-      <button className="text-text-tertiary hover:text-[#fbbf24] transition-colors cursor-pointer">
-        <Star size={16} />
-      </button>
-    ),
-  },
-];
+    {
+      key: 'users',
+      label: 'Users',
+      cellClassName: 'font-semibold text-text-primary text-sm',
+    },
+    {
+      key: 'growth',
+      label: 'Change',
+      render: (val, row) => (
+        <span className={`text-sm font-medium ${row.positive ? 'text-[#83bf6e]' : 'text-[#ff6a55]'}`}>
+          {val}
+        </span>
+      ),
+    },
+    {
+      key: 'plan',
+      label: 'Plan',
+      render: (val) => (
+        <span className="text-sm text-text-secondary">{val}</span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (val) => {
+        const map = { active: 'success', trial: 'warning', suspended: 'danger' };
+        return <StatusBadge variant={map[val] || 'neutral'} dot size="sm">{val}</StatusBadge>;
+      },
+    },
+    {
+      key: 'watch',
+      label: '',
+      render: (_, row) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(row.id); }}
+          className={`transition-colors cursor-pointer ${favorites.includes(row.id) ? 'text-[#fbbf24]' : 'text-text-tertiary hover:text-[#fbbf24]'}`}
+        >
+          <Star size={16} fill={favorites.includes(row.id) ? '#fbbf24' : 'none'} />
+        </button>
+      ),
+    },
+  ];
+}
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [cards, setCards] = useState(assetCards);
   const [orgs, setOrgs]   = useState(orgTableData);
   const [totalUsers, setTotalUsers] = useState('1,846');
   const [systemLogs, setSystemLogs] = useState(adminData.systemLogs);
+  const [timeRange, setTimeRange] = useState('1Y');
+  const [chartData, setChartData] = useState(adminData.monthlyUsers || []);
+  const [orgPeriod, setOrgPeriod] = useState('month');
+  const [orgSort, setOrgSort] = useState('growing');
+  const [favorites, setFavorites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('flowly_fav_orgs') || '[]'); } catch { return []; }
+  });
 
+  // ── Toggle favorite org ──
+  const toggleFavorite = useCallback((orgId) => {
+    setFavorites(prev => {
+      const next = prev.includes(orgId) ? prev.filter(id => id !== orgId) : [...prev, orgId];
+      localStorage.setItem('flowly_fav_orgs', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // ── Build chart data based on time range ──
+  const getChartSlice = useCallback((range, fullData) => {
+    const months = { '3M': 3, '6M': 6, '1Y': 12, 'YTD': new Date().getMonth() + 1, 'ALL': fullData.length };
+    const count = months[range] || 12;
+    return fullData.slice(-count);
+  }, []);
+
+  // ── Fetch chart data from Supabase or use mock ──
+  const fetchChartData = useCallback(async (range) => {
+    if (!isSupabaseReady) {
+      const raw = adminData.monthlyUsers || [];
+      const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i+1}`, value: v }));
+      setChartData(getChartSlice(range, arr));
+      return;
+    }
+    const data = await cacheService.getOrSet(`admin:chart:${range}`, async () => {
+      const months = { '3M': 3, '6M': 6, '1Y': 12, 'YTD': new Date().getMonth() + 1, 'ALL': 24 };
+      const count = months[range] || 12;
+      const since = new Date();
+      since.setMonth(since.getMonth() - count);
+      const { data: rows } = await supabase.from('users')
+        .select('created_at')
+        .gte('created_at', since.toISOString())
+        .order('created_at', { ascending: true });
+      if (!rows || rows.length === 0) return null;
+      // Bucket into months
+      const buckets = {};
+      rows.forEach(r => {
+        const d = new Date(r.created_at);
+        const key = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+        buckets[key] = (buckets[key] || 0) + 1;
+      });
+      // Cumulative
+      let cum = 0;
+      return Object.entries(buckets).map(([label, value]) => { cum += value; return { label, value: cum }; });
+    }, 120);
+    if (data) {
+      setChartData(data);
+    } else {
+      const raw = adminData.monthlyUsers || [];
+      const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i+1}`, value: v }));
+      setChartData(getChartSlice(range, arr));
+    }
+  }, [getChartSlice]);
+
+  // ── Fetch orgs with period/sort filters ──
+  const fetchOrgs = useCallback(async () => {
+    if (!isSupabaseReady) {
+      let sorted = [...orgTableData];
+      if (orgSort === 'users') sorted.sort((a, b) => parseInt(b.users) - parseInt(a.users));
+      if (orgSort === 'newest') sorted.sort((a, b) => b.id - a.id);
+      setOrgs(sorted);
+      return;
+    }
+    const since = new Date();
+    if (orgPeriod === 'month') since.setMonth(since.getMonth() - 1);
+    else if (orgPeriod === 'quarter') since.setMonth(since.getMonth() - 3);
+    else since.setFullYear(since.getFullYear() - 1);
+
+    const { data } = await supabase.from('entreprises')
+      .select('id, name, status, plan, created_at')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(5);
+    if (!data || data.length === 0) return;
+    setOrgs(data.map((e) => ({
+      id: e.id,
+      name: e.name,
+      tag: e.name.slice(0, 4).toUpperCase(),
+      plan: e.plan || 'Business',
+      users: '-',
+      growth: '',
+      positive: true,
+      status: e.status || 'active',
+    })));
+  }, [orgPeriod, orgSort]);
+
+  // ── Initial data load ──
   useEffect(() => {
+    fetchChartData(timeRange);
+
     if (!isSupabaseReady) return;
 
-    // Counts – served from cache when warm, otherwise fetched & cached
+    // Counts
     cacheService.getOrSet('admin:counts', async () => {
       const [ents, users] = await Promise.all([
         supabase.from('entreprises').select('id', { count: 'exact', head: true }),
@@ -156,28 +259,7 @@ export default function AdminDashboard() {
       ]);
     });
 
-    // Organisations table – cached 2 min
-    cacheService.getOrSet('admin:orgs', async () => {
-      const { data } = await supabase.from('entreprises')
-        .select('id, name, status, created_at')
-        .order('created_at', { ascending: false })
-        .limit(5);
-      return data;
-    }, 120).then((data) => {
-      if (!data || data.length === 0) return;
-      setOrgs(data.map((e) => ({
-        id: e.id,
-        name: e.name,
-        tag: e.name.slice(0, 4).toUpperCase(),
-        plan: 'Business',
-        users: '-',
-        growth: '',
-        positive: true,
-        status: e.status || 'active',
-      })));
-    });
-
-    // System logs – cached 1 min
+    // System logs
     cacheService.getOrSet('admin:logs', async () => {
       const { data } = await supabase.from('system_logs')
         .select('*')
@@ -188,13 +270,16 @@ export default function AdminDashboard() {
       if (!data || data.length === 0) return;
       setSystemLogs(data.map(l => ({
         id: l.id,
-        severity: l.level || 'info',
-        event: l.action || l.message || 'System event',
+        severity: l.severity || l.level || 'info',
+        event: l.event || l.action || l.message || 'System event',
         details: l.details || '',
         time: new Date(l.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       })));
     });
-  }, []);
+  }, [fetchChartData, timeRange]);
+
+  // ── Refetch orgs when filters change ──
+  useEffect(() => { fetchOrgs(); }, [fetchOrgs]);
 
   return (
     <div className="space-y-6">
@@ -210,7 +295,7 @@ export default function AdminDashboard() {
         {/* Portfolio-style summary card */}
         <div className="lg:col-span-5 bg-surface-primary rounded-2xl border border-border-secondary p-6
                         animate-fade-in">
-          <h2 className="text-sm font-semibold text-text-secondary mb-1">Platform Usage</h2>
+          <h2 className="text-sm font-semibold text-text-secondary mb-1">System Usage</h2>
           <div className="flex items-baseline gap-3 mb-1">
             <span className="text-3xl font-bold text-text-primary tracking-tight">{totalUsers}</span>
             <span className="text-xs font-medium text-text-tertiary">total users</span>
@@ -223,7 +308,7 @@ export default function AdminDashboard() {
           {/* Mini chart */}
           <div className="mt-2">
             <MiniChart
-              data={adminData.monthlyUsers || [120, 180, 250, 310, 420, 580, 720, 860, 1020, 1280, 1540, 1846]}
+              data={chartData}
               label="Monthly active users"
               height={80}
               colorFrom="#2a85ff"
@@ -233,11 +318,12 @@ export default function AdminDashboard() {
 
           {/* Time range tabs */}
           <div className="flex items-center gap-1 mt-4">
-            {['3M', '6M', '1Y', 'YTD', 'ALL'].map((tab, i) => (
+            {['3M', '6M', '1Y', 'YTD', 'ALL'].map((tab) => (
               <button
                 key={tab}
+                onClick={() => { setTimeRange(tab); fetchChartData(tab); }}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer
-                  ${i === 2
+                  ${tab === timeRange
                     ? 'bg-text-primary text-text-inverse'
                     : 'text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary'
                   }`}
@@ -248,7 +334,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Asset-style cards column — stretches to match Platform Usage height */}
+        {/* Asset-style cards column — stretches to match System Usage height */}
         <div className="lg:col-span-7 flex flex-col">
           <h2 className="text-sm font-semibold text-text-secondary mb-3">Quick Stats</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
@@ -297,23 +383,29 @@ export default function AdminDashboard() {
               <span className="text-xs text-text-tertiary">overview</span>
             </div>
             <div className="flex items-center gap-2">
-              <select className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
+              <select
+                value={orgPeriod}
+                onChange={e => setOrgPeriod(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
                                  border border-border-secondary text-text-secondary cursor-pointer
                                  focus:outline-none">
-                <option>This month</option>
-                <option>This quarter</option>
-                <option>This year</option>
+                <option value="month">This month</option>
+                <option value="quarter">This quarter</option>
+                <option value="year">This year</option>
               </select>
-              <select className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
+              <select
+                value={orgSort}
+                onChange={e => setOrgSort(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
                                  border border-border-secondary text-text-secondary cursor-pointer
                                  focus:outline-none">
-                <option>Top growing</option>
-                <option>Most users</option>
-                <option>Newest</option>
+                <option value="growing">Top growing</option>
+                <option value="users">Most users</option>
+                <option value="newest">Newest</option>
               </select>
             </div>
           </div>
-          <DataTable columns={orgColumns} data={orgs} emptyMessage="No organizations found" />
+          <DataTable columns={getOrgColumns(toggleFavorite, favorites)} data={orgs} emptyMessage="No organizations found" />
         </div>
 
         {/* Promo / CTA Card — dark card matching template */}
@@ -331,14 +423,16 @@ export default function AdminDashboard() {
           <div className="relative z-10">
             <h3 className="text-xl font-bold text-white leading-tight mb-2">
               Automate <span className="inline-block px-2 py-0.5 rounded-md bg-white/10 text-white text-sm font-semibold mx-0.5">free</span> processes
-              <br />with BPMS Platform!
+              <br />with Flowly!
             </h3>
             <p className="text-sm text-[#6f767e] mt-3 leading-relaxed">
               Streamline your business processes and manage workflows effortlessly.
             </p>
           </div>
 
-          <button className="relative z-10 mt-6 self-start px-5 py-2.5 rounded-xl bg-white text-[#1a1d1f]
+          <button
+            onClick={() => navigate('/enterprise')}
+            className="relative z-10 mt-6 self-start px-5 py-2.5 rounded-xl bg-white text-[#1a1d1f]
                              text-sm font-semibold hover:bg-gray-100 transition-colors cursor-pointer
                              shadow-lg shadow-black/20">
             Get Started

@@ -10,6 +10,15 @@ import {
   Workflow,
 } from 'lucide-react';
 
+/* Flowly icon — black on light, white on dark */
+const FlowlyIcon = ({ className = 'w-10 h-10' }) => (
+  <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <rect width="32" height="32" rx="8" className="fill-black dark:fill-white" />
+    <path d="M8 8 V18 C8 24 16 24 16 18 V8" className="stroke-white dark:stroke-black" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+    <path d="M16 8 V18 C16 24 24 24 24 18 V8" className="stroke-white dark:stroke-black" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+  </svg>
+);
+
 // Map navigation item ids → i18n keys
 const navLabelKeys = {
   dashboard: 'nav.dashboard',
@@ -123,17 +132,14 @@ export default function Sidebar() {
           {/* Logo */}
           <div className={`flex items-center h-[72px] shrink-0
                            ${isCollapsed ? 'justify-center' : 'px-5 gap-3'}`}>
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                            bg-gradient-to-br from-brand-500 to-brand-600 shadow-sm">
-              <Workflow size={20} className="text-white" />
-            </div>
+            <FlowlyIcon className="w-10 h-10 shrink-0" />
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
-                  BPMS
+                  Flowly
                 </span>
                 <span className="text-[10px] text-text-tertiary font-medium tracking-wide">
-                  Platform
+                  Business Suite
                 </span>
               </div>
             )}
@@ -201,16 +207,13 @@ export default function Sidebar() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center h-[72px] px-5 gap-3 shrink-0">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                            bg-gradient-to-br from-brand-500 to-brand-600">
-              <Workflow size={20} className="text-white" />
-            </div>
+            <FlowlyIcon className="w-10 h-10 shrink-0" />
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
-                BPMS
+                Flowly
               </span>
               <span className="text-[10px] text-text-tertiary font-medium tracking-wide">
-                Platform
+                Business Suite
               </span>
             </div>
           </div>

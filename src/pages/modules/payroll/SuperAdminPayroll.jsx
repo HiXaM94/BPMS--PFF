@@ -9,11 +9,11 @@ export default function SuperAdminPayroll() {
     return (
         <div className="space-y-6 animate-fade-in">
 
-            {/* Platform Overview */}
+            {/* Global Overview */}
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                     <Activity size={20} className="text-brand-500" />
-                    Platform Payroll Processing (March 2026)
+                    Global Payroll Processing (March 2026)
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard title="Total Volume" value="14.2M MAD" subtitle="Processed across 45 SMEs" icon={DollarSign} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />

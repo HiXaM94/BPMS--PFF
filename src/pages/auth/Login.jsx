@@ -78,12 +78,7 @@ export default function AuthPage() {
       navigate(from, { replace: true });
     } catch (err) {
       const msg = err.message || '';
-      // If auth succeeded but PostgREST/profile query failed, still navigate
-      if (msg.includes('schema') || msg.includes('Database error')) {
-        console.warn('Auth OK but profile query failed, proceeding anyway');
-        navigate(from, { replace: true });
-        return;
-      }
+      console.error('Login error:', msg, err);
       setError(msg || 'Invalid email or password.');
     } finally {
       setLoading(false);
@@ -147,12 +142,14 @@ export default function AuthPage() {
       </div>
       <div className="relative z-10">
         <div className="flex items-center gap-3 mb-10">
-          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-black/10 backdrop-blur-sm border border-black/10">
-            <Workflow size={24} className="text-gray-900" />
-          </div>
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 shrink-0">
+              <rect width="32" height="32" rx="8" fill="black" />
+              <path d="M8 8 V18 C8 24 16 24 16 18 V8" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+              <path d="M16 8 V18 C16 24 24 24 24 18 V8" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+            </svg>
           <div>
-            <span className="text-xl font-bold tracking-tight">BPMS</span>
-            <span className="block text-xs text-gray-900/50 font-medium tracking-wide">Platform</span>
+            <span className="text-xl font-bold tracking-tight">Flowly</span>
+            <span className="block text-xs text-gray-900/50 font-medium tracking-wide">Business Suite</span>
           </div>
         </div>
         <h2 className="text-2xl font-bold leading-snug mb-3">{heading}</h2>
@@ -169,10 +166,10 @@ export default function AuthPage() {
         </div>
       </div>
       <div className="relative z-10 space-y-2.5 pt-6 border-t border-black/10">
-        <div className="flex items-center gap-2.5 text-sm text-gray-600"><Globe size={14} /><span>www.bpms-platform.com</span></div>
-        <div className="flex items-center gap-2.5 text-sm text-gray-600"><Mail size={14} /><span>contact@bpms-platform.com</span></div>
-        <div className="flex items-center gap-2.5 text-sm text-gray-600"><Phone size={14} /><span>+212 6 00 00 00 00</span></div>
-        <div className="flex items-center gap-2.5 text-sm text-gray-600"><MapPin size={14} /><span>Casablanca, Morocco</span></div>
+        <div className="flex items-center gap-2.5 text-sm text-gray-600"><Globe size={14} /><span>www.flowly.io</span></div>
+        <div className="flex items-center gap-2.5 text-sm text-gray-600"><Mail size={14} /><span>contact@flowly.io</span></div>
+        <div className="flex items-center gap-2.5 text-sm text-gray-600"><Phone size={14} /><span>+212 5 24 43 67 89</span></div>
+        <div className="flex items-center gap-2.5 text-sm text-gray-600"><MapPin size={14} /><span>Marrakech, Morocco</span></div>
       </div>
     </div>
   );
@@ -208,7 +205,7 @@ export default function AuthPage() {
           heading={isRegister ? <><span>Get Started</span><br /><span>In Minutes</span></> : <><span>Streamline Your</span><br /><span>Business Processes</span></>}
           description={isRegister
             ? 'Create your account and unlock the full potential of automated business process management.'
-            : 'The all-in-one HR management and workflow automation platform built for modern enterprises.'}
+            : 'The all-in-one HR management and workflow automation suite built for modern enterprises.'}
           features={isRegister ? registerFeatures : loginFeatures}
         />
 
@@ -216,10 +213,12 @@ export default function AuthPage() {
         <div className="flex-1 flex flex-col justify-center px-8 sm:px-12 py-10 overflow-y-auto">
           {/* Mobile-only logo */}
           <div className="flex items-center gap-3 mb-6 md:hidden">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-500">
-              <Workflow size={20} className="text-white" />
-            </div>
-            <span className="text-lg font-bold text-text-primary tracking-tight">BPMS</span>
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 shrink-0">
+              <rect width="32" height="32" rx="8" className="fill-black dark:fill-white" />
+              <path d="M8 8 V18 C8 24 16 24 16 18 V8" className="stroke-white dark:stroke-black" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+              <path d="M16 8 V18 C16 24 24 24 24 18 V8" className="stroke-white dark:stroke-black" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+            </svg>
+            <span className="text-lg font-bold text-text-primary tracking-tight">Flowly</span>
           </div>
 
           {!isRegister ? (
@@ -307,7 +306,7 @@ export default function AuthPage() {
             /* ════════ REGISTER FORM ════════ */
             <>
               <h1 className="text-2xl font-bold text-text-primary mb-1">{t('auth.registerTitle')}</h1>
-              <p className="text-sm text-text-secondary mb-5">Join your company's BPMS workspace</p>
+              <p className="text-sm text-text-secondary mb-5">Join your company's Flowly workspace</p>
 
               {regError && (
                 <div className="flex items-center gap-2 p-3 mb-4 rounded-xl bg-red-500/8 border border-red-500/15 text-red-600 text-sm animate-fade-in">

@@ -471,7 +471,7 @@ export default function Settings() {
                         <Zap className="text-brand-600" size={20} />
                         <div>
                           <p className="font-medium text-gray-900">AI Assistant Enabled</p>
-                          <p className="text-sm text-gray-600">Enable AI-powered features across the platform</p>
+                          <p className="text-sm text-gray-600">Enable AI-powered features across the system</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -576,7 +576,7 @@ export default function Settings() {
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">Microsoft Teams</p>
-                            <p className="text-sm text-gray-600">Collaboration platform</p>
+                            <p className="text-sm text-gray-600">Collaboration tool</p>
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">

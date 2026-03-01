@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Building2, Plus, Users, Globe, MapPin, Phone, Mail,
-  MoreHorizontal, Edit, Trash2, Eye, ShieldAlert,
+  MoreHorizontal, Edit, Trash2, Eye, ShieldAlert, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Modal from '../../components/ui/Modal';
 import { useRole } from '../../contexts/RoleContext';
+import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 
 /**
  * Mock enterprise data.
@@ -23,7 +25,7 @@ const defaultEnterprises = [
   { id: 7, company_id: 7, name: 'LogiTrans SARL', industry: 'Logistics', employees: 134, location: 'Kenitra, Morocco', email: 'contact@logitrans.ma', phone: '+212 537 234 567', status: 'active', plan: 'Business', created: 'Feb 10, 2026' },
 ];
 
-function getColumns(onView, onEdit) {
+function getColumns(onView, onEdit, onToggleStatus) {
   return [
     {
       key: 'name', label: 'Organization',
@@ -59,9 +61,17 @@ function getColumns(onView, onEdit) {
     },
     {
       key: 'status', label: 'Status',
-      render: (val) => {
+      render: (val, row) => {
         const map = { active: 'success', trial: 'warning', suspended: 'danger' };
-        return <StatusBadge variant={map[val]} dot size="sm">{val}</StatusBadge>;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleStatus(row); }}
+            className="cursor-pointer hover:opacity-80 transition-opacity"
+            title={val === 'suspended' ? 'Activate' : 'Suspend'}
+          >
+            <StatusBadge variant={map[val]} dot size="sm">{val}</StatusBadge>
+          </button>
+        );
       },
     },
     { key: 'created', label: 'Created', cellClassName: 'text-text-tertiary text-xs' },
@@ -115,9 +125,42 @@ export default function EnterpriseManagement() {
   const [viewEnterprise, setViewEnterprise] = useState(null);
   const [editEnterprise, setEditEnterprise] = useState(null);
   const [editForm, setEditForm] = useState(emptyCompanyForm);
+  const [loading, setLoading] = useState(false);
   const { currentRole } = useRole();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
+  const showToast = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000); };
+
+  // ── Fetch enterprises from Supabase ──
+  const fetchEnterprises = useCallback(async () => {
+    if (!isSupabaseReady) { setEnterprises(defaultEnterprises); return; }
+    setLoading(true);
+    const data = await cacheService.getOrSet('enterprises:list', async () => {
+      const { data, error } = await supabase.from('entreprises')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) { console.error('Fetch entreprises error:', error.message); return null; }
+      return data;
+    }, 90);
+    if (data && data.length > 0) {
+      setEnterprises(data.map(e => ({
+        id: e.id,
+        company_id: e.company_id,
+        name: e.name,
+        industry: e.industry || '-',
+        employees: 0,
+        location: e.location || e.address || '-',
+        email: e.email || '-',
+        phone: e.phone || '',
+        status: e.status || 'active',
+        plan: e.plan || 'Starter',
+        created: new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      })));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchEnterprises(); }, [fetchEnterprises]);
 
   // ─── company_id filtering ───
   // Admin sees ALL companies. Other roles see only their own company.
@@ -146,43 +189,104 @@ export default function EnterpriseManagement() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleEditSave = (e) => {
+  const handleEditSave = async (e) => {
     e.preventDefault();
+    // Optimistic UI update
     setEnterprises(prev => prev.map(ent =>
       ent.id === editEnterprise.id
         ? { ...ent, name: editForm.name, industry: editForm.industry, location: editForm.location, email: editForm.email, phone: editForm.phone, plan: editForm.plan }
         : ent
     ));
     setEditEnterprise(null);
-    setSuccessMsg(`Company "${editForm.name}" updated successfully!`);
-    setTimeout(() => setSuccessMsg(''), 4000);
+    showToast(`Company "${editForm.name}" updated successfully!`);
+
+    if (isSupabaseReady) {
+      const { error } = await supabase.from('entreprises').update({
+        name: editForm.name,
+        industry: editForm.industry,
+        location: editForm.location,
+        email: editForm.email,
+        phone: editForm.phone,
+        plan: editForm.plan,
+      }).eq('id', editEnterprise.id);
+      if (error) {
+        showToast(`Error updating: ${error.message}`);
+        fetchEnterprises(); // rollback
+        return;
+      }
+      cacheService.invalidatePattern('^enterprises:');
+      cacheService.invalidatePattern('^admin:');
+    }
+  };
+
+  // ── Toggle status: active ⇄ suspended ──
+  const handleToggleStatus = async (ent) => {
+    const newStatus = ent.status === 'suspended' ? 'active' : 'suspended';
+    // Optimistic
+    setEnterprises(prev => prev.map(e => e.id === ent.id ? { ...e, status: newStatus } : e));
+    showToast(`${ent.name} ${newStatus === 'active' ? 'activated' : 'suspended'}.`);
+
+    if (isSupabaseReady) {
+      const { error } = await supabase.from('entreprises')
+        .update({ status: newStatus }).eq('id', ent.id);
+      if (error) {
+        showToast(`Error: ${error.message}`);
+        fetchEnterprises(); // rollback
+        return;
+      }
+      cacheService.invalidatePattern('^enterprises:');
+      cacheService.invalidatePattern('^admin:');
+    }
   };
 
   const columns = getColumns(
     (ent) => setViewEnterprise(ent),
-    (ent) => { setEditEnterprise(ent); setEditForm({ name: ent.name, industry: ent.industry, location: ent.location, email: ent.email, phone: ent.phone || '', plan: ent.plan }); }
+    (ent) => { setEditEnterprise(ent); setEditForm({ name: ent.name, industry: ent.industry, location: ent.location, email: ent.email, phone: ent.phone || '', plan: ent.plan }); },
+    handleToggleStatus
   );
 
-  const handleCreateCompany = (e) => {
+  const handleCreateCompany = async (e) => {
     e.preventDefault();
-    const newCompany = {
-      id: enterprises.length + 1,
-      company_id: enterprises.length + 1,
+    const fmtDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    if (!isSupabaseReady) {
+      const newCompany = {
+        id: enterprises.length + 1,
+        company_id: enterprises.length + 1,
+        name: form.name, industry: form.industry, employees: 0,
+        location: form.location, email: form.email, phone: form.phone,
+        status: 'trial', plan: form.plan, created: fmtDate,
+      };
+      setEnterprises(prev => [newCompany, ...prev]);
+      setForm(emptyCompanyForm); setShowCreateModal(false);
+      showToast(`Company "${newCompany.name}" created successfully!`);
+      return;
+    }
+
+    const { data: inserted, error } = await supabase.from('entreprises').insert({
       name: form.name,
       industry: form.industry,
-      employees: 0,
       location: form.location,
       email: form.email,
       phone: form.phone,
-      status: 'trial',
       plan: form.plan,
-      created: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    };
-    setEnterprises(prev => [newCompany, ...prev]);
-    setForm(emptyCompanyForm);
-    setShowCreateModal(false);
-    setSuccessMsg(`Company "${newCompany.name}" created successfully!`);
-    setTimeout(() => setSuccessMsg(''), 4000);
+      status: 'trial',
+    }).select().single();
+
+    if (error) { showToast(`Error: ${error.message}`); return; }
+
+    setEnterprises(prev => [{
+      id: inserted.id, company_id: inserted.company_id,
+      name: inserted.name, industry: inserted.industry || '-',
+      employees: 0, location: inserted.location || '-',
+      email: inserted.email || '-', phone: inserted.phone || '',
+      status: inserted.status || 'trial', plan: inserted.plan || 'Starter',
+      created: fmtDate,
+    }, ...prev]);
+    setForm(emptyCompanyForm); setShowCreateModal(false);
+    showToast(`Company "${inserted.name}" created successfully!`);
+    cacheService.invalidatePattern('^enterprises:');
+    cacheService.invalidatePattern('^admin:');
   };
 
   return (

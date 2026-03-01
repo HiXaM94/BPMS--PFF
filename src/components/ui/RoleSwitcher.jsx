@@ -30,9 +30,9 @@ export default function RoleSwitcher() {
       from: currentRole.id,
       to: confirmRole.id,
     };
-    const history = JSON.parse(localStorage.getItem('bpms_role_audit') || '[]');
+    const history = JSON.parse(localStorage.getItem('flowly_role_audit') || '[]');
     history.push(logEntry);
-    localStorage.setItem('bpms_role_audit', JSON.stringify(history.slice(-50)));
+    localStorage.setItem('flowly_role_audit', JSON.stringify(history.slice(-50)));
     // Fire-and-forget Supabase audit log
     auditService.log(
       'ROLE_SWITCH',

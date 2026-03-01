@@ -7,7 +7,7 @@ import { supabase } from './supabase';
 
 class FileUploadService {
   constructor() {
-    this.bucketName = 'bpms-files';
+    this.bucketName = 'flowly-files';
     this.maxFileSize = 10 * 1024 * 1024; // 10MB
     this.allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     this.allowedDocTypes = [

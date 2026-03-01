@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users,
   Briefcase,
@@ -99,6 +100,7 @@ function OnboardingCard({ item }) {
 }
 
 export default function HRDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats]           = useState(hrData.stats);
   const [leaveRequests, setLeave]   = useState(hrData.leaveRequests);
   const [onboarding, setOnboarding] = useState(hrData.onboarding);
@@ -176,7 +178,9 @@ export default function HRDashboard() {
             Employee management, recruitment, and leave tracking
           </p>
         </div>
-        <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+        <button
+          onClick={() => navigate('/recruitment')}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
                            bg-[#1a1d1f] text-white dark:bg-white dark:text-[#1a1d1f]
                            text-sm font-semibold shadow-sm
                            hover:-translate-y-0.5 active:translate-y-0
@@ -249,7 +253,9 @@ export default function HRDashboard() {
                       animate-fade-in overflow-hidden" style={{ animationDelay: '700ms' }}>
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <h2 className="text-sm font-bold text-text-primary">Recent Leave Requests</h2>
-          <button className="text-xs font-medium text-[#2a85ff] hover:text-[#1a6dff]
+          <button
+            onClick={() => navigate('/vacation')}
+            className="text-xs font-medium text-[#2a85ff] hover:text-[#1a6dff]
                              transition-colors cursor-pointer flex items-center gap-1">
             View All <ArrowUpRight size={12} />
           </button>
