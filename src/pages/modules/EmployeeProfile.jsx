@@ -33,7 +33,7 @@ const allEmployees = [
     employeeId: 'EMP-2025-001',
     status: 'active',
     avatar: 'IR',
-    bio: 'Experienced full-stack developer specializing in React, Node.js, and cloud architecture. Passionate about building scalable SaaS products.',
+    bio: 'Experienced full-stack developer specializing in React, Node.js, and cloud architecture. Passionate about building scalable SaaS platforms.',
     skills: [
       { name: 'React.js', level: 95 },
       { name: 'Node.js', level: 88 },

@@ -3,6 +3,8 @@
     .s { stroke: #1a1a1a; }
     @media (prefers-color-scheme: dark) { .s { stroke: #ffffff; } }
   </style>
-  <path class="s" d="M5 7 V19 C5 26 16 26 16 19 V7" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <path class="s" d="M16 7 V19 C16 26 27 26 27 19 V7" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- f stem with curved hook top -->
+  <path class="s" d="M20 4 C16 4 13 6 13 11 V28" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Flowing wave crossbar -->
+  <path class="s" d="M5 17 Q9 12 13 17 Q17 22 21 17 Q25 12 28 15" stroke-width="2.8" stroke-linecap="round" fill="none"/>
 </svg>
