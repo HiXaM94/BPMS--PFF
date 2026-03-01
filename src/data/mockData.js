@@ -47,6 +47,16 @@ export const adminData = {
     { id: 4, event: 'User account suspended', details: 'BuildPro — payment overdue', time: '3h ago', severity: 'danger' },
     { id: 5, event: 'SSL certificate renewed', details: 'Wildcard cert auto-renewed', time: '5h ago', severity: 'success' },
   ],
+  globalLeaveRequests: [
+    { id: 1, org: 'TechCorp', employee: 'Sarah Martinez', type: 'Annual Leave', dates: 'Feb 20 – Feb 24', status: 'pending', urgent: true },
+    { id: 2, org: 'FinServe', employee: 'John Chen', type: 'Sick Leave', dates: 'Feb 14', status: 'approved', urgent: false },
+    { id: 3, org: 'MediCare', employee: 'Amira Belkacem', type: 'Annual Leave', dates: 'Mar 3 – Mar 7', status: 'pending', urgent: false },
+    { id: 4, org: 'TechCorp', employee: 'David O\'Connor', type: 'Remote Work', dates: 'Feb 17 – Feb 21', status: 'approved', urgent: false },
+    { id: 5, org: 'RetailMax', employee: 'Lisa Park', type: 'Maternity', dates: 'Mar 1 – May 31', status: 'approved', urgent: false },
+    { id: 6, org: 'Global Logistics', employee: 'Marcus Thorne', type: 'Unpaid Leave', dates: 'Feb 28 – Mar 5', status: 'pending', urgent: true },
+    { id: 7, org: 'EduLearn', employee: 'Elena Rodriguez', type: 'Sick Leave', dates: 'Feb 22 – Feb 23', status: 'rejected', urgent: false },
+    { id: 8, org: 'FinServe', employee: 'Siddharth Gupta', type: 'Remote Work', dates: 'Mar 10 – Mar 12', status: 'pending', urgent: false },
+  ],
 };
 
 // ═══════════════════════════════════════
@@ -76,17 +86,36 @@ export const hrData = {
     { label: 'Feb', value: 4 },
   ],
   leaveRequests: [
-    { id: 1, employee: 'Sarah Martinez', type: 'Annual Leave', dates: 'Feb 20 – Feb 24', days: 5, status: 'pending', department: 'Engineering' },
-    { id: 2, employee: 'John Chen', type: 'Sick Leave', dates: 'Feb 14', days: 1, status: 'approved', department: 'Design' },
-    { id: 3, employee: 'Amira Belkacem', type: 'Annual Leave', dates: 'Mar 3 – Mar 7', days: 5, status: 'pending', department: 'Marketing' },
-    { id: 4, employee: 'David O\'Connor', type: 'Remote Work', dates: 'Feb 17 – Feb 21', days: 5, status: 'approved', department: 'Engineering' },
-    { id: 5, employee: 'Lisa Park', type: 'Maternity', dates: 'Mar 1 – May 31', days: 90, status: 'approved', department: 'Finance' },
-    { id: 6, employee: 'Omar Rizk', type: 'Annual Leave', dates: 'Feb 25 – Feb 26', days: 2, status: 'rejected', department: 'Sales' },
+    { id: 1, employeeName: 'Sarah Martinez', type: 'Annual Leave', startDate: '2026-02-20', endDate: '2026-02-24', daysCount: 5, status: 'pending', department: 'Engineering', reason: 'Annual family vacation' },
+    { id: 2, employeeName: 'John Chen', type: 'Sick Leave', startDate: '2026-02-14', endDate: '2026-02-14', daysCount: 1, status: 'approved', department: 'Design', reason: 'Flu recovery' },
+    { id: 3, employeeName: 'Amira Belkacem', type: 'Annual Leave', startDate: '2026-03-03', endDate: '2026-03-07', daysCount: 5, status: 'pending', department: 'Marketing', reason: 'Personal time' },
+    { id: 4, employeeName: 'David O\'Connor', type: 'Remote Work', startDate: '2026-02-17', endDate: '2026-02-21', daysCount: 5, status: 'approved', department: 'Engineering', reason: 'Working from hometown' },
+    { id: 5, employeeName: 'Lisa Park', type: 'Maternity', startDate: '2026-03-01', endDate: '2026-05-31', daysCount: 90, status: 'approved', department: 'Finance', reason: 'Maternity leave' },
+    { id: 6, employeeName: 'Omar Rizk', type: 'Annual Leave', startDate: '2026-02-25', endDate: '2026-02-26', daysCount: 2, status: 'rejected', department: 'Sales', reason: 'Peak sales period' },
   ],
   onboarding: [
     { id: 1, name: 'Emma Wilson', position: 'Frontend Developer', startDate: 'Feb 17', step: 3, totalSteps: 5, status: 'in-progress' },
     { id: 2, name: 'Ahmed Hassan', position: 'Data Analyst', startDate: 'Feb 10', step: 5, totalSteps: 5, status: 'completed' },
     { id: 3, name: 'Clara Dupont', position: 'Product Manager', startDate: 'Feb 24', step: 1, totalSteps: 5, status: 'not-started' },
+  ],
+  performanceDistribution: [
+    { label: 'Excellent', value: 42, color: '#83bf6e' },
+    { label: 'Good', value: 35, color: '#2a85ff' },
+    { label: 'Average', value: 18, color: '#ff9a55' },
+    { label: 'Below Avg', value: 5, color: '#ff6a55' },
+  ],
+  departmentEfficiency: [
+    { label: 'Engineering', value: 94 },
+    { label: 'Design', value: 88 },
+    { label: 'Marketing', value: 82 },
+    { label: 'Finance', value: 91 },
+    { label: 'Sales', value: 76 },
+  ],
+  topPerformers: [
+    { id: 1, name: 'Fatima Zahra', dept: 'Engineering', completion: '98%', tasks: 31 },
+    { id: 2, name: 'Alice Wang', dept: 'Engineering', completion: '96%', tasks: 24 },
+    { id: 3, name: 'John Chen', dept: 'Design', completion: '94%', tasks: 28 },
+    { id: 4, name: 'Amira Belkacem', dept: 'Marketing', completion: '92%', tasks: 22 },
   ],
 };
 
@@ -125,12 +154,59 @@ export const managerData = {
     { id: 5, title: 'Office Relocation Plan', requester: 'Admin Dept.', type: 'Operations', priority: 'high', submitted: '2d ago', amount: null },
   ],
   teamMembers: [
-    { id: 1, name: 'Alice Wang', role: 'Sr. Developer', tasksCompleted: 24, tasksActive: 3, performance: 'excellent' },
-    { id: 2, name: 'Bob Tanaka', role: 'Developer', tasksCompleted: 18, tasksActive: 4, performance: 'good' },
-    { id: 3, name: 'Fatima Zahra', role: 'QA Engineer', tasksCompleted: 31, tasksActive: 2, performance: 'excellent' },
-    { id: 4, name: 'Carlos Ruiz', role: 'Designer', tasksCompleted: 15, tasksActive: 5, performance: 'average' },
-    { id: 5, name: 'Diana Kim', role: 'Developer', tasksCompleted: 22, tasksActive: 2, performance: 'good' },
-    { id: 6, name: 'Ethan Brown', role: 'Jr. Developer', tasksCompleted: 12, tasksActive: 6, performance: 'improving' },
+    { id: 1, name: 'Alice Wang', role: 'Sr. Developer', tasksCompleted: 24, tasksActive: 3, performance: 'excellent', efficiency: 94, status: 'Active' },
+    { id: 2, name: 'Bob Tanaka', role: 'Developer', tasksCompleted: 18, tasksActive: 4, performance: 'good', efficiency: 86, status: 'Active' },
+    { id: 3, name: 'Fatima Zahra', role: 'QA Engineer', tasksCompleted: 31, tasksActive: 2, performance: 'excellent', efficiency: 98, status: 'Active' },
+    { id: 4, name: 'Carlos Ruiz', role: 'Designer', tasksCompleted: 15, tasksActive: 5, performance: 'average', efficiency: 72, status: 'Active' },
+    { id: 5, name: 'Diana Kim', role: 'Developer', tasksCompleted: 22, tasksActive: 2, performance: 'good', efficiency: 89, status: 'On Leave' },
+    { id: 6, name: 'Ethan Brown', role: 'Jr. Developer', tasksCompleted: 12, tasksActive: 6, performance: 'improving', efficiency: 68, status: 'Active' },
+  ],
+  assignedProjects: [
+    {
+      id: 1,
+      title: 'B2B Portal Refactor',
+      department: 'Engineering',
+      deadline: 'Mar 15, 2026',
+      status: 'Active',
+      members: 8,
+      progress: 68,
+      description: 'Complete overhaul of the B2B customer portal to improve performance and add 3D visualization capabilities.',
+      client: 'Internal / Enterprise Sales',
+      budget: '$45,000'
+    },
+    {
+      id: 2,
+      title: 'AI Recommendation Engine',
+      department: 'Data Science',
+      deadline: 'Apr 02, 2026',
+      status: 'Active',
+      members: 5,
+      progress: 32,
+      description: 'Implementing a machine learning based recommendation system to personalize user experiences.',
+      client: 'Global Marketing',
+      budget: '$30,000'
+    },
+    {
+      id: 3,
+      title: 'Security Audit Q1',
+      department: 'DevOps',
+      deadline: 'Mar 10, 2026',
+      status: 'Critical',
+      members: 3,
+      progress: 85,
+      description: 'Quarterly infrastructure security audit and vulnerability patch management.',
+      client: 'System Compliance',
+      budget: '$15,000'
+    },
+  ],
+  pendingTasks: [
+    { id: 101, title: 'API Integration Layer', assignee: 'Alice Wang', project: 'B2B Portal', priority: 'High', submitted: '2h ago' },
+    { id: 102, title: 'Auth Middleware Fix', assignee: 'Bob Tanaka', project: 'B2B Portal', priority: 'Critical', submitted: '4h ago' },
+    { id: 103, title: 'Design System Update', assignee: 'Carlos Ruiz', project: 'Global UI', priority: 'Medium', submitted: '1d ago' },
+  ],
+  teamLeaveRequests: [
+    { id: 1, employeeName: 'Bob Tanaka', type: 'Annual Leave', dates: 'Feb 26 – Feb 28', status: 'pending', urgent: false },
+    { id: 2, employeeName: 'Carlos Ruiz', type: 'Remote Work', dates: 'Feb 24', status: 'pending', urgent: true },
   ],
 };
 

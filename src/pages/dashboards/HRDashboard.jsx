@@ -8,6 +8,9 @@ import {
   ArrowUpRight,
   CheckCircle2,
   XCircle,
+  Activity,
+  Star,
+  TrendingUp,
 } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
@@ -32,7 +35,7 @@ const statColors = [
 
 const leaveColumns = [
   {
-    key: 'employee',
+    key: 'employeeName',
     label: 'Employee',
     render: (val, row) => (
       <div>
@@ -41,14 +44,16 @@ const leaveColumns = [
       </div>
     ),
   },
-  { key: 'type', label: 'Type', render: (val) => (
-    <StatusBadge variant={
-      val === 'Annual Leave' ? 'brand' :
-      val === 'Sick Leave' ? 'danger' :
-      val === 'Remote Work' ? 'info' :
-      val === 'Maternity' ? 'pink' : 'neutral'
-    } size="sm">{val}</StatusBadge>
-  )},
+  {
+    key: 'type', label: 'Type', render: (val) => (
+      <StatusBadge variant={
+        val === 'Annual Leave' ? 'brand' :
+          val === 'Sick Leave' ? 'danger' :
+            val === 'Remote Work' ? 'info' :
+              val === 'Maternity' ? 'pink' : 'neutral'
+      } size="sm">{val}</StatusBadge>
+    )
+  },
   { key: 'dates', label: 'Dates', cellClassName: 'text-text-secondary text-xs' },
   { key: 'days', label: 'Days', cellClassName: 'text-text-secondary font-medium text-center' },
   {
@@ -104,7 +109,7 @@ export default function HRDashboard() {
   const [stats, setStats]           = useState(hrData.stats);
   const [leaveRequests, setLeave]   = useState(hrData.leaveRequests);
   const [onboarding, setOnboarding] = useState(hrData.onboarding);
-  const [pipeline, setPipeline]     = useState(hrData.recruitmentPipeline);
+  const [pipeline, setPipeline] = useState(hrData.recruitmentPipeline);
 
   useEffect(() => {
     if (!isSupabaseReady) return;
@@ -126,8 +131,8 @@ export default function HRDashboard() {
     }, 120).then(({ usersCount, jobsCount, pendingCount, candsCount }) => {
       setStats([
         { id: 1, title: 'Total Employees', value: usersCount.toString(), change: '', changeType: 'positive', subtitle: 'active users' },
-        { id: 2, title: 'Open Positions',  value: jobsCount.toString(),  change: '', changeType: 'positive', subtitle: 'job postings' },
-        { id: 3, title: 'Pending Leaves',  value: pendingCount.toString(), change: '', changeType: 'neutral', subtitle: 'awaiting approval' },
+        { id: 2, title: 'Open Positions', value: jobsCount.toString(), change: '', changeType: 'positive', subtitle: 'job postings' },
+        { id: 3, title: 'Pending Leaves', value: pendingCount.toString(), change: '', changeType: 'neutral', subtitle: 'awaiting approval' },
         { id: 4, title: 'Active Candidates', value: candsCount.toString(), change: '', changeType: 'positive', subtitle: 'in pipeline' },
       ]);
     });
@@ -143,7 +148,7 @@ export default function HRDashboard() {
       if (!data) return;
       setLeave(data.map(r => ({
         id: r.id,
-        employee: r.users?.name || 'Unknown',
+        employeeName: r.users?.name || 'Unknown',
         department: '-',
         type: r.leave_type || 'Annual Leave',
         dates: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}`,
@@ -223,14 +228,20 @@ export default function HRDashboard() {
 
         <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5
                         animate-fade-in" style={{ animationDelay: '500ms' }}>
-          <h2 className="text-sm font-bold text-text-primary mb-4">Monthly Hiring</h2>
-          <MiniChart
-            data={hrData.monthlyHiring}
-            label="New hires per month"
-            height={100}
-            colorFrom="#2a85ff"
-            colorTo="#6cb4ff"
-          />
+          <h2 className="text-sm font-bold text-text-primary mb-4">Employee Attendance</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 rounded-xl bg-surface-secondary border border-border-secondary">
+              <span className="text-[10px] font-bold text-text-tertiary uppercase block mb-1">Present</span>
+              <span className="text-lg font-black text-emerald-600">92%</span>
+            </div>
+            <div className="p-3 rounded-xl bg-surface-secondary border border-border-secondary">
+              <span className="text-[10px] font-bold text-text-tertiary uppercase block mb-1">On Leave</span>
+              <span className="text-lg font-black text-amber-600">8%</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-border-secondary">
+            <p className="text-xs text-text-secondary"><span className="text-emerald-500 font-bold">Optimal</span> capacity for current projects.</p>
+          </div>
         </div>
       </div>
 
@@ -248,11 +259,141 @@ export default function HRDashboard() {
         </div>
       </div>
 
-      {/* Leave Requests Table */}
+      {/* Action Required (Pending Approvals) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-amber-500/20 p-5 animate-fade-in"
+        style={{ animationDelay: '650ms' }}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-600">
+              <Clock size={18} />
+            </div>
+            <h2 className="text-sm font-bold text-text-primary">Action Required (Pending Approvals)</h2>
+          </div>
+          <StatusBadge variant="warning" size="sm">{leaveRequests.filter(r => r.status === 'pending').length} Awaiting</StatusBadge>
+        </div>
+
+        <div className="space-y-3">
+          {leaveRequests.filter(r => r.status === 'pending').length > 0 ? (
+            leaveRequests.filter(r => r.status === 'pending').map(req => (
+              <div key={req.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-secondary border border-border-secondary group hover:border-brand-500/30 transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-600 font-bold text-xs">
+                    {(req.employeeName || 'U').charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-text-primary">{req.employeeName}</p>
+                    <p className="text-[10px] text-text-tertiary uppercase font-bold">{req.type} • {req.dates || `${fmtDate(req.startDate)} – ${fmtDate(req.endDate)}`}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => window.location.href = '/modules/vacation'} className="px-3 py-1.5 bg-brand-500 text-white text-[10px] font-bold rounded-lg hover:bg-brand-600 transition-colors uppercase">
+                    Review
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-6 text-center text-text-tertiary text-xs italic bg-surface-secondary/50 rounded-xl border border-dashed border-border-secondary">
+              No pending requests at the moment.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Performance & Productivity Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in" style={{ animationDelay: '680ms' }}>
+        {/* Performance Distribution */}
+        <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-sm font-bold text-text-primary uppercase tracking-tighter">Performance Distribution</h2>
+            <TrendingUp size={16} className="text-brand-500" />
+          </div>
+          <div className="space-y-4">
+            {hrData.performanceDistribution.map(item => (
+              <div key={item.label} className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-medium">
+                  <span className="text-text-secondary">{item.label}</span>
+                  <span className="text-text-primary font-bold">{item.value}%</span>
+                </div>
+                <div className="h-2 w-full bg-border-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-1000 ease-out"
+                    style={{ width: `${item.value}%`, backgroundColor: item.color }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 pt-5 border-t border-border-secondary">
+            <p className="text-[10px] text-text-tertiary leading-relaxed italic text-center">
+              "AI identifies <strong>Good</strong> to <strong>Excellent</strong> performance as the dominant organizational trend."
+            </p>
+          </div>
+        </div>
+
+        {/* Department Efficiency */}
+        <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-sm font-bold text-text-primary uppercase tracking-tighter">Department Efficiency</h2>
+            <Activity size={16} className="text-emerald-500" />
+          </div>
+          <div className="space-y-4">
+            {hrData.departmentEfficiency.map(dept => (
+              <div key={dept.label} className="flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-xs font-semibold text-text-primary">{dept.label}</span>
+                    <span className="text-xs font-bold text-brand-500">{dept.value}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-border-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full"
+                      style={{ width: `${dept.value}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Top Performers Leaderboard */}
+        <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-sm font-bold text-text-primary uppercase tracking-tighter">Top Performers</h2>
+            <Star size={16} className="text-amber-500 fill-amber-500" />
+          </div>
+          <div className="space-y-3">
+            {hrData.topPerformers.map((person, i) => (
+              <div key={person.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-secondary border border-border-secondary group hover:border-brand-500/30 transition-all">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold
+                                  ${i === 0 ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-500/20' : 'bg-surface-tertiary text-text-tertiary'}`}>
+                    {i + 1}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-text-primary leading-none">{person.name}</p>
+                    <p className="text-[10px] text-text-tertiary mt-1 uppercase font-bold">{person.dept}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-black text-brand-600">{person.completion}</p>
+                  <p className="text-[9px] text-text-tertiary uppercase font-medium">{person.tasks} tasks</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button className="w-full mt-4 py-2 bg-surface-secondary border border-border-secondary rounded-xl text-[10px] font-bold text-text-secondary uppercase tracking-widest hover:bg-surface-tertiary transition-all">
+            View Performance Report
+          </button>
+        </div>
+      </div>
+
+      {/* Leave Requests Table (Archive/History) */}
       <div className="bg-surface-primary rounded-2xl border border-border-secondary
                       animate-fade-in overflow-hidden" style={{ animationDelay: '700ms' }}>
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
-          <h2 className="text-sm font-bold text-text-primary">Recent Leave Requests</h2>
+          <h2 className="text-sm font-bold text-text-primary">Leave History & Archive</h2>
           <button
             onClick={() => navigate('/vacation')}
             className="text-xs font-medium text-[#2a85ff] hover:text-[#1a6dff]
