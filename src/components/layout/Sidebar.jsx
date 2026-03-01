@@ -13,8 +13,8 @@ import {
 /* Flowly icon — black on light, white on dark */
 const FlowlyIcon = ({ className = 'w-10 h-10' }) => (
   <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    <path d="M20 4 C16 4 13 6 13 11 V28" className="stroke-black dark:stroke-white" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-    <path d="M5 17 Q9 12 13 17 Q17 22 21 17 Q25 12 28 15" className="stroke-black dark:stroke-white" strokeWidth="2.8" strokeLinecap="round" fill="none"/>
+    <path d="M5 7 V19 C5 26 16 26 16 19 V7" className="stroke-black dark:stroke-white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    <path d="M16 7 V19 C16 26 27 26 27 19 V7" className="stroke-black dark:stroke-white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
   </svg>
 );
 
