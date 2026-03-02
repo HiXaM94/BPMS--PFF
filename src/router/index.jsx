@@ -28,6 +28,7 @@ import AIAssistant from '../pages/AIAssistant';
 import Analytics from '../pages/modules/Analytics';
 import RealAnalyticsRouter from '../pages/modules/RealAnalyticsRouter';
 import QRKiosk from '../pages/modules/attendance/qrcode/QRKiosk';
+import Notifications from '../pages/modules/Notifications';
 
 const router = createBrowserRouter([
   // ── Public auth routes ──
@@ -61,7 +62,7 @@ const router = createBrowserRouter([
       { path: 'subscriptions', element: <RoleGuard allowedRoles={['super_admin']}><Analytics /></RoleGuard> },
       { path: 'analytics', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><RealAnalyticsRouter /></RoleGuard> },
       { path: 'ai-assistant', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><AIAssistant /></RoleGuard> },
-      { path: 'notifications', element: <PlaceholderPage title="Notifications" /> },
+      { path: 'notifications', element: <Notifications /> },
 
       // System
       { path: 'permissions', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><Permissions /></RoleGuard> },

@@ -66,10 +66,22 @@ export function NotificationProvider({ children }) {
     await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId).eq('is_read', false);
   }, [userId]);
 
+  const deleteNotification = useCallback(async (id) => {
+    if (!supabase) return;
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    await supabase.from('notifications').delete().eq('id', id);
+  }, []);
+
+  const clearAll = useCallback(async () => {
+    if (!supabase || !userId) return;
+    setNotifications([]);
+    await supabase.from('notifications').delete().eq('user_id', userId);
+  }, [userId]);
+
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <NotificationContext.Provider value={{ notifications, loading, unreadCount, markAsRead, markAllAsRead, refetch: fetchNotifications }}>
+    <NotificationContext.Provider value={{ notifications, loading, unreadCount, markAsRead, markAllAsRead, deleteNotification, clearAll, refetch: fetchNotifications }}>
       {children}
     </NotificationContext.Provider>
   );
