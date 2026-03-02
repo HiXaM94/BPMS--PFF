@@ -84,6 +84,32 @@ class NotificationService {
     await this.send(employeeUserId, `✅ Your document "${docType}" has been approved.`, 'success', { event: 'document_approved' });
   }
 
+  /** Document rejected → notify employee */
+  async onDocumentRejected(employeeUserId, docType, reason) {
+    await this.send(employeeUserId, `❌ Your document "${docType}" was rejected. Reason: ${reason || 'Please re-upload.'}`, 'warning', { event: 'document_rejected' });
+  }
+
+  /** All onboarding docs submitted → notify HR */
+  async onOnboardingDocsSubmitted(hrUserIds, employeeName) {
+    await this.sendBulk(hrUserIds, `📋 ${employeeName} has submitted all onboarding documents for review.`, 'info', { event: 'onboarding_docs_submitted' });
+  }
+
+  /** Official document request → notify HR */
+  async onOfficialDocRequested(hrUserIds, employeeName, docType, urgency) {
+    const urgLabel = urgency === 'urgent' ? '🔴 URGENT' : '';
+    await this.sendBulk(hrUserIds, `📄 ${urgLabel} ${employeeName} requested: ${docType}.`, 'info', { event: 'official_doc_requested' });
+  }
+
+  /** Official request completed → notify employee */
+  async onOfficialDocCompleted(employeeUserId, docType) {
+    await this.send(employeeUserId, `✅ Your requested document "${docType}" is ready.`, 'success', { event: 'official_doc_completed' });
+  }
+
+  /** Salary certificate generated → audit log */
+  async onSalaryCertGenerated(employeeUserId, period) {
+    await this.send(employeeUserId, `📄 Salary certificate for ${period} has been generated and downloaded.`, 'success', { event: 'salary_cert_generated' });
+  }
+
   /** Task assigned → notify assignee */
   async onTaskAssigned(assigneeUserId, taskTitle, assignerName) {
     await this.send(assigneeUserId, `📌 New task assigned to you: "${taskTitle}" by ${assignerName}.`, 'info', { event: 'task_assigned' });
