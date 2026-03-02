@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
-    FileCheck, Download, UploadCloud, AlertCircle, FileText, Send, Clock, CheckCircle2, Loader2, History
+    FileCheck, Download, UploadCloud, AlertCircle, FileText, Send, Clock, CheckCircle2, Loader2, History, Eye, Trash2, X, File
 } from 'lucide-react';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -30,8 +30,101 @@ export default function EmployeeDocuments() {
     const [reqLoading, setReqLoading] = useState(false);
     const [requestHistory, setRequestHistory] = useState([]);
     const [loadingDocs, setLoadingDocs] = useState(true);
+    const [previewFile, setPreviewFile] = useState(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
 
     const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
+
+    // ── File validation ──
+    const validateFile = (file) => {
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        
+        if (!allowedTypes.includes(file.type)) {
+            flash('Invalid file type. Please upload PDF, JPG, or PNG files only.');
+            return false;
+        }
+        if (file.size > maxSize) {
+            flash('File too large. Maximum size is 10MB.');
+            return false;
+        }
+        return true;
+    };
+
+    // ── Preview file ──
+    const handlePreview = async (docKey) => {
+        if (!isSupabaseReady || !profile?.id) return;
+        
+        // Find the document record to get the file_url
+        const { data: docs } = await supabase
+            .from('documents')
+            .select('file_url')
+            .eq('user_id', profile.id)
+            .eq('title', docKey)
+            .eq('doc_type', 'onboarding')
+            .single();
+        
+        if (!docs?.file_url) {
+            flash('File not found');
+            return;
+        }
+        
+        setPreviewLoading(true);
+        try {
+            const { data } = await supabase.storage.from('documents').getPublicUrl(docs.file_url);
+            setPreviewFile({ url: data.publicUrl, name: uploads[docKey] });
+        } catch (err) {
+            flash('Failed to load preview');
+        }
+        setPreviewLoading(false);
+    };
+
+    // ── Delete document ──
+    const handleDelete = async (docKey) => {
+        if (!isSupabaseReady || !profile?.id) {
+            // Mock delete
+            setUploads(prev => {
+                const newUploads = { ...prev };
+                delete newUploads[docKey];
+                return newUploads;
+            });
+            flash(`${docKey} deleted`);
+            return;
+        }
+        
+        try {
+            // Find and delete from storage
+            const { data: docs } = await supabase
+                .from('documents')
+                .select('file_url')
+                .eq('user_id', profile.id)
+                .eq('title', docKey)
+                .eq('doc_type', 'onboarding')
+                .single();
+            
+            if (docs?.file_url) {
+                await supabase.storage.from('documents').remove([docs.file_url]);
+            }
+            
+            // Delete from database
+            await supabase
+                .from('documents')
+                .delete()
+                .eq('user_id', profile.id)
+                .eq('title', docKey)
+                .eq('doc_type', 'onboarding');
+            
+            // Update UI
+            setUploads(prev => {
+                const newUploads = { ...prev };
+                delete newUploads[docKey];
+                return newUploads;
+            });
+            flash(`${docKey} deleted successfully`);
+        } catch (err) {
+            flash('Delete failed: ' + (err.message || 'Unknown error'));
+        }
+    };
 
     // ── Fetch existing documents from DB on mount ──
     useEffect(() => {
@@ -80,6 +173,10 @@ export default function EmployeeDocuments() {
     const handleFileUpload = useCallback(async (docKey, e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
+        // Validate file
+        if (!validateFile(file)) return;
+        
         setUploading(prev => ({ ...prev, [docKey]: true }));
 
         if (!isSupabaseReady || !profile?.id) {
@@ -212,6 +309,7 @@ export default function EmployeeDocuments() {
     }
 
     return (
+        <>
         <div className="space-y-6 animate-fade-in">
 
             {toast && (
@@ -277,8 +375,27 @@ export default function EmployeeDocuments() {
                                             }
                                         </div>
                                         {uploads[doc.key] ? (
-                                            <div className="w-full py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg text-emerald-600 text-sm font-medium flex items-center justify-center gap-2">
-                                                <CheckCircle2 size={16} /> {uploads[doc.key]}
+                                            <div className="space-y-2">
+                                                <div className="w-full py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg text-emerald-600 text-sm font-medium flex items-center justify-center gap-2">
+                                                    <CheckCircle2 size={16} /> {uploads[doc.key]}
+                                                </div>
+                                                {!submitted && (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handlePreview(doc.key)}
+                                                            disabled={previewLoading}
+                                                            className="flex-1 py-1.5 bg-surface-primary border border-border-secondary rounded-lg text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                                                        >
+                                                            {previewLoading ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />} Preview
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(doc.key)}
+                                                            className="flex-1 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-xs font-medium text-red-600 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
+                                                        >
+                                                            <Trash2 size={12} /> Delete
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <label className="w-full py-2 bg-surface-primary border border-border-secondary border-dashed rounded-lg text-text-secondary hover:text-brand-500 hover:bg-brand-500/5 transition-colors text-sm font-medium flex items-center justify-center gap-2 cursor-pointer">
@@ -418,5 +535,56 @@ export default function EmployeeDocuments() {
             )}
 
         </div>
+
+        {/* File Preview Modal */}
+        {previewFile && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-surface-primary rounded-2xl border border-border-secondary max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                    <div className="p-4 border-b border-border-secondary flex items-center justify-between">
+                        <h3 className="font-semibold text-text-primary flex items-center gap-2">
+                            <File size={18} className="text-brand-500" />
+                            {previewFile.name}
+                        </h3>
+                        <button
+                            onClick={() => setPreviewFile(null)}
+                            className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors"
+                        >
+                            <X size={18} className="text-text-tertiary" />
+                        </button>
+                    </div>
+                    <div className="p-4 overflow-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+                        {previewFile.url.match(/\.(pdf)$/i) ? (
+                            <iframe
+                                src={previewFile.url}
+                                className="w-full h-[600px] border border-border-secondary rounded-lg"
+                                title="Document Preview"
+                            />
+                        ) : (
+                            <img
+                                src={previewFile.url}
+                                alt="Document Preview"
+                                className="max-w-full h-auto mx-auto rounded-lg border border-border-secondary"
+                            />
+                        )}
+                    </div>
+                    <div className="p-4 border-t border-border-secondary flex justify-end gap-2">
+                        <a
+                            href={previewFile.url}
+                            download={previewFile.name}
+                            className="px-4 py-2 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition-colors flex items-center gap-2"
+                        >
+                            <Download size={16} /> Download
+                        </a>
+                        <button
+                            onClick={() => setPreviewFile(null)}
+                            className="px-4 py-2 bg-surface-primary border border-border-secondary text-text-primary rounded-lg font-medium hover:bg-surface-secondary transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 }
