@@ -133,26 +133,27 @@ export default function UserManagement() {
   // ── Fetch users from Supabase ──
   const fetchUsers = useCallback(async () => {
     if (!isSupabaseReady) { setUsers(defaultUsers); return; }
-    const data = await cacheService.getOrSet('users:list', async () => {
+    if (!profile?.entreprise_id) { setUsers([]); return; } // logged in but company not loaded yet
+    const cacheKey = `users:list:${profile.entreprise_id}`;
+    const data = await cacheService.getOrSet(cacheKey, async () => {
       const { data, error } = await supabase.from('users')
         .select('*')
+        .eq('entreprise_id', profile.entreprise_id)
         .order('created_at', { ascending: false });
       if (error) { console.error('Fetch users error:', error.message); return null; }
       return data;
     }, 90);
-    if (data && data.length > 0) {
-      setUsers(data.map(u => ({
-        id: u.id,
-        name: u.name || u.email.split('@')[0],
-        email: u.email,
-        role: roleMap[u.role] || u.role || 'Employee',
-        department: '-',
-        status: u.status || 'active',
-        lastLogin: u.last_login_at ? new Date(u.last_login_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never',
-        avatar: u.avatar_initials || u.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??',
-      })));
-    }
-  }, []);
+    setUsers((data ?? []).map(u => ({
+      id: u.id,
+      name: u.name || u.email?.split('@')[0],
+      email: u.email,
+      role: u.role ? (roleMap[u.role.toUpperCase()] || u.role) : 'Employee',
+      department: '-',
+      status: u.status || 'active',
+      lastLogin: u.last_login_at ? new Date(u.last_login_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never',
+      avatar: u.avatar_initials || u.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??',
+    })));
+  }, [profile]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 

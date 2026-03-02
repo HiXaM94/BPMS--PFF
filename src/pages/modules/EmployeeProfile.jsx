@@ -296,45 +296,78 @@ export default function EmployeeProfile() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [deptFilter, setDeptFilter] = useState('all');
   const [avatarImages, setAvatarImages] = useState({});
-  const [employees, setEmployees] = useState(allEmployees);
+  const [employees, setEmployees] = useState(isSupabaseReady ? [] : allEmployees);
 
   const isEmployee = currentRole.id === 'employee';
 
   useEffect(() => {
-    if (!isSupabaseReady) return;
-    cacheService.getOrSet('profile:employees', async () => {
-      const { data } = await supabase.from('employees')
-        .select('*, users(name, email, phone, role, status)')
-        .order('created_at', { ascending: false });
-      return data;
-    }, 120).then(data => {
-      if (!data || data.length === 0) return;
-      setEmployees(data.map((e, idx) => {
-        const u = e.users || {};
-        const name = u.name || e.first_name ? `${e.first_name || ''} ${e.last_name || ''}`.trim() : `Employee ${idx + 1}`;
-        return {
-          id: e.id,
-          name,
-          email: u.email || e.email || '-',
-          phone: u.phone || e.phone || '-',
-          cnss: e.cnss_number || '-',
-          rib: e.bank_rib || '-',
-          department: e.department || '-',
-          title: e.position || e.job_title || '-',
-          location: e.location || 'Morocco',
-          manager: e.manager_name || '-',
-          joinDate: e.hire_date ? new Date(e.hire_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
-          employeeId: e.employee_code || `EMP-${e.id?.toString().slice(0, 8)}`,
-          status: u.status || e.status || 'active',
-          avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-          bio: e.bio || '',
-          skills: e.skills || [],
-          certifications: e.certifications || [],
-          user_id: e.user_id,
-        };
-      }));
-    });
-  }, []);
+    if (!isSupabaseReady || !authProfile?.entreprise_id) return;
+
+    const fetchProfiles = async () => {
+      try {
+        // Query all users of this company (employees, HR, managers)
+        const { data: usersData, error: usersError } = await supabase.from('users')
+          .select('*')
+          .eq('entreprise_id', authProfile.entreprise_id)
+          .neq('role', 'ADMIN')
+          .order('created_at', { ascending: false });
+
+        if (usersError) {
+          console.error('Fetch profiles error (users query):', usersError);
+          return;
+        }
+
+        const validUsers = usersData || [];
+
+        // Fetch employee details for those users
+        let empMap = {};
+        if (validUsers.length > 0) {
+          const userIds = validUsers.map(u => u.id);
+          const { data: empData, error: empError } = await supabase
+            .from('user_details')
+            .select('*')
+            .in('id_user', userIds);
+
+          if (!empError && empData) {
+            empData.forEach(e => {
+              if (e.id_user) empMap[e.id_user] = e;
+            });
+          }
+        }
+
+        setEmployees(validUsers.map((u, idx) => {
+          const e = empMap[u.id] || {};
+          const name = u.name || u.email?.split('@')[0] || `User ${idx + 1}`;
+          return {
+            id: u.id,
+            name,
+            email: u.email || '-',
+            phone: e?.phone || '-',
+            cnss: e?.cnss || '-',
+            rib: e?.rib || '-',
+            department: e?.department || '-',
+            title: e?.position || (u.role === 'HR' ? 'HR Manager' : u.role === 'TEAM_MANAGER' ? 'Team Manager' : 'Employee'),
+            location: e?.location || 'Morocco',
+            manager: '-',
+            joinDate: e?.join_date ? new Date(e.join_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
+            employeeId: `EMP-${u.id?.toString().slice(0, 8)}`,
+            status: u.status || 'active',
+            avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+            bio: e?.bio || '',
+            skills: [],
+            certifications: [],
+            user_id: u.id,
+            role: u.role,
+          };
+        }));
+      } catch (err) {
+        console.error('Fetch profiles catch error:', err);
+      }
+    };
+
+    fetchProfiles();
+  }, [authProfile?.entreprise_id]);
+
 
   const visibleEmployees = isEmployee
     ? employees.filter(e => e.user_id === authProfile?.id || e.email === authProfile?.email)
@@ -349,8 +382,8 @@ export default function EmployeeProfile() {
 
   const filtered = effectiveVisible.filter(e => {
     const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) ||
-                        e.email.toLowerCase().includes(search.toLowerCase()) ||
-                        e.department.toLowerCase().includes(search.toLowerCase());
+      e.email.toLowerCase().includes(search.toLowerCase()) ||
+      e.department.toLowerCase().includes(search.toLowerCase());
     const matchDept = deptFilter === 'all' || e.department === deptFilter;
     return matchSearch && matchDept;
   });
@@ -380,7 +413,7 @@ export default function EmployeeProfile() {
       {/* Search + Filter bar (hidden for employee since they see only 1 card) */}
       {!isEmployee && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 animate-fade-in"
-             style={{ animationDelay: '100ms' }}>
+          style={{ animationDelay: '100ms' }}>
           <div className="relative flex-1 max-w-md">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
             <input
