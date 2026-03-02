@@ -327,7 +327,7 @@ export default function EmployeeDocuments() {
                         onClick={() => setActiveTab('requests')}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${activeTab === 'requests' ? 'bg-surface-primary text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
                     >
-                        Action Required {pendingOnboarding > 0 && !submitted && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingOnboarding}</span>}
+                        Action Required {pendingOnboarding > 0 && !submitted && <span className="bg-red-500 text-white dark:text-red-100 text-[10px] px-1.5 py-0.5 rounded-full">{pendingOnboarding}</span>}
                     </button>
                     <button
                         onClick={() => setActiveTab('official')}
@@ -411,7 +411,7 @@ export default function EmployeeDocuments() {
                                 <button
                                     onClick={handleSubmitAll}
                                     disabled={uploadedCount < DOC_TYPES.length || submitted}
-                                    className={`px-6 py-2.5 rounded-xl font-bold transition-colors shadow-sm ${uploadedCount >= DOC_TYPES.length && !submitted ? 'bg-brand-500 text-white hover:bg-brand-600 cursor-pointer' : 'bg-brand-500 text-white opacity-50 cursor-not-allowed'}`}>
+                                    className={`px-6 py-2.5 rounded-xl font-bold transition-colors shadow-sm ${uploadedCount >= DOC_TYPES.length && !submitted ? 'bg-brand-500 text-white dark:text-brand-50 hover:bg-brand-600 cursor-pointer' : 'bg-brand-500 text-white dark:text-brand-50 opacity-50 cursor-not-allowed'}`}>
                                     {submitted ? 'Documents Submitted' : 'Submit All Documents'}
                                 </button>
                             </div>
@@ -436,7 +436,7 @@ export default function EmployeeDocuments() {
                         <div className="p-6 space-y-4 text-sm">
                             <div>
                                 <label className="block text-xs font-semibold text-text-secondary mb-2">Select Period:</label>
-                                <select value={certPeriod} onChange={e => setCertPeriod(e.target.value)} className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none">
+                                <select value={certPeriod} onChange={e => setCertPeriod(e.target.value)} className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-400/20">
                                     <option value="latest">Latest Month (March 2026)</option>
                                     <option value="3months">Last 3 Months (Jan-Mar 2026)</option>
                                     <option value="ytd">Year-to-Date (2026)</option>
@@ -444,14 +444,14 @@ export default function EmployeeDocuments() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-text-secondary mb-2">Purpose (Optional):</label>
-                                <input type="text" value={certPurpose} onChange={e => setCertPurpose(e.target.value)} placeholder="e.g. Bank Loan Application" className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none" />
+                                <input type="text" value={certPurpose} onChange={e => setCertPurpose(e.target.value)} placeholder="e.g. Bank Loan Application" className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-400/20 placeholder-text-text-tertiary" />
                             </div>
 
                             <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs p-3 rounded-xl flex items-start gap-2">
                                 <CheckCircle2 size={16} className="shrink-0" /> No HR approval required. Your verified document will download instantly as an official watermarked PDF.
                             </div>
 
-                            <button onClick={handleGeneratePDF} disabled={genLoading} className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
+                            <button onClick={handleGeneratePDF} disabled={genLoading} className="w-full py-3 bg-emerald-500 text-white dark:text-emerald-50 rounded-xl font-bold hover:bg-emerald-600 transition-colors shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
                                 {genLoading ? <><Loader2 size={18} className="animate-spin"/> Generating...</> : <><Download size={18} /> Generate PDF</>}
                             </button>
                         </div>
@@ -467,7 +467,7 @@ export default function EmployeeDocuments() {
                         <div className="p-6 space-y-4 text-sm">
                             <div>
                                 <label className="block text-xs font-semibold text-text-secondary mb-2">Document Type:</label>
-                                <select value={reqDocType} onChange={e => setReqDocType(e.target.value)} className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none">
+                                <select value={reqDocType} onChange={e => setReqDocType(e.target.value)} className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-400/20">
                                     <option>Employment Verification Letter</option>
                                     <option>Work Experience Certificate</option>
                                     <option>Reference Letter</option>
@@ -476,13 +476,13 @@ export default function EmployeeDocuments() {
                             <div>
                                 <label className="block text-xs font-semibold text-text-secondary mb-2">Urgency:</label>
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => setReqUrgency('standard')} className={`flex-1 py-1.5 rounded-lg font-medium text-xs border transition-colors ${reqUrgency === 'standard' ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-secondary text-text-secondary border-border-secondary hover:bg-surface-primary'}`}>Standard (3-5 days)</button>
-                                    <button type="button" onClick={() => setReqUrgency('urgent')} className={`flex-1 py-1.5 rounded-lg font-medium text-xs border transition-colors ${reqUrgency === 'urgent' ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-secondary text-text-secondary border-border-secondary hover:bg-surface-primary'}`}>Urgent (24h)</button>
+                                    <button type="button" onClick={() => setReqUrgency('standard')} className={`flex-1 py-1.5 rounded-lg font-medium text-xs border transition-colors ${reqUrgency === 'standard' ? 'bg-brand-500 text-white dark:text-brand-50 border-brand-500' : 'bg-surface-secondary text-text-secondary border-border-secondary hover:bg-surface-primary'}`}>Standard (3-5 days)</button>
+                                    <button type="button" onClick={() => setReqUrgency('urgent')} className={`flex-1 py-1.5 rounded-lg font-medium text-xs border transition-colors ${reqUrgency === 'urgent' ? 'bg-brand-500 text-white dark:text-brand-50 border-brand-500' : 'bg-surface-secondary text-text-secondary border-border-secondary hover:bg-surface-primary'}`}>Urgent (24h)</button>
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-text-secondary mb-2">Notes to HR:</label>
-                                <textarea rows="3" value={reqNotes} onChange={e => setReqNotes(e.target.value)} placeholder="Additional details..." className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none resize-none"></textarea>
+                                <textarea rows="3" value={reqNotes} onChange={e => setReqNotes(e.target.value)} placeholder="Additional details..." className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:focus:ring-brand-400/20 resize-none placeholder-text-text-tertiary"></textarea>
                             </div>
 
                             <div className="pt-2">
@@ -571,7 +571,7 @@ export default function EmployeeDocuments() {
                         <a
                             href={previewFile.url}
                             download={previewFile.name}
-                            className="px-4 py-2 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition-colors flex items-center gap-2"
+                            className="px-4 py-2 bg-brand-500 text-white dark:text-brand-50 rounded-lg font-medium hover:bg-brand-600 transition-colors flex items-center gap-2"
                         >
                             <Download size={16} /> Download
                         </a>
