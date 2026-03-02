@@ -1,8 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
-    FileCheck, Download, UploadCloud, AlertCircle, FileText, Send, Clock, CheckCircle2, Loader2
+    FileCheck, Download, UploadCloud, AlertCircle, FileText, Send, Clock, CheckCircle2, Loader2, History
 } from 'lucide-react';
-import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
@@ -29,8 +28,54 @@ export default function EmployeeDocuments() {
     const [reqUrgency, setReqUrgency] = useState('standard');
     const [reqNotes, setReqNotes] = useState('');
     const [reqLoading, setReqLoading] = useState(false);
+    const [requestHistory, setRequestHistory] = useState([]);
+    const [loadingDocs, setLoadingDocs] = useState(true);
 
     const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
+
+    // ── Fetch existing documents from DB on mount ──
+    useEffect(() => {
+        if (!isSupabaseReady || !profile?.id) { setLoadingDocs(false); return; }
+        (async () => {
+            try {
+                // Fetch onboarding docs
+                const { data: onboardingDocs } = await supabase
+                    .from('documents')
+                    .select('*')
+                    .eq('user_id', profile.id)
+                    .eq('doc_type', 'onboarding')
+                    .order('created_at', { ascending: false });
+
+                if (onboardingDocs && onboardingDocs.length > 0) {
+                    const uploadMap = {};
+                    let allSubmitted = true;
+                    onboardingDocs.forEach(doc => {
+                        if (!uploadMap[doc.title]) {
+                            uploadMap[doc.title] = doc.file_url?.split('_').pop() || doc.title;
+                        }
+                        if (doc.status === 'pending') allSubmitted = false;
+                    });
+                    setUploads(uploadMap);
+                    if (Object.keys(uploadMap).length >= DOC_TYPES.length && onboardingDocs.some(d => d.status === 'submitted' || d.status === 'approved')) {
+                        setSubmitted(true);
+                    }
+                }
+
+                // Fetch official request history
+                const { data: requests } = await supabase
+                    .from('documents')
+                    .select('*')
+                    .eq('user_id', profile.id)
+                    .in('doc_type', ['official_request', 'salary_certificate'])
+                    .order('created_at', { ascending: false });
+
+                if (requests) setRequestHistory(requests);
+            } catch (err) {
+                console.error('Fetch documents error:', err.message);
+            }
+            setLoadingDocs(false);
+        })();
+    }, [profile?.id]);
 
     const handleFileUpload = useCallback(async (docKey, e) => {
         const file = e.target.files?.[0];
@@ -75,44 +120,77 @@ export default function EmployeeDocuments() {
         }
         setSubmitted(true);
         flash('All documents submitted for review!');
-        cacheService.invalidatePattern('^doc:');
-    }, [uploads]);
+
+        if (isSupabaseReady && profile?.id) {
+            const { error } = await supabase
+                .from('documents')
+                .update({ status: 'submitted' })
+                .eq('user_id', profile.id)
+                .eq('doc_type', 'onboarding')
+                .eq('status', 'pending');
+            if (error) {
+                console.error('Submit all error:', error.message);
+                flash('Error updating status: ' + error.message);
+                setSubmitted(false);
+                return;
+            }
+            cacheService.invalidatePattern('^doc:');
+        }
+    }, [uploads, profile?.id]);
 
     const handleGeneratePDF = useCallback(async () => {
         setGenLoading(true);
-        // Simulate PDF generation (in real app this would call a serverless function)
-        setTimeout(() => {
-            const blob = new Blob(['Salary Certificate PDF Content'], { type: 'application/pdf' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `salary_certificate_${certPeriod}.pdf`;
-            a.click();
-            URL.revokeObjectURL(url);
-            setGenLoading(false);
-            flash('Salary certificate generated!');
-        }, 1200);
-    }, [certPeriod]);
+
+        // Record generation in DB
+        if (isSupabaseReady && profile?.id) {
+            try {
+                const { data: rec } = await supabase.from('documents').insert({
+                    user_id: profile.id,
+                    title: `Salary Certificate (${certPeriod})`,
+                    doc_type: 'salary_certificate',
+                    status: 'approved',
+                    notes: certPurpose || null,
+                }).select().single();
+                if (rec) setRequestHistory(prev => [rec, ...prev]);
+                cacheService.invalidatePattern('^doc:');
+            } catch (err) {
+                console.error('Record cert error:', err.message);
+            }
+        }
+
+        // Generate PDF (in real app this would call a serverless function)
+        const blob = new Blob(['Salary Certificate PDF Content'], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `salary_certificate_${certPeriod}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setGenLoading(false);
+        flash('Salary certificate generated!');
+    }, [certPeriod, certPurpose, profile?.id]);
 
     const handleSubmitRequest = useCallback(async () => {
         setReqLoading(true);
         if (!isSupabaseReady || !profile?.id) {
             setTimeout(() => {
                 setReqLoading(false);
+                setRequestHistory(prev => [{ id: Date.now(), title: reqDocType, doc_type: 'official_request', status: 'pending', urgency: reqUrgency, notes: reqNotes, created_at: new Date().toISOString() }, ...prev]);
                 flash('Document request submitted to HR!');
                 setReqNotes('');
             }, 800);
             return;
         }
         try {
-            await supabase.from('documents').insert({
+            const { data: rec } = await supabase.from('documents').insert({
                 user_id: profile.id,
                 title: reqDocType,
                 doc_type: 'official_request',
                 status: 'pending',
                 notes: reqNotes,
                 urgency: reqUrgency,
-            });
+            }).select().single();
+            if (rec) setRequestHistory(prev => [rec, ...prev]);
             flash('Document request submitted to HR!');
             setReqNotes('');
             cacheService.invalidatePattern('^doc:');
@@ -123,6 +201,15 @@ export default function EmployeeDocuments() {
     }, [profile?.id, reqDocType, reqUrgency, reqNotes]);
 
     const uploadedCount = Object.keys(uploads).length;
+    const pendingOnboarding = DOC_TYPES.length - uploadedCount;
+
+    if (loadingDocs) {
+        return (
+            <div className="flex items-center justify-center min-h-[40vh]">
+                <Loader2 size={28} className="animate-spin text-text-tertiary" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -142,7 +229,7 @@ export default function EmployeeDocuments() {
                         onClick={() => setActiveTab('requests')}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${activeTab === 'requests' ? 'bg-surface-primary text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
                     >
-                        Action Required <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">1</span>
+                        Action Required {pendingOnboarding > 0 && !submitted && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingOnboarding}</span>}
                     </button>
                     <button
                         onClick={() => setActiveTab('official')}
@@ -218,7 +305,8 @@ export default function EmployeeDocuments() {
             )}
 
             {activeTab === 'official' && (
-                <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="animate-fade-in space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                     {/* 7.5 Auto-Generate Self-Service UI */}
                     <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden h-fit">
@@ -289,6 +377,44 @@ export default function EmployeeDocuments() {
                     </div>
 
                 </div>
+
+                {/* Request History */}
+                {requestHistory.length > 0 && (
+                    <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden">
+                        <div className="p-5 border-b border-border-secondary flex items-center gap-2">
+                            <History size={18} className="text-text-tertiary" />
+                            <h3 className="text-base font-bold text-text-primary">Request History</h3>
+                        </div>
+                        <div className="divide-y divide-border-secondary">
+                            {requestHistory.map(req => {
+                                const statusMap = { pending: 'warning', approved: 'success', rejected: 'danger', submitted: 'brand' };
+                                return (
+                                    <div key={req.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-surface-secondary/50 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                req.doc_type === 'salary_certificate' ? 'bg-emerald-500/10' : 'bg-brand-500/10'
+                                            }`}>
+                                                {req.doc_type === 'salary_certificate'
+                                                    ? <FileCheck size={14} className="text-emerald-500" />
+                                                    : <Send size={14} className="text-brand-500" />}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-text-primary">{req.title}</p>
+                                                <p className="text-[11px] text-text-tertiary">
+                                                    {req.created_at ? new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                    {req.urgency === 'urgent' && <span className="ml-2 text-amber-600 font-semibold">Urgent</span>}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <StatusBadge variant={statusMap[req.status] || 'neutral'} dot size="sm">{req.status}</StatusBadge>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+            </div>
             )}
 
         </div>
