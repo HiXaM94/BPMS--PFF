@@ -342,10 +342,10 @@ export default function EmployeeDocuments() {
                 <div className="animate-fade-in space-y-6">
 
                     <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl flex items-start gap-4 mb-6">
-                        <AlertCircle size={20} className="text-amber-600 mt-0.5 shrink-0" />
+                        <AlertCircle size={20} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                         <div>
-                            <h3 className="font-bold text-amber-700 mb-1">Complete Your Onboarding</h3>
-                            <p className="text-sm text-amber-700/80">
+                            <h3 className="font-bold text-amber-700 dark:text-amber-300 mb-1">Complete Your Onboarding</h3>
+                            <p className="text-sm text-amber-700/80 dark:text-amber-300/80">
                                 Welcome {profile?.name?.split(' ')[0] || 'there'}! HR has requested {DOC_TYPES.length} documents to complete your onboarding process.
                                 Please upload them before <strong>March 25, 2026</strong>.
                             </p>
@@ -370,13 +370,13 @@ export default function EmployeeDocuments() {
                                                 <FileText size={16} className={uploads[doc.key] ? 'text-emerald-500' : 'text-brand-500'} /> {doc.label}
                                             </span>
                                             {uploads[doc.key]
-                                                ? <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={10}/>Uploaded</span>
-                                                : <span className="text-[10px] font-semibold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded">Required</span>
+                                                ? <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={10}/>Uploaded</span>
+                                                : <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Required</span>
                                             }
                                         </div>
                                         {uploads[doc.key] ? (
                                             <div className="space-y-2">
-                                                <div className="w-full py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg text-emerald-600 text-sm font-medium flex items-center justify-center gap-2">
+                                                <div className="w-full py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg text-emerald-600 dark:text-emerald-400 text-sm font-medium flex items-center justify-center gap-2">
                                                     <CheckCircle2 size={16} /> {uploads[doc.key]}
                                                 </div>
                                                 {!submitted && (
@@ -390,7 +390,7 @@ export default function EmployeeDocuments() {
                                                         </button>
                                                         <button
                                                             onClick={() => handleDelete(doc.key)}
-                                                            className="flex-1 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-xs font-medium text-red-600 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
+                                                            className="flex-1 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1"
                                                         >
                                                             <Trash2 size={12} /> Delete
                                                         </button>
@@ -447,7 +447,7 @@ export default function EmployeeDocuments() {
                                 <input type="text" value={certPurpose} onChange={e => setCertPurpose(e.target.value)} placeholder="e.g. Bank Loan Application" className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none" />
                             </div>
 
-                            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs p-3 rounded-xl flex items-start gap-2">
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs p-3 rounded-xl flex items-start gap-2">
                                 <CheckCircle2 size={16} className="shrink-0" /> No HR approval required. Your verified document will download instantly as an official watermarked PDF.
                             </div>
 
@@ -519,7 +519,7 @@ export default function EmployeeDocuments() {
                                                 <p className="text-sm font-semibold text-text-primary">{req.title}</p>
                                                 <p className="text-[11px] text-text-tertiary">
                                                     {req.created_at ? new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                                                    {req.urgency === 'urgent' && <span className="ml-2 text-amber-600 font-semibold">Urgent</span>}
+                                                    {req.urgency === 'urgent' && <span className="ml-2 text-amber-600 dark:text-amber-400 font-semibold">Urgent</span>}
                                                 </p>
                                             </div>
                                         </div>
