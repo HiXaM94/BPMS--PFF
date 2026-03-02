@@ -131,6 +131,47 @@ const teamProgressionColumns = [
   }
 ];
 
+const approvalColumns = [
+  {
+    key: 'title',
+    label: 'Request',
+    render: (val, row) => (
+      <div>
+        <span className="font-semibold text-text-primary block">{val}</span>
+        <span className="text-[11px] text-text-tertiary">{row.requester}</span>
+      </div>
+    ),
+  },
+  {
+    key: 'type', label: 'Type', render: (val) => (
+      <StatusBadge variant="neutral" size="sm" dot>{val}</StatusBadge>
+    )
+  },
+  {
+    key: 'amount', label: 'Amount/Duration', cellClassName: 'text-text-secondary font-medium text-xs'
+  },
+  {
+    key: 'priority', label: 'Priority', render: (val) => (
+      <StatusBadge variant={val === 'high' ? 'danger' : val === 'medium' ? 'warning' : 'brand'} size="sm">
+        {val}
+      </StatusBadge>
+    )
+  },
+  { key: 'submitted', label: 'Submitted', cellClassName: 'text-text-secondary text-xs' },
+  {
+    key: 'actions', label: 'Actions', render: () => (
+      <div className="flex items-center gap-2">
+        <button className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all">
+          <CheckCircle2 size={14} />
+        </button>
+        <button className="p-1.5 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white transition-all">
+          <XCircle size={14} />
+        </button>
+      </div>
+    )
+  }
+];
+
 const activeProjectProgressColumns = (onTitleClick) => [
   {
     key: 'title',
