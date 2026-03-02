@@ -93,6 +93,7 @@ export default function VacationRequest() {
       const days = calcDays(form.startDate, form.endDate);
       await vacationController.submitRequest({
         userId: profile?.id,
+        entrepriseId: profile?.entreprise_id,
         ...form,
         daysCount: days
       });
@@ -125,11 +126,12 @@ export default function VacationRequest() {
 
     try {
       setSubmitting(true);
+      const approverName = profile?.name || 'HR';
       if (type === 'approve') {
-        await vacationController.approveRequest(requestId, reason);
+        await vacationController.approveRequest(requestId, reason, approverName);
         showToast('Request approved.');
       } else {
-        await vacationController.rejectRequest(requestId, reason);
+        await vacationController.rejectRequest(requestId, reason, approverName);
         showToast('Request rejected.');
       }
       setActionModal({ isOpen: false, type: '', requestId: null, reason: '' });
@@ -180,6 +182,7 @@ export default function VacationRequest() {
             <EmployeeVacationView
               requests={requests}
               leaveBalance={leaveBalance}
+              loading={loading}
               onNewRequest={() => setShowNewModal(true)}
               onViewRequest={setViewRequest}
             />
@@ -198,6 +201,7 @@ export default function VacationRequest() {
           <EmployeeVacationView
             requests={requests}
             leaveBalance={leaveBalance}
+            loading={loading}
             onNewRequest={() => setShowNewModal(true)}
             onViewRequest={setViewRequest}
             onCancelRequest={handleCancelRequest}
@@ -211,8 +215,8 @@ export default function VacationRequest() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Vacation & Leave"
-        description="Submit and manage leave requests with AI-powered conflict detection"
+        title="Vacation Requests"
+        description="Submit and manage leave requests and time-off balances"
         icon={Palmtree}
         iconColor="from-emerald-500 to-teal-600"
         actionLabel={(currentRole.id === 'employee' || currentRole.id === 'manager') ? "New Request" : null}
@@ -221,19 +225,14 @@ export default function VacationRequest() {
       />
 
       {toast && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-slide-up">
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-slide-up ${
+          toast.startsWith('Error') ? 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+        }`}>
           <CheckCircle2 size={16} /> {toast}
         </div>
       )}
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <Loader2 size={32} className="animate-spin text-brand-500" />
-          <p className="text-sm text-text-tertiary">Analyzing leave data and conflicts...</p>
-        </div>
-      ) : (
-        renderRoleView()
-      )}
+      {renderRoleView()}
 
       {/* New Request Modal */}
       <Modal
