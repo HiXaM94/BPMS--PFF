@@ -17,27 +17,30 @@ import { cacheService } from '../../services/CacheService';
  * Each enterprise has a company_id that matches the companyId on each role.
  */
 const defaultEnterprises = [
-  { id: 1, company_id: 1, name: 'TechCorp International', industry: 'Technology', employees: 245, location: 'Casablanca, Morocco', email: 'contact@techcorp.ma', phone: '+212 522 123 456', status: 'active', plan: 'Enterprise', created: 'Jan 15, 2025' },
-  { id: 2, company_id: 2, name: 'FinServe Global', industry: 'Finance', employees: 189, location: 'Rabat, Morocco', email: 'info@finserve.ma', phone: '+212 537 654 321', status: 'active', plan: 'Business', created: 'Mar 8, 2025' },
-  { id: 3, company_id: 3, name: 'MediCare Plus', industry: 'Healthcare', employees: 156, location: 'Marrakech, Morocco', email: 'hello@medicare.ma', phone: '+212 524 789 012', status: 'active', plan: 'Enterprise', created: 'Jun 22, 2025' },
-  { id: 4, company_id: 4, name: 'EduLearn Academy', industry: 'Education', employees: 112, location: 'Fes, Morocco', email: 'admin@edulearn.ma', phone: '+212 535 345 678', status: 'trial', plan: 'Starter', created: 'Nov 3, 2025' },
-  { id: 5, company_id: 5, name: 'RetailMax Holdings', industry: 'Retail', employees: 198, location: 'Tangier, Morocco', email: 'ops@retailmax.ma', phone: '+212 539 901 234', status: 'active', plan: 'Business', created: 'Sep 14, 2025' },
-  { id: 6, company_id: 6, name: 'BuildPro Services', industry: 'Construction', employees: 87, location: 'Agadir, Morocco', email: 'info@buildpro.ma', phone: '+212 528 567 890', status: 'suspended', plan: 'Starter', created: 'Dec 1, 2025' },
-  { id: 7, company_id: 7, name: 'LogiTrans SARL', industry: 'Logistics', employees: 134, location: 'Kenitra, Morocco', email: 'contact@logitrans.ma', phone: '+212 537 234 567', status: 'active', plan: 'Business', created: 'Feb 10, 2026' },
+  { id: 1, company_id: 1, name: 'TechCorp International', industry: 'Technology', employees: 245, location: 'Casablanca, Morocco', address: '123 Boulevard Zerktouni', email: 'contact@techcorp.ma', phone: '+212 522 123 456', status: 'active', plan: 'Enterprise', created: 'Jan 15, 2025', rc: '45678', ice: '000123456780001', capital: '500,000 MAD' },
+  { id: 2, company_id: 2, name: 'FinServe Global', industry: 'Finance', employees: 189, location: 'Rabat, Morocco', address: '45 Avenue Hassan II', email: 'info@finserve.ma', phone: '+212 537 654 321', status: 'active', plan: 'Business', created: 'Mar 8, 2025', rc: '89012', ice: '000987654320002', capital: '1,000,000 MAD' },
+  { id: 3, company_id: 3, name: 'MediCare Plus', industry: 'Healthcare', employees: 156, location: 'Marrakech, Morocco', address: '10 Rue de la Liberté', email: 'hello@medicare.ma', phone: '+212 524 789 012', status: 'active', plan: 'Enterprise', created: 'Jun 22, 2025', rc: '34567', ice: '000555666770003', capital: '250,000 MAD' },
+  { id: 4, company_id: 4, name: 'EduLearn Academy', industry: 'Education', employees: 112, location: 'Fes, Morocco', address: 'Zone Universitaire', email: 'admin@edulearn.ma', phone: '+212 535 345 678', status: 'trial', plan: 'Starter', created: 'Nov 3, 2025', rc: '56789', ice: '000111222330004', capital: '100,000 MAD' },
+  { id: 5, company_id: 5, name: 'RetailMax Holdings', industry: 'Retail', employees: 198, location: 'Tangier, Morocco', address: 'Centre Commercial Ibn Batouta', email: 'ops@retailmax.ma', phone: '+212 539 901 234', status: 'active', plan: 'Business', created: 'Sep 14, 2025', rc: '67890', ice: '000999888770005', capital: '300,000 MAD' },
+  { id: 6, company_id: 6, name: 'BuildPro Services', industry: 'Construction', employees: 87, location: 'Agadir, Morocco', address: 'Quartier Industriel Tassila', email: 'info@buildpro.ma', phone: '+212 528 567 890', status: 'suspended', plan: 'Starter', created: 'Dec 1, 2025', rc: '12345', ice: '000444555660006', capital: '150,000 MAD' },
+  { id: 7, company_id: 7, name: 'LogiTrans SARL', industry: 'Logistics', employees: 134, location: 'Kenitra, Morocco', address: 'Route Nationale 1', email: 'contact@logitrans.ma', phone: '+212 537 234 567', status: 'active', plan: 'Business', created: 'Feb 10, 2026', rc: '23456', ice: '000222333440007', capital: '200,000 MAD' },
 ];
 
-function getColumns(onView, onEdit, onToggleStatus, onDelete) {
+function getColumns(onView, onEdit, onToggleStatus, onDelete, isSuperAdmin) {
   return [
     {
       key: 'name', label: 'Organization',
       render: (val, row) => (
-        <div className="flex items-center gap-3">
+        <div
+          className="flex items-center gap-3 cursor-pointer group"
+          onClick={() => onView(row)}
+        >
           <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                          bg-gradient-to-br from-brand-500/15 to-brand-600/15 shrink-0">
+                          bg-gradient-to-br from-brand-500/15 to-brand-600/15 shrink-0 group-hover:scale-105 transition-transform">
             <Building2 size={18} className="text-brand-500" />
           </div>
           <div>
-            <span className="font-semibold text-text-primary block">{val}</span>
+            <span className="font-semibold text-text-primary block group-hover:text-brand-500 transition-colors">{val}</span>
             <span className="text-[11px] text-text-tertiary">{row.industry}</span>
           </div>
         </div>
@@ -83,9 +86,11 @@ function getColumns(onView, onEdit, onToggleStatus, onDelete) {
           <button onClick={() => onView(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View">
             <Eye size={14} className="text-text-tertiary" />
           </button>
-          <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit">
-            <Edit size={14} className="text-text-tertiary" />
-          </button>
+          {!isSuperAdmin && (
+            <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit">
+              <Edit size={14} className="text-text-tertiary" />
+            </button>
+          )}
           <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete">
             <Trash2 size={14} className="text-red-400" />
           </button>
@@ -135,6 +140,7 @@ export default function EnterpriseManagement() {
   const { currentRole } = useRole();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
+  const isSuperAdmin = currentRole.id === 'super_admin';
   const showToast = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000); };
 
   // ── Fetch enterprises from Supabase ──
@@ -169,8 +175,8 @@ export default function EnterpriseManagement() {
   useEffect(() => { fetchEnterprises(); }, [fetchEnterprises]);
 
   // ─── company_id filtering ───
-  // Admin sees ALL companies. Other roles see only their own company.
-  const visibleEnterprises = isAdmin
+  // Super Admin sees ALL companies. Other roles see only their own company.
+  const visibleEnterprises = isSuperAdmin
     ? enterprises
     : enterprises.filter(e => e.company_id === currentRole.companyId);
 
@@ -183,7 +189,7 @@ export default function EnterpriseManagement() {
   const activeCount = visibleEnterprises.filter(e => e.status === 'active').length;
 
   // Derive industry stats from what the user can see
-  const visibleIndustries = isAdmin
+  const visibleIndustries = isSuperAdmin
     ? industryStats
     : visibleEnterprises.map(e => ({
       label: e.industry,
@@ -266,7 +272,8 @@ export default function EnterpriseManagement() {
     (ent) => setViewEnterprise(ent),
     (ent) => { setEditEnterprise(ent); setEditForm({ name: ent.name, industry: ent.industry, location: ent.location, email: ent.email, phone: ent.phone || '', plan: ent.plan }); },
     handleToggleStatus,
-    handleDeleteEnterprise
+    handleDeleteEnterprise,
+    isSuperAdmin
   );
 
   const handleCreateCompany = async (e) => {
@@ -317,18 +324,18 @@ export default function EnterpriseManagement() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Enterprise Management"
-        description={isAdmin
+        description={isSuperAdmin
           ? 'Manage organizations, tenants, and their configurations'
           : 'View your organization information'}
         icon={Building2}
         iconColor="from-brand-500 to-brand-600"
-        actionLabel={isAdmin ? 'Add Organization' : undefined}
-        actionIcon={isAdmin ? Plus : undefined}
-        onAction={isAdmin ? () => setShowCreateModal(true) : undefined}
+        actionLabel={isSuperAdmin ? 'Add Organization' : undefined}
+        actionIcon={isSuperAdmin ? Plus : undefined}
+        onAction={isSuperAdmin ? () => setShowCreateModal(true) : undefined}
       />
 
       {/* Non-admin notice */}
-      {!isAdmin && (
+      {!isSuperAdmin && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/10
                         border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm animate-fade-in">
           <ShieldAlert size={18} className="shrink-0" />
@@ -387,9 +394,9 @@ export default function EnterpriseManagement() {
         style={{ animationDelay: '450ms' }}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 pt-5 pb-3">
           <h2 className="text-sm font-semibold text-text-primary">
-            {isAdmin ? 'All Organizations' : 'My Organization'}
+            {isSuperAdmin ? 'All Organizations' : 'My Organization'}
           </h2>
-          {isAdmin && (
+          {isSuperAdmin && (
             <input
               type="text"
               placeholder="Search organizations..."
@@ -436,9 +443,13 @@ export default function EnterpriseManagement() {
               {[
                 { label: 'Status', value: <StatusBadge variant={{ active: 'success', trial: 'warning', suspended: 'danger' }[viewEnterprise.status]} dot size="sm">{viewEnterprise.status}</StatusBadge> },
                 { label: 'Plan', value: <StatusBadge variant={viewEnterprise.plan === 'Enterprise' ? 'brand' : viewEnterprise.plan === 'Business' ? 'brand' : 'neutral'} size="sm">{viewEnterprise.plan}</StatusBadge> },
+                { label: 'Address', value: viewEnterprise.address || viewEnterprise.location },
                 { label: 'Location', value: viewEnterprise.location },
                 { label: 'Email', value: viewEnterprise.email },
                 { label: 'Phone', value: viewEnterprise.phone || '—' },
+                { label: 'RC', value: viewEnterprise.rc || '—' },
+                { label: 'ICE', value: viewEnterprise.ice || '—' },
+                { label: 'Capital', value: viewEnterprise.capital || '—' },
                 { label: 'Employees', value: viewEnterprise.employees },
                 { label: 'Created', value: viewEnterprise.created },
               ].map(({ label, value }) => (
@@ -478,12 +489,12 @@ export default function EnterpriseManagement() {
           <form id="edit-enterprise-form" onSubmit={handleEditSave} className="space-y-4">
             <div>
               <label className={labelClassName}>Company Name *</label>
-              <input type="text" required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className={inputClassName}/>
+              <input type="text" required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className={inputClassName} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClassName}>Industry *</label>
-                <input type="text" required value={editForm.industry} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))} className={inputClassName}/>
+                <input type="text" required value={editForm.industry} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))} className={inputClassName} />
               </div>
               <div>
                 <label className={labelClassName}>Plan</label>
@@ -494,16 +505,16 @@ export default function EnterpriseManagement() {
             </div>
             <div>
               <label className={labelClassName}>Location *</label>
-              <input type="text" required value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} className={inputClassName}/>
+              <input type="text" required value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} className={inputClassName} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClassName}>Email *</label>
-                <input type="email" required value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className={inputClassName}/>
+                <input type="email" required value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className={inputClassName} />
               </div>
               <div>
                 <label className={labelClassName}>Phone</label>
-                <input type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} className={inputClassName}/>
+                <input type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} className={inputClassName} />
               </div>
             </div>
           </form>

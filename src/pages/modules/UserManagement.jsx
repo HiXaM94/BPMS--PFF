@@ -27,6 +27,14 @@ const defaultUsers = [
   { id: 10, name: 'Amira Belkacem', email: 'amira.b@flowly.io', role: 'Employee', department: 'Finance', status: 'active', lastLogin: '45 min ago', avatar: 'AB' },
 ];
 
+const superAdminUsers = [
+  { id: 101, name: 'Ibrahim Rouass', email: 'ibrahim@techcorp.ma', role: 'Admin', department: 'Management', company: 'TechCorp International', status: 'active', lastLogin: '2 min ago', avatar: 'IR' },
+  { id: 102, name: 'Amina Bennis', email: 'amina@finserve.ma', role: 'Admin', department: 'Management', company: 'FinServe Global', status: 'active', lastLogin: '1h ago', avatar: 'AB' },
+  { id: 103, name: 'Youssef Alaoui', email: 'youssef@medicare.ma', role: 'Admin', department: 'Management', company: 'MediCare Plus', status: 'active', lastLogin: '3h ago', avatar: 'YA' },
+  { id: 104, name: 'Salma Tazi', email: 'salma@edulearn.ma', role: 'Admin', department: 'Management', company: 'EduLearn Academy', status: 'active', lastLogin: '1 day ago', avatar: 'ST' },
+  { id: 105, name: 'Karim Chraibi', email: 'karim@retailmax.ma', role: 'Admin', department: 'Management', company: 'RetailMax Holdings', status: 'active', lastLogin: '5 days ago', avatar: 'KC' },
+];
+
 const roleColors = { Admin: 'brand', Manager: 'warning', HR: 'pink', Employee: 'info', Observer: 'neutral' };
 const avatarColors = {
   Admin: 'from-brand-500 to-brand-600',
@@ -36,7 +44,7 @@ const avatarColors = {
   Observer: 'from-gray-400 to-gray-500',
 };
 
-function getColumns(onView, onEdit, onDelete) {
+function getColumns(onView, onEdit, onDelete, isSuperAdmin) {
   return [
     {
       key: 'name', label: 'User',
@@ -59,7 +67,9 @@ function getColumns(onView, onEdit, onDelete) {
       key: 'role', label: 'Role',
       render: (val) => <StatusBadge variant={roleColors[val] || 'neutral'} size="sm">{val}</StatusBadge>,
     },
-    { key: 'department', label: 'Department', cellClassName: 'text-text-secondary text-sm' },
+    isSuperAdmin
+      ? { key: 'company', label: 'Company', cellClassName: 'text-text-secondary text-sm font-medium' }
+      : { key: 'department', label: 'Department', cellClassName: 'text-text-secondary text-sm' },
     {
       key: 'status', label: 'Status',
       render: (val) => {
@@ -73,8 +83,12 @@ function getColumns(onView, onEdit, onDelete) {
       render: (_, row) => (
         <div className="flex items-center gap-1">
           <button onClick={() => onView(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary" /></button>
-          <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit"><Edit size={14} className="text-text-tertiary" /></button>
-          <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400" /></button>
+          {!isSuperAdmin && (
+            <>
+              <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit"><Edit size={14} className="text-text-tertiary" /></button>
+              <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400" /></button>
+            </>
+          )}
         </div>
       ),
     },
@@ -90,12 +104,16 @@ const inputClassName = `w-full px-3 py-2.5 rounded-xl text-sm bg-surface-seconda
 const labelClassName = 'block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider';
 
 export default function UserManagement() {
+  const { currentRole } = useRole();
+  const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
+  const isSuperAdmin = currentRole.id === 'super_admin';
+  const isHR = currentRole.id === 'hr';
+
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [users, setUsers] = useState(defaultUsers);
+  const [users, setUsers] = useState(isSuperAdmin ? superAdminUsers : defaultUsers);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-  const { currentRole } = useRole();
 
   // View / Edit modal state
   const [viewUser, setViewUser] = useState(null);
@@ -104,8 +122,6 @@ export default function UserManagement() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
-  const isHR = currentRole.id === 'hr';
   const showToast = (msg) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 4000); };
 
   // ── Map DB role enums to display labels ──
@@ -139,7 +155,7 @@ export default function UserManagement() {
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   // Determine what type of account can be created
-  const canCreate = isAdmin || isHR;
+  const canCreate = !isSuperAdmin && (isAdmin || isHR);
   const createRoleType = isAdmin ? 'HR' : 'Employee';
   const createLabel = isAdmin ? 'Create HR Account' : 'Create Employee';
 
@@ -180,6 +196,7 @@ export default function UserManagement() {
       setEditForm({ name: user.name, email: user.email, role: user.role, department: user.department, status: user.status });
     },
     handleDeleteUser,
+    isSuperAdmin
   );
 
   const filtered = users.filter(u => {
@@ -271,8 +288,8 @@ export default function UserManagement() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="User Management"
-        description="Manage users, roles, and access permissions"
+        title={isSuperAdmin ? "Companies Admin" : "User Management"}
+        description={isSuperAdmin ? "Global view of all tenant administrators" : "Manage users, roles, and access permissions"}
         icon={Users}
         iconColor="from-brand-500 to-brand-600"
         actionLabel={canCreate ? createLabel : undefined}
@@ -319,7 +336,9 @@ export default function UserManagement() {
       <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in"
         style={{ animationDelay: '450ms' }}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 pt-5 pb-3">
-          <h2 className="text-sm font-semibold text-text-primary flex-1">All Users</h2>
+          <h2 className="text-sm font-semibold text-text-primary flex-1">
+            {isSuperAdmin ? "All Company Admins" : "All Users"}
+          </h2>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
@@ -345,7 +364,51 @@ export default function UserManagement() {
             </select>
           </div>
         </div>
-        <DataTable columns={columns} data={filtered} emptyMessage="No users found" />
+
+        {isSuperAdmin ? (
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 bg-surface-secondary/20">
+            {filtered.length > 0 ? filtered.map(user => (
+              <div
+                key={user.id}
+                onClick={() => setViewUser(user)}
+                className="bg-surface-primary rounded-2xl border border-border-secondary p-5 
+                           hover:shadow-md hover:border-brand-500/40 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${avatarColors[user.role] || avatarColors.Employee} 
+                                  text-white flex items-center justify-center font-bold text-lg 
+                                  group-hover:scale-105 transition-transform shadow-sm shrink-0`}>
+                    {user.avatar}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-text-primary text-base group-hover:text-brand-500 transition-colors truncate">
+                      {user.company || 'Unknown Company'}
+                    </h3>
+                    <p className="text-sm font-medium text-text-secondary truncate">{user.name}</p>
+                  </div>
+                </div>
+                <div className="space-y-2.5 pt-3 border-t border-border-secondary">
+                  <div className="flex items-center justify-between gap-2 overflow-hidden">
+                    <span className="text-xs text-text-tertiary uppercase tracking-wider shrink-0">Admin Email</span>
+                    <span className="text-sm font-medium text-text-primary truncate">{user.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-text-tertiary uppercase tracking-wider">Status</span>
+                    <StatusBadge variant={{ active: 'success', inactive: 'danger', pending: 'warning' }[user.status]} dot size="sm">
+                      {user.status}
+                    </StatusBadge>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div className="col-span-full py-10 text-center text-text-tertiary text-sm">
+                No company admins found matching your search.
+              </div>
+            )}
+          </div>
+        ) : (
+          <DataTable columns={columns} data={filtered} emptyMessage="No users found" />
+        )}
       </div>
 
       {/* Create User Modal */}
@@ -474,8 +537,12 @@ export default function UserManagement() {
               <div className="flex items-start gap-3 py-2.5">
                 <Building2 size={16} className="text-text-tertiary mt-0.5 shrink-0" />
                 <div>
-                  <span className="text-[11px] text-text-tertiary uppercase tracking-wider block">Department</span>
-                  <span className="text-sm font-medium text-text-primary">{viewUser.department}</span>
+                  <span className="text-[11px] text-text-tertiary uppercase tracking-wider block">
+                    {isSuperAdmin ? 'Company' : 'Department'}
+                  </span>
+                  <span className="text-sm font-medium text-text-primary">
+                    {isSuperAdmin ? (viewUser.company || '—') : viewUser.department}
+                  </span>
                 </div>
               </div>
               <div className="flex items-start gap-3 py-2.5">

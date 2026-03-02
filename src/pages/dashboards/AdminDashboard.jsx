@@ -301,10 +301,26 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header — clean like template */}
-      <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
           Overview
         </h1>
+        <div className="flex gap-2">
+          <button
+            onClick={() => window.location.href = '/modules/vacation'}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <Palmtree size={16} />
+            Vacation Management
+          </button>
+          <button
+            onClick={() => window.location.href = '/modules/TaskPerformance'}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <Activity size={16} />
+            Task & Performance
+          </button>
+        </div>
       </div>
 
       {/* Top Row: Portfolio card + Asset cards */}
