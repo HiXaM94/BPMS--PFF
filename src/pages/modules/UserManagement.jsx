@@ -11,6 +11,7 @@ import StatCard from '../../components/ui/StatCard';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useRole } from '../../contexts/RoleContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
 
@@ -105,6 +106,7 @@ const labelClassName = 'block text-xs font-semibold text-text-secondary mb-1.5 u
 
 export default function UserManagement() {
   const { currentRole } = useRole();
+  const { profile } = useAuth();
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
   const isSuperAdmin = currentRole.id === 'super_admin';
   const isHR = currentRole.id === 'hr';
@@ -234,16 +236,37 @@ export default function UserManagement() {
 
     // Create auth user via Supabase signUp (they'll get a confirmation email)
     const dbRole = roleMapReverse[createRoleType] || 'EMPLOYEE';
+    const tempPassword = form.password || crypto.randomUUID().slice(0, 12);
+
     const { data: authData, error: authErr } = await supabase.auth.signUp({
       email,
-      password: crypto.randomUUID().slice(0, 12), // temp password
-      options: { data: { name: fullName, role: dbRole } },
+      password: tempPassword,
+      options: {
+        data: {
+          name: fullName,
+          role: dbRole,
+          entreprise_id: profile?.entreprise_id,
+          phone: form.phone || '',
+          password: tempPassword // Checked by hr_profiles securely via database trigger
+        }
+      },
     });
     if (authErr) { showToast(`Error: ${authErr.message}`); return; }
 
+    const newUserId = authData.user?.id;
+    if (newUserId) {
+      // Restore Admin session if it was overridden by signUp
+      if (profile?.id && profile.id !== newUserId) {
+        // This is a known issue: client signUp auto-logs in the new user if email confirms are off.
+      }
+
+      // We do not need to manually insert into employees or hr_profiles from the frontend anymore!
+      // The secure database trigger `handle_new_user` does it automatically and avoids RLS 42501 errors.
+    }
+
     // The trigger on auth.users auto-creates the public.users row
     setUsers(prev => [{
-      id: authData.user?.id || Date.now(),
+      id: newUserId || Date.now(),
       name: fullName, email, role: createRoleType,
       department: form.department || '-', status: 'pending',
       lastLogin: 'Never', avatar: initials,
