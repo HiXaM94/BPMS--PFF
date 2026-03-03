@@ -82,12 +82,15 @@ export function AuthProvider({ children }) {
     });
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       // If we're in the middle of creating a new user, ignore the session switch
       if (suppressAuthChange.current) return;
       setSession(s);
       if (s?.user) {
-        setProfile(await fetchProfile(s.user.id));
+        // Fire-and-forget: do NOT await fetchProfile here.
+        // Awaiting inside onAuthStateChange blocks Supabase's auth state machine
+        // and prevents updateUser() / signInWithPassword() from resolving.
+        fetchProfile(s.user.id).then(p => { if (p) setProfile(p); });
       } else {
         setProfile(null);
       }
@@ -98,13 +101,41 @@ export function AuthProvider({ children }) {
 
   const signIn = useCallback(async (email, password) => {
     if (!supabase) throw new Error('Supabase not configured');
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    // Eagerly fetch profile so navigate happens with profile ready
+
+    // ── Step 1: Verify credentials against our DB tables ──
+    const { data: dbUsers, error: rpcError } = await supabase
+      .rpc('verify_login', { p_email: email.trim(), p_password: password });
+
+    if (rpcError) {
+      // RPC doesn't exist yet — fall back to Supabase Auth only
+      console.warn('[Auth] verify_login RPC unavailable, using Auth fallback:', rpcError.message);
+    } else if (!dbUsers || dbUsers.length === 0) {
+      // No matching record in DB → wrong email or wrong password
+      throw new Error('Email or password is incorrect.');
+    }
+
+    // ── Step 2: Sign in via Supabase Auth to get the JWT session ──
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    if (error) {
+      // DB matched but Auth did not → passwords are out of sync
+      // This happens when password was changed in DB but not in Supabase Auth
+      throw new Error('Password was changed but not synced. Please ask your administrator to reset your account, or use the password reset modal to re-save your password.');
+    }
+
+    // ── Step 3: Load profile and block if no DB record ──
     if (data?.user) {
       const p = await fetchProfile(data.user.id);
+      if (!p || p._fallback) {
+        await supabase.auth.signOut();
+        throw new Error('There is no account with this email.');
+      }
       setProfile(p);
     }
+
     return data;
   }, [fetchProfile]);
 

@@ -160,36 +160,37 @@ export default function AdminDashboard() {
   const [showAddHRModal, setShowAddHRModal] = useState(false);
   const [hrForm, setHrForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '' });
   const [isSubmittingHR, setIsSubmittingHR] = useState(false);
-  const [hrCreated, setHrCreated] = useState(false); // shows success inside the modal
+  const [hrCreated, setHrCreated] = useState(false);
+  const [hrError, setHrError] = useState(null); // shown inside the modal
 
   const handleCreateHR = async (e) => {
     e.preventDefault();
+    setHrError(null);
+
     if (!profile?.entreprise_id) {
-      alert('Error: Admin enterprise ID not found');
+      setHrError('Admin enterprise ID not found. Please re-login.');
+      return;
+    }
+    if (!isSupabaseReady) {
+      setHrError('Database connection is not available. Cannot create HR account.');
       return;
     }
 
     setIsSubmittingHR(true);
+    let newUserId = null;
     try {
       const fullName = `${hrForm.firstName} ${hrForm.lastName}`.trim();
 
-      if (!isSupabaseReady) {
-        setHrCreated(true);
-        setTimeout(() => { setShowAddHRModal(false); setHrCreated(false); setHrForm({ firstName: '', lastName: '', email: '', phone: '', password: '' }); }, 2000);
-        return;
-      }
-
-      // 1. Create the new HR user WITHOUT switching the active session
-      //    signUpSilently freezes the auth listener so the profile stays as admin
+      // Step 1: Create Supabase Auth user
       const authData = await signUpSilently(
         hrForm.email,
         hrForm.password,
         { name: fullName, role: 'HR', entreprise_id: profile.entreprise_id }
       );
-      const newUserId = authData.user?.id;
-      if (!newUserId) throw new Error('Failed to create auth user');
+      newUserId = authData.user?.id;
+      if (!newUserId) throw new Error('Failed to create auth user — please try again.');
 
-      // 2. Get the admin token to call the RPC (the session is still the admin's)
+      // Step 2: Insert into DB tables via RPC (uses admin session token)
       const { data: sessionData } = await supabase.auth.getSession();
       const adminAccessToken = sessionData?.session?.access_token;
 
@@ -215,10 +216,12 @@ export default function AdminDashboard() {
 
       if (!rpcResponse.ok) {
         const errBody = await rpcResponse.json().catch(() => ({}));
-        throw new Error(errBody?.message || `RPC failed: ${rpcResponse.status}`);
+        // Step 2 FAILED: roll back the Auth user so no orphan account is left
+        try { await supabase.auth.admin?.deleteUser?.(newUserId); } catch (_) { }
+        throw new Error(errBody?.message || `Failed to create HR profile (code ${rpcResponse.status}).`);
       }
 
-      // 5. Show success INSIDE the modal, then close after 2s
+      // Success
       setHrCreated(true);
       setTimeout(() => {
         setShowAddHRModal(false);
@@ -227,8 +230,8 @@ export default function AdminDashboard() {
       }, 2500);
 
     } catch (err) {
-      console.error(err);
-      alert(`Error: ${err.message}`);
+      console.error('[HR Create] Error:', err);
+      setHrError(err.message || 'An unexpected error occurred.');
     } finally {
       setIsSubmittingHR(false);
     }
@@ -613,7 +616,7 @@ export default function AdminDashboard() {
       {/* Add HR Modal */}
       <Modal
         isOpen={showAddHRModal}
-        onClose={() => { setShowAddHRModal(false); setHrCreated(false); }}
+        onClose={() => { setShowAddHRModal(false); setHrCreated(false); setHrError(null); }}
         title="Create HR Account"
         maxWidth="max-w-md"
       >
@@ -635,6 +638,15 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <form onSubmit={handleCreateHR} className="space-y-4">
+            {/* Error banner — shown when creation fails */}
+            {hrError && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400">
+                <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <p className="text-sm font-medium">{hrError}</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">First Name *</label>
