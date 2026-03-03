@@ -10,6 +10,17 @@ import {
   Activity,
   Star,
   TrendingUp,
+  KeyRound,
+  Lock,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  UserCheck,
+  FileText,
+  Calendar,
+  CreditCard,
+  Building,
+  Phone as PhoneIcon
 } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
@@ -18,6 +29,8 @@ import MiniChart from '../../components/ui/MiniChart';
 import { hrData } from '../../data/mockData';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 function fmtDate(d) {
   if (!d) return '-';
@@ -103,11 +116,377 @@ function OnboardingCard({ item }) {
   );
 }
 
+function HRPasswordResetModal({ isOpen, onClose }) {
+  const { session } = useAuth();
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  if (!isOpen) return null;
+
+  // Live password strength checks
+  const checks = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[\W_]/.test(password),
+    match: password.length > 0 && password === confirmPassword,
+  };
+  const allValid = Object.values(checks).every(Boolean);
+
+  // Prevent obvious SQL injection payloads
+  const sqlKeywords = /drop |delete |update |select |insert | union | -- /i;
+  const isSafe = !sqlKeywords.test(password);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!allValid) {
+      setError('Please satisfy all password requirements below.');
+      return;
+    }
+    if (!isSafe) {
+      setError('Password contains invalid characters or sequences.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (!session?.user?.id) throw new Error('User session not found. Please log in again.');
+
+      // Update Supabase Auth password
+      const { error: authError } = await supabase.auth.updateUser({ password });
+      if (authError) throw authError;
+
+      // Mark password_changed = true via RPC (SECURITY DEFINER bypasses RLS)
+      supabase.rpc('update_hr_password', {
+        p_user_id: session.user.id,
+        p_password: password,
+      }).then(({ error }) => {
+        if (error) console.warn('[HR] password_changed RPC failed:', error.message);
+      });
+
+      setSuccess(true);
+      setTimeout(() => { onClose(); }, 2000);
+    } catch (err) {
+      console.error('Password update failed:', err);
+      setError(err.message || 'Failed to update password. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const CheckItem = ({ ok, label }) => (
+    <div className="flex items-center gap-2">
+      <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all duration-200
+        ${ok ? 'bg-emerald-500 border-emerald-500' : 'bg-surface-secondary border-border-secondary'}`}>
+        {ok && (
+          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </div>
+      <span className={`text-xs font-medium transition-colors duration-200 ${ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-text-tertiary'}`}>{label}</span>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-zinc-950/80 backdrop-blur-md pt-8 px-4 overflow-y-auto">
+      <div className="w-full max-w-md bg-surface-primary border border-border-secondary rounded-[24px] shadow-2xl overflow-hidden flex flex-col mb-8">
+
+        {/* Header */}
+        <div className="relative bg-surface-primary p-6 pb-4 text-center border-b border-border-secondary">
+          {/* Close button */}
+          {!success && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-colors"
+              aria-label="Close"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+          <div className="mx-auto w-14 h-14 bg-surface-secondary border border-border-secondary rounded-full flex items-center justify-center mb-3 shadow-sm">
+            {success ? <UserCheck size={24} className="text-emerald-500" /> : <KeyRound size={24} className="text-text-primary" />}
+          </div>
+          <h2 className="text-xl font-bold tracking-tight text-text-primary mb-1">
+            {success ? "Password Updated!" : "Secure Your Account"}
+          </h2>
+          <p className="text-text-secondary text-sm">
+            {success ? "Redirecting to your dashboard..." : "Change your temporary password to continue."}
+          </p>
+        </div>
+
+        {/* Form Body */}
+        {!success && (
+          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+            {error && (
+              <div className="flex items-start gap-3 p-3 bg-danger-50 text-danger-600 rounded-xl text-sm border border-danger-100">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <p className="font-medium text-xs">{error}</p>
+              </div>
+            )}
+
+            {/* New Password */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-text-secondary pl-1 block">New Password</label>
+              <div className="relative group">
+                <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary group-focus-within:text-brand-500 transition-colors" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter a strong password"
+                  className="w-full pl-10 pr-12 py-2.5 bg-surface-secondary border border-border-secondary rounded-xl text-text-primary text-sm font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-text-tertiary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary transition-colors focus:outline-none"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Live Strength Checklist */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-3 bg-surface-secondary rounded-xl border border-border-secondary">
+              <CheckItem ok={checks.length} label="8+ characters" />
+              <CheckItem ok={checks.uppercase} label="Uppercase (A-Z)" />
+              <CheckItem ok={checks.lowercase} label="Lowercase (a-z)" />
+              <CheckItem ok={checks.number} label="Number (0-9)" />
+              <CheckItem ok={checks.special} label="Special char (!@#)" />
+              <CheckItem ok={checks.match} label="Passwords match" />
+            </div>
+
+            {/* Confirm Password */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-text-secondary pl-1 block">Confirm Password</label>
+              <div className="relative group">
+                <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary group-focus-within:text-brand-500 transition-colors" />
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat your new password"
+                  className="w-full pl-10 pr-12 py-2.5 bg-surface-secondary border border-border-secondary rounded-xl text-text-primary text-sm font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-text-tertiary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary transition-colors focus:outline-none"
+                >
+                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !allValid}
+              className="w-full mt-4 py-3 px-4 rounded-xl font-bold text-sm transition-all hover:enabled:bg-zinc-50 dark:hover:enabled:bg-zinc-800 flex justify-center items-center gap-2 border-2 border-black dark:border-white bg-white dark:bg-zinc-900 text-black dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Updating...
+                </>
+              ) : (
+                'Save New Password'
+              )}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── HR Profile Data Entry Modal ──
+function HRProfileDataModal({ isOpen, onClose, profile }) {
+  const { session } = useAuth();
+  const { dismissProfileNotification } = useNotifications();
+  const [form, setForm] = useState({ cnss: '', rib: '', phone: '', department: '', join_date: '' });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  if (!isOpen) return null;
+
+  const setField = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
+  const allFilled = Object.values(form).every(v => v.trim() !== '');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    if (!allFilled) { setError('All fields are required.'); return; }
+
+    setLoading(true);
+    try {
+      if (!session?.user?.id) throw new Error('Session not found.');
+
+      const { error: insertError } = await supabase
+        .from('user_details')
+        .insert({
+          id_user: session.user.id,
+          entreprise_id: profile?.entreprise_id ?? null,
+          cnss: form.cnss,
+          rib: form.rib,
+          phone: form.phone,
+          department: form.department,
+          join_date: form.join_date,
+        });
+      if (insertError) throw insertError;
+
+      // Dismiss notification immediately after save
+      dismissProfileNotification();
+
+      setSuccess(true);
+      setTimeout(() => onClose(), 2000);
+    } catch (err) {
+      console.error('Profile data insert failed:', err);
+      setError(err.message || 'Failed to save data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fields = [
+    { icon: CreditCard, label: 'CNSS Number', placeholder: 'Enter your CNSS number', field: 'cnss', type: 'text' },
+    { icon: CreditCard, label: 'RIB (Bank Account)', placeholder: 'Enter your RIB', field: 'rib', type: 'text' },
+    { icon: PhoneIcon, label: 'Phone Number', placeholder: '+212 6XX XXX XXX', field: 'phone', type: 'text' },
+    { icon: Building, label: 'Department', placeholder: 'e.g. Human Resources', field: 'department', type: 'text' },
+    { icon: Calendar, label: 'Join Date', placeholder: '', field: 'join_date', type: 'date' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-zinc-950/80 backdrop-blur-md pt-8 px-4 overflow-y-auto">
+      <div className="w-full max-w-md bg-surface-primary border border-border-secondary rounded-[24px] shadow-2xl overflow-hidden flex flex-col mb-8">
+
+        {/* Header */}
+        <div className="bg-surface-primary p-6 pb-4 text-center border-b border-border-secondary">
+          <div className="mx-auto w-14 h-14 bg-surface-secondary border border-border-secondary rounded-full flex items-center justify-center mb-3 shadow-sm">
+            {success ? <UserCheck size={24} className="text-emerald-500" /> : <FileText size={24} className="text-text-primary" />}
+          </div>
+          <h2 className="text-xl font-bold tracking-tight text-text-primary mb-1">
+            {success ? 'Profile Saved!' : 'Complete Your Profile'}
+          </h2>
+          <p className="text-text-secondary text-sm">
+            {success ? 'Redirecting to your dashboard...' : 'Please fill in your personal details to continue.'}
+          </p>
+        </div>
+
+        {/* Form */}
+        {!success && (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {error && (
+              <div className="flex items-start gap-3 p-3 bg-danger-50 text-danger-600 rounded-xl text-sm border border-danger-100">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <p className="font-medium text-xs">{error}</p>
+              </div>
+            )}
+
+            {fields.map(({ icon: Icon, label, placeholder, field, type }) => (
+              <div key={field} className="space-y-1.5">
+                <label className="text-sm font-semibold text-text-secondary pl-1 block">{label}</label>
+                <div className="relative group">
+                  <Icon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary group-focus-within:text-brand-500 transition-colors" />
+                  <input
+                    type={type}
+                    required
+                    value={form[field]}
+                    onChange={setField(field)}
+                    placeholder={placeholder}
+                    className="w-full pl-10 pr-4 py-2.5 bg-surface-secondary border border-border-secondary rounded-xl text-text-primary text-sm font-medium focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all placeholder:text-text-tertiary"
+                  />
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="submit"
+              disabled={loading || !allFilled}
+              className="w-full mt-2 py-3 px-4 rounded-xl font-bold text-sm transition-all flex justify-center items-center gap-2 border-2 border-black dark:border-white bg-white dark:bg-zinc-900 text-black dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                'Save Profile & Continue'
+              )}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function HRDashboard() {
+  const { profile, session } = useAuth();
   const [stats, setStats] = useState(hrData.stats);
   const [leaveRequests, setLeave] = useState(hrData.leaveRequests);
   const [onboarding, setOnboarding] = useState(hrData.onboarding);
   const [pipeline, setPipeline] = useState(hrData.recruitmentPipeline);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [showProfileForm, setShowProfileForm] = useState(false);
+
+  // Show password reset modal only if hr_profiles.password_changed = false
+  useEffect(() => {
+    if (!session?.user?.id || profile?.role !== 'HR') return;
+    supabase
+      .from('hr_profiles')
+      .select('password_changed')
+      .eq('user_id', session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        // Only show if password_changed is NOT true
+        if (data?.password_changed !== true) {
+          setShowPasswordReset(true);
+        }
+      });
+  }, [session?.user?.id, profile?.role]);
+
+  // Listen for notification event to open the password modal
+  useEffect(() => {
+    const handler = () => setShowPasswordReset(true);
+    window.addEventListener('open-hr-password-form', handler);
+    return () => window.removeEventListener('open-hr-password-form', handler);
+  }, []);
+
+  // Listen for the custom event from NotificationDropdown (profile form)
+  useEffect(() => {
+    const handler = () => setShowProfileForm(true);
+    window.addEventListener('open-hr-profile-form', handler);
+    return () => window.removeEventListener('open-hr-profile-form', handler);
+  }, []);
+
+  const handleModalClose = () => {
+    setShowPasswordReset(false);
+  };
+
+  const handleProfileFormClose = () => {
+    setShowProfileForm(false);
+  };
 
   useEffect(() => {
     if (!isSupabaseReady) return;
@@ -171,6 +550,8 @@ export default function HRDashboard() {
 
   return (
     <div className="space-y-6">
+      <HRPasswordResetModal isOpen={showPasswordReset} onClose={handleModalClose} />
+      <HRProfileDataModal isOpen={showProfileForm} onClose={handleProfileFormClose} profile={profile} />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

@@ -9,16 +9,16 @@ import { useLanguage } from '../../contexts/LanguageContext';
 function typeStyle(type) {
   switch (type) {
     case 'success': return { Icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' };
-    case 'warning': return { Icon: AlertCircle,  color: 'text-amber-500',   bg: 'bg-amber-500/10'   };
-    case 'error':   return { Icon: AlertCircle,  color: 'text-red-500',     bg: 'bg-red-500/10'     };
-    default:        return { Icon: Info,          color: 'text-brand-500',   bg: 'bg-brand-500/10'   };
+    case 'warning': return { Icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' };
+    case 'error': return { Icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-500/10' };
+    default: return { Icon: Info, color: 'text-brand-500', bg: 'bg-brand-500/10' };
   }
 }
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)  return 'just now';
+  if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
@@ -65,7 +65,7 @@ export default function NotificationDropdown() {
                        shadow-xl overflow-hidden z-[150]
                        transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top-right
                        ${isOpen ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
-                                : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'}`}>
+          : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-secondary">
           <div className="flex items-center gap-2">
@@ -105,7 +105,10 @@ export default function NotificationDropdown() {
                              transition-all duration-200 animate-fade-in
                              ${!notif.is_read ? 'bg-brand-500/3 hover:bg-brand-500/6' : 'hover:bg-surface-secondary/50'}`}
                   style={{ animationDelay: `${i * 40}ms` }}
-                  onClick={() => markAsRead(notif.id)}
+                  onClick={() => {
+                    markAsRead(notif.id);
+                    setIsOpen(false);
+                  }}
                 >
                   {!notif.is_read && (
                     <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full

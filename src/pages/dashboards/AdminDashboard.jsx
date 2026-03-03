@@ -11,12 +11,15 @@ import {
   Globe,
   BarChart3,
   Star,
-  Palmtree
+  Palmtree,
+  UserPlus
 } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
+import Modal from '../../components/ui/Modal';
+import { useAuth } from '../../contexts/AuthContext';
 import { adminData } from '../../data/mockData';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
@@ -151,7 +154,88 @@ export default function AdminDashboard() {
   const [favorites, setFavorites] = useState(() => {
     try { return JSON.parse(localStorage.getItem('flowly_fav_orgs') || '[]'); } catch { return []; }
   });
+  const { profile, signUpSilently } = useAuth();
   const [globalLeave, setGlobalLeave] = useState(adminData.globalLeaveRequests || []);
+
+  const [showAddHRModal, setShowAddHRModal] = useState(false);
+  const [hrForm, setHrForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '' });
+  const [isSubmittingHR, setIsSubmittingHR] = useState(false);
+  const [hrCreated, setHrCreated] = useState(false);
+  const [hrError, setHrError] = useState(null); // shown inside the modal
+
+  const handleCreateHR = async (e) => {
+    e.preventDefault();
+    setHrError(null);
+
+    if (!profile?.entreprise_id) {
+      setHrError('Admin enterprise ID not found. Please re-login.');
+      return;
+    }
+    if (!isSupabaseReady) {
+      setHrError('Database connection is not available. Cannot create HR account.');
+      return;
+    }
+
+    setIsSubmittingHR(true);
+    let newUserId = null;
+    try {
+      const fullName = `${hrForm.firstName} ${hrForm.lastName}`.trim();
+
+      // Step 1: Create Supabase Auth user
+      const authData = await signUpSilently(
+        hrForm.email,
+        hrForm.password,
+        { name: fullName, role: 'HR', entreprise_id: profile.entreprise_id }
+      );
+      newUserId = authData.user?.id;
+      if (!newUserId) throw new Error('Failed to create auth user — please try again.');
+
+      // Step 2: Insert into DB tables via RPC (uses admin session token)
+      const { data: sessionData } = await supabase.auth.getSession();
+      const adminAccessToken = sessionData?.session?.access_token;
+
+      const rpcResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/create_hr_profile`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${adminAccessToken}`,
+          },
+          body: JSON.stringify({
+            p_user_id: newUserId,
+            p_name: fullName,
+            p_email: hrForm.email,
+            p_phone: hrForm.phone,
+            p_password: hrForm.password,
+            p_entreprise_id: profile.entreprise_id
+          })
+        }
+      );
+
+      if (!rpcResponse.ok) {
+        const errBody = await rpcResponse.json().catch(() => ({}));
+        // Step 2 FAILED: roll back the Auth user so no orphan account is left
+        try { await supabase.auth.admin?.deleteUser?.(newUserId); } catch (_) { }
+        throw new Error(errBody?.message || `Failed to create HR profile (code ${rpcResponse.status}).`);
+      }
+
+      // Success
+      setHrCreated(true);
+      setTimeout(() => {
+        setShowAddHRModal(false);
+        setHrCreated(false);
+        setHrForm({ firstName: '', lastName: '', email: '', phone: '', password: '' });
+      }, 2500);
+
+    } catch (err) {
+      console.error('[HR Create] Error:', err);
+      setHrError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setIsSubmittingHR(false);
+    }
+  };
 
   const leaveColumns = [
     { key: 'employeeName', label: 'Employee', cellClassName: 'font-semibold text-text-primary text-sm' },
@@ -188,7 +272,7 @@ export default function AdminDashboard() {
   const fetchChartData = useCallback(async (range) => {
     if (!isSupabaseReady) {
       const raw = adminData.monthlyUsers || [];
-      const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i+1}`, value: v }));
+      const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i + 1}`, value: v }));
       setChartData(getChartSlice(range, arr));
       return;
     }
@@ -217,7 +301,7 @@ export default function AdminDashboard() {
       setChartData(data);
     } else {
       const raw = adminData.monthlyUsers || [];
-      const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i+1}`, value: v }));
+      const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i + 1}`, value: v }));
       setChartData(getChartSlice(range, arr));
     }
   }, [getChartSlice]);
@@ -276,23 +360,7 @@ export default function AdminDashboard() {
       ]);
     });
 
-    // System logs
-    cacheService.getOrSet('admin:logs', async () => {
-      const { data } = await supabase.from('system_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(6);
-      return data;
-    }, 60).then((data) => {
-      if (!data || data.length === 0) return;
-      setSystemLogs(data.map(l => ({
-        id: l.id,
-        severity: l.severity || l.level || 'info',
-        event: l.event || l.action || l.message || 'System event',
-        details: l.details || '',
-        time: new Date(l.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      })));
-    });
+    // system_logs table does not exist — skip this query to avoid the 404 console error.
   }, [fetchChartData, timeRange]);
 
   // ── Refetch orgs when filters change ──
@@ -305,7 +373,14 @@ export default function AdminDashboard() {
         <h1 className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
           Overview
         </h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowAddHRModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <UserPlus size={16} />
+            Add HR User
+          </button>
           <button
             onClick={() => window.location.href = '/modules/vacation'}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
@@ -315,7 +390,7 @@ export default function AdminDashboard() {
           </button>
           <button
             onClick={() => window.location.href = '/modules/TaskPerformance'}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
           >
             <Activity size={16} />
             Task & Performance
@@ -536,6 +611,113 @@ export default function AdminDashboard() {
           ))}
         </div>
       </div>
+
+
+      {/* Add HR Modal */}
+      <Modal
+        isOpen={showAddHRModal}
+        onClose={() => { setShowAddHRModal(false); setHrCreated(false); setHrError(null); }}
+        title="Create HR Account"
+        maxWidth="max-w-md"
+      >
+        {hrCreated ? (
+          /* ── Success screen shown INSIDE the modal ── */
+          <div className="flex flex-col items-center justify-center py-8 gap-4">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+              <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-text-primary">HR Account Created!</p>
+              <p className="text-sm text-text-secondary mt-1">
+                {hrForm.firstName} {hrForm.lastName} has been added successfully.
+              </p>
+              <p className="text-xs text-text-tertiary mt-2">This window will close automatically…</p>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleCreateHR} className="space-y-4">
+            {/* Error banner — shown when creation fails */}
+            {hrError && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400">
+                <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <p className="text-sm font-medium">{hrError}</p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">First Name *</label>
+                <input
+                  type="text" required
+                  value={hrForm.firstName}
+                  onChange={e => setHrForm(f => ({ ...f, firstName: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                  placeholder="e.g. Jane"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Last Name *</label>
+                <input
+                  type="text" required
+                  value={hrForm.lastName}
+                  onChange={e => setHrForm(f => ({ ...f, lastName: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                  placeholder="e.g. Doe"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Email Address *</label>
+              <input
+                type="email" required
+                value={hrForm.email}
+                onChange={e => setHrForm(f => ({ ...f, email: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                placeholder="jane.doe@company.com"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Phone Number *</label>
+              <input
+                type="tel" required
+                value={hrForm.phone}
+                onChange={e => setHrForm(f => ({ ...f, phone: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                placeholder="+212 600 000 000"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Initial Password *</label>
+              <input
+                type="password" required minLength={6}
+                value={hrForm.password}
+                onChange={e => setHrForm(f => ({ ...f, password: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                placeholder="Enter password..."
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-border-secondary">
+              <button
+                type="button"
+                onClick={() => setShowAddHRModal(false)}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:bg-surface-tertiary border border-border-secondary transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingHR}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
+              >
+                {isSubmittingHR ? 'Creating...' : 'Create HR Account'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }
