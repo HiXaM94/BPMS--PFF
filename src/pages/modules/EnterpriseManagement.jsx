@@ -9,6 +9,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useRole } from '../../contexts/RoleContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
 
@@ -138,6 +139,7 @@ export default function EnterpriseManagement() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const { currentRole } = useRole();
+  const { profile } = useAuth();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
   const isSuperAdmin = currentRole.id === 'super_admin';
@@ -145,53 +147,67 @@ export default function EnterpriseManagement() {
 
   // ── Fetch enterprises from Supabase ──
   const fetchEnterprises = useCallback(async () => {
-    if (!isSupabaseReady) { setEnterprises(defaultEnterprises); return; }
+    if (!isSupabaseReady) {
+      setEnterprises(defaultEnterprises);
+      return;
+    }
     setLoading(true);
-    const data = await cacheService.getOrSet('enterprises:list', async () => {
-      const { data, error } = await supabase.from('entreprises')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) { console.error('Fetch entreprises error:', error.message); return null; }
+    const cacheKey = isSuperAdmin ? 'enterprises:list' : `enterprises:${profile?.entreprise_id}`;
+    const data = await cacheService.getOrSet(cacheKey, async () => {
+      let query = supabase.from('entreprises').select('*');
+      if (!isSuperAdmin && profile?.entreprise_id) {
+        query = query.eq('id', profile.entreprise_id);
+      }
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) {
+        console.error('Fetch entreprises error:', error.message);
+        return null;
+      }
       return data;
     }, 90);
-    if (data && data.length > 0) {
-      setEnterprises(data.map(e => ({
-        id: e.id,
-        company_id: e.company_id,
-        name: e.name,
-        industry: e.industry || '-',
-        employees: 0,
-        location: e.location || e.address || '-',
-        email: e.email || '-',
-        phone: e.phone || '',
-        status: e.status || 'active',
-        plan: e.plan || 'Starter',
-        created: new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      })));
+
+    if (data) {
+      setEnterprises(data.map(e => {
+        const formatDate = (value) => value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+        return {
+          ...e,
+          employees: e.employees ?? 0,
+          location: e.location ?? e.address ?? '—',
+          status: e.status || 'active',
+          plan: e.plan || 'Starter',
+          created: formatDate(e.created_at),
+          updated: formatDate(e.updated_at),
+          country: e.country || '—',
+          legal_form: e.legal_form || '—',
+          if_number: e.if_number || '—',
+          cnss: e.cnss || '—',
+          ice: e.ice || '—',
+          rc: e.rc || '—',
+          patente: e.patente || '—',
+          logo_url: e.logo_url || '—',
+          capital: e.capital || '—',
+        };
+      }));
+    } else {
+      setEnterprises([]);
     }
     setLoading(false);
-  }, []);
+  }, [isSuperAdmin, profile?.entreprise_id]);
 
   useEffect(() => { fetchEnterprises(); }, [fetchEnterprises]);
 
-  // ─── company_id filtering ───
-  // Super Admin sees ALL companies. Other roles see only their own company.
-  const visibleEnterprises = isSuperAdmin
-    ? enterprises
-    : enterprises.filter(e => e.company_id === currentRole.companyId);
-
-  const filtered = visibleEnterprises.filter(e =>
+  const filtered = enterprises.filter(e =>
     e.name.toLowerCase().includes(search.toLowerCase()) ||
     e.industry.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalEmployees = visibleEnterprises.reduce((sum, e) => sum + e.employees, 0);
-  const activeCount = visibleEnterprises.filter(e => e.status === 'active').length;
+  const totalEmployees = enterprises.reduce((sum, e) => sum + e.employees, 0);
+  const activeCount = enterprises.filter(e => e.status === 'active').length;
 
   // Derive industry stats from what the user can see
   const visibleIndustries = isSuperAdmin
     ? industryStats
-    : visibleEnterprises.map(e => ({
+    : enterprises.map(e => ({
       label: e.industry,
       count: 1,
       color: industryStats.find(i => i.label === e.industry)?.color || 'neutral',
@@ -356,7 +372,7 @@ export default function EnterpriseManagement() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Organizations', value: visibleEnterprises.length, icon: Building2, color: 'from-brand-500 to-brand-600' },
+          { label: 'Total Organizations', value: enterprises.length, icon: Building2, color: 'from-brand-500 to-brand-600' },
           { label: 'Active', value: activeCount, icon: Globe, color: 'from-emerald-500 to-teal-600' },
           { label: 'Total Employees', value: totalEmployees.toLocaleString(), icon: Users, color: 'from-brand-500 to-brand-600' },
           { label: 'Industries', value: visibleIndustries.length, icon: Globe, color: 'from-amber-500 to-orange-600' },
@@ -416,7 +432,7 @@ export default function EnterpriseManagement() {
         isOpen={!!viewEnterprise}
         onClose={() => setViewEnterprise(null)}
         title="Organization Details"
-        maxWidth="max-w-md"
+        maxWidth="max-w-3xl"
         footer={
           <div className="flex justify-end">
             <button onClick={() => setViewEnterprise(null)}
@@ -440,24 +456,32 @@ export default function EnterpriseManagement() {
               </div>
             </div>
             <div className="divide-y divide-border-secondary">
-              {[
-                { label: 'Status', value: <StatusBadge variant={{ active: 'success', trial: 'warning', suspended: 'danger' }[viewEnterprise.status]} dot size="sm">{viewEnterprise.status}</StatusBadge> },
-                { label: 'Plan', value: <StatusBadge variant={viewEnterprise.plan === 'Enterprise' ? 'brand' : viewEnterprise.plan === 'Business' ? 'brand' : 'neutral'} size="sm">{viewEnterprise.plan}</StatusBadge> },
-                { label: 'Address', value: viewEnterprise.address || viewEnterprise.location },
-                { label: 'Location', value: viewEnterprise.location },
-                { label: 'Email', value: viewEnterprise.email },
-                { label: 'Phone', value: viewEnterprise.phone || '—' },
-                { label: 'RC', value: viewEnterprise.rc || '—' },
-                { label: 'ICE', value: viewEnterprise.ice || '—' },
-                { label: 'Capital', value: viewEnterprise.capital || '—' },
-                { label: 'Employees', value: viewEnterprise.employees },
-                { label: 'Created', value: viewEnterprise.created },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-start justify-between py-2.5 gap-4">
-                  <span className="text-xs text-text-tertiary uppercase tracking-wider shrink-0">{label}</span>
-                  <span className="text-sm text-text-primary text-right">{value}</span>
-                </div>
-              ))}
+              <div className="grid gap-3 py-3 sm:grid-cols-2">
+                {[
+                  { label: 'Status', value: <StatusBadge variant={{ active: 'success', trial: 'warning', suspended: 'danger' }[viewEnterprise.status]} dot size="sm">{viewEnterprise.status}</StatusBadge> },
+                  { label: 'Plan', value: <StatusBadge variant={viewEnterprise.plan === 'Enterprise' ? 'brand' : viewEnterprise.plan === 'Business' ? 'brand' : 'neutral'} size="sm">{viewEnterprise.plan}</StatusBadge> },
+                  { label: 'Location', value: viewEnterprise.location },
+                  { label: 'Email', value: viewEnterprise.email },
+                  { label: 'Phone', value: viewEnterprise.phone || '—' },
+                  { label: 'RC', value: viewEnterprise.rc },
+                  { label: 'ICE', value: viewEnterprise.ice },
+                  { label: 'IF Number', value: viewEnterprise.if_number },
+                  { label: 'CNSS', value: viewEnterprise.cnss },
+                  { label: 'Patente', value: viewEnterprise.patente },
+                  { label: 'Legal Form', value: viewEnterprise.legal_form },
+                  { label: 'Country', value: viewEnterprise.country },
+                  { label: 'Capital', value: viewEnterprise.capital },
+                  { label: 'Employees', value: viewEnterprise.employees },
+                  { label: 'Created', value: viewEnterprise.created },
+                  { label: 'Updated', value: viewEnterprise.updated },
+                  { label: 'Logo URL', value: viewEnterprise.logo_url ? <a href={viewEnterprise.logo_url} target="_blank" rel="noreferrer" className="text-brand-500 underline break-all">{viewEnterprise.logo_url}</a> : '—' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex flex-col gap-0.5 rounded-lg border border-border-secondary/40 px-3 py-2">
+                    <span className="text-[11px] text-text-tertiary uppercase tracking-wider">{label}</span>
+                    <span className="text-sm text-text-primary">{value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
