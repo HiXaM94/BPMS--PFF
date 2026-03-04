@@ -21,6 +21,14 @@ class ProjectController {
         return new Project(storageService.create('projects', projectData));
     }
 
+    update(projectId, updates) {
+        return new Project(storageService.update('projects', projectId, updates));
+    }
+
+    delete(projectId) {
+        storageService.delete('projects', projectId);
+    }
+
     calculateProgress(projectId) {
         // Logic to calculate progress based on tasks will be here, 
         // likely invoking TaskController or doing a cross-lookup if needed.

@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   User, Mail, Phone, MapPin, Calendar, Briefcase, Award,
   Edit, Building2, Clock, Star, GraduationCap, FileText, ShieldAlert,
-  Search, CreditCard, Landmark, Hash,
+  Search, CreditCard, Landmark, Hash, Camera, Upload, Loader2, CheckCircle2,
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Modal from '../../components/ui/Modal';
 import { useRole } from '../../contexts/RoleContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 
 /**
  * All mock employees — each has the card fields (name, email, phone, cnss, rib, department)
@@ -17,7 +21,7 @@ const allEmployees = [
   {
     id: 1,
     name: 'Ibrahim Rouass',
-    email: 'ibrahim.rouass@bpms.io',
+    email: 'ibrahim.rouass@flowly.io',
     phone: '+212 661 123 456',
     cnss: '1234567890',
     rib: 'MA76 0011 1110 0000 0123 4567 890',
@@ -44,7 +48,7 @@ const allEmployees = [
   {
     id: 2,
     name: 'Sarah Martinez',
-    email: 'sarah.m@bpms.io',
+    email: 'sarah.m@flowly.io',
     phone: '+212 662 234 567',
     cnss: '2345678901',
     rib: 'MA76 0022 2220 0000 0234 5678 901',
@@ -70,7 +74,7 @@ const allEmployees = [
   {
     id: 3,
     name: 'Ahmed Hassan',
-    email: 'ahmed.h@bpms.io',
+    email: 'ahmed.h@flowly.io',
     phone: '+212 663 345 678',
     cnss: '3456789012',
     rib: 'MA76 0033 3330 0000 0345 6789 012',
@@ -97,7 +101,7 @@ const allEmployees = [
   {
     id: 4,
     name: 'Clara Dupont',
-    email: 'clara.d@bpms.io',
+    email: 'clara.d@flowly.io',
     phone: '+212 664 456 789',
     cnss: '4567890123',
     rib: 'MA76 0044 4440 0000 0456 7890 123',
@@ -123,7 +127,7 @@ const allEmployees = [
   {
     id: 5,
     name: 'John Chen',
-    email: 'john.c@bpms.io',
+    email: 'john.c@flowly.io',
     phone: '+212 665 567 890',
     cnss: '5678901234',
     rib: 'MA76 0055 5550 0000 0567 8901 234',
@@ -149,7 +153,7 @@ const allEmployees = [
   {
     id: 6,
     name: 'Fatima Zahra',
-    email: 'fatima.z@bpms.io',
+    email: 'fatima.z@flowly.io',
     phone: '+212 666 678 901',
     cnss: '6789012345',
     rib: 'MA76 0066 6660 0000 0678 9012 345',
@@ -175,7 +179,7 @@ const allEmployees = [
   {
     id: 7,
     name: 'Bob Tanaka',
-    email: 'bob.t@bpms.io',
+    email: 'bob.t@flowly.io',
     phone: '+212 667 789 012',
     cnss: '7890123456',
     rib: 'MA76 0077 7770 0000 0789 0123 456',
@@ -199,7 +203,7 @@ const allEmployees = [
   {
     id: 8,
     name: 'Amira Belkacem',
-    email: 'amira.b@bpms.io',
+    email: 'amira.b@flowly.io',
     phone: '+212 668 890 123',
     cnss: '8901234567',
     rib: 'MA76 0088 8880 0000 0890 1234 567',
@@ -226,7 +230,7 @@ const allEmployees = [
 
 const avatarColors = [
   'from-brand-500 to-brand-600',
-  'from-violet-500 to-purple-600',
+  'from-brand-500 to-brand-600',
   'from-pink-500 to-rose-600',
   'from-amber-500 to-orange-600',
   'from-emerald-500 to-teal-600',
@@ -247,25 +251,139 @@ function InfoItem({ icon: Icon, label, value }) {
   );
 }
 
+// Inline profile image upload for employee's own profile
+function AvatarUpload({ initials, colorClass, imageUrl, onImageChange }) {
+  const [preview, setPreview] = useState(imageUrl || null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreview(reader.result);
+      setUploading(false);
+      if (onImageChange) onImageChange(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="relative inline-block">
+      <div className={`flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br ${colorClass} text-white text-2xl font-bold shadow-lg shrink-0 overflow-hidden`}>
+        {preview ? (
+          <img src={preview} alt="Profile" className="w-full h-full object-cover" />
+        ) : (
+          initials
+        )}
+      </div>
+      <label className="absolute -bottom-1 -right-1 p-1.5 bg-white border-2 border-gray-200 rounded-full shadow-md hover:bg-brand-50 hover:border-brand-500 transition-colors cursor-pointer">
+        {uploading
+          ? <Loader2 size={14} className="text-brand-600 animate-spin" />
+          : <Camera size={14} className="text-gray-600" />}
+        <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
+      </label>
+    </div>
+  );
+}
+
 export default function EmployeeProfile() {
   const { currentRole } = useRole();
+  const { t } = useLanguage();
+  const { profile: authProfile } = useAuth();
   const [search, setSearch] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [deptFilter, setDeptFilter] = useState('all');
+  const [avatarImages, setAvatarImages] = useState({});
+  const [employees, setEmployees] = useState(isSupabaseReady ? [] : allEmployees);
 
   const isEmployee = currentRole.id === 'employee';
 
-  // Employee can only see themselves (mock: Ahmed Hassan, id=3)
+  useEffect(() => {
+    if (!isSupabaseReady || !authProfile?.entreprise_id) return;
+
+    const fetchProfiles = async () => {
+      try {
+        // Query all users of this company (employees, HR, managers)
+        const { data: usersData, error: usersError } = await supabase.from('users')
+          .select('*')
+          .eq('entreprise_id', authProfile.entreprise_id)
+          .neq('role', 'ADMIN')
+          .order('created_at', { ascending: false });
+
+        if (usersError) {
+          console.error('Fetch profiles error (users query):', usersError);
+          return;
+        }
+
+        const validUsers = usersData || [];
+
+        // Fetch employee details for those users
+        let empMap = {};
+        if (validUsers.length > 0) {
+          const userIds = validUsers.map(u => u.id);
+          const { data: empData, error: empError } = await supabase
+            .from('user_details')
+            .select('*')
+            .in('id_user', userIds);
+
+          if (!empError && empData) {
+            empData.forEach(e => {
+              if (e.id_user) empMap[e.id_user] = e;
+            });
+          }
+        }
+
+        setEmployees(validUsers.map((u, idx) => {
+          const e = empMap[u.id] || {};
+          const name = u.name || u.email?.split('@')[0] || `User ${idx + 1}`;
+          return {
+            id: u.id,
+            name,
+            email: u.email || '-',
+            phone: e?.phone || '-',
+            cnss: e?.cnss || '-',
+            rib: e?.rib || '-',
+            department: e?.department || '-',
+            title: e?.position || (u.role === 'HR' ? 'HR Manager' : u.role === 'TEAM_MANAGER' ? 'Team Manager' : 'Employee'),
+            location: e?.location || 'Morocco',
+            manager: '-',
+            joinDate: e?.join_date ? new Date(e.join_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
+            employeeId: `EMP-${u.id?.toString().slice(0, 8)}`,
+            status: u.status || 'active',
+            avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+            bio: e?.bio || '',
+            skills: [],
+            certifications: [],
+            user_id: u.id,
+            role: u.role,
+          };
+        }));
+      } catch (err) {
+        console.error('Fetch profiles catch error:', err);
+      }
+    };
+
+    fetchProfiles();
+  }, [authProfile?.entreprise_id]);
+
+
   const visibleEmployees = isEmployee
+    ? employees.filter(e => e.user_id === authProfile?.id || e.email === authProfile?.email)
+    : employees;
+
+  // Fallback: if employee role but no match found, show first mock
+  const effectiveVisible = isEmployee && visibleEmployees.length === 0
     ? allEmployees.filter(e => e.id === 3)
-    : allEmployees;
+    : visibleEmployees;
 
-  const departments = [...new Set(allEmployees.map(e => e.department))];
+  const departments = [...new Set(employees.map(e => e.department))];
 
-  const filtered = visibleEmployees.filter(e => {
+  const filtered = effectiveVisible.filter(e => {
     const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) ||
-                        e.email.toLowerCase().includes(search.toLowerCase()) ||
-                        e.department.toLowerCase().includes(search.toLowerCase());
+      e.email.toLowerCase().includes(search.toLowerCase()) ||
+      e.department.toLowerCase().includes(search.toLowerCase());
     const matchDept = deptFilter === 'all' || e.department === deptFilter;
     return matchSearch && matchDept;
   });
@@ -273,10 +391,10 @@ export default function EmployeeProfile() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Employee Profiles"
+        title={t('profile.title')}
         description={isEmployee
-          ? 'View your profile information'
-          : `${visibleEmployees.length} employees in the organization`}
+          ? t('profile.viewRestrictedMsg')
+          : `${effectiveVisible.length} ${t('profile.inOrganization')}`}
         icon={User}
         iconColor="from-brand-500 to-brand-600"
       />
@@ -287,7 +405,7 @@ export default function EmployeeProfile() {
                         border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm animate-fade-in">
           <ShieldAlert size={18} className="shrink-0" />
           <span>
-            <strong>View restricted.</strong> You can only view your own profile information.
+            <strong>{t('profile.viewRestricted')}</strong> {t('profile.viewRestrictedMsg')}
           </span>
         </div>
       )}
@@ -295,12 +413,12 @@ export default function EmployeeProfile() {
       {/* Search + Filter bar (hidden for employee since they see only 1 card) */}
       {!isEmployee && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 animate-fade-in"
-             style={{ animationDelay: '100ms' }}>
+          style={{ animationDelay: '100ms' }}>
           <div className="relative flex-1 max-w-md">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
             <input
               type="text"
-              placeholder="Search employees..."
+              placeholder={t('profile.searchEmployees')}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm bg-surface-primary border border-border-secondary
@@ -315,7 +433,7 @@ export default function EmployeeProfile() {
                        focus:outline-none focus:ring-2 focus:ring-brand-500/30 cursor-pointer
                        text-text-primary"
           >
-            <option value="all">All Departments</option>
+            <option value="all">{t('profile.allDepartments')}</option>
             {departments.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
@@ -383,7 +501,7 @@ export default function EmployeeProfile() {
 
       {filtered.length === 0 && (
         <div className="text-center py-12 text-text-tertiary text-sm animate-fade-in">
-          No employees found matching your search.
+          {t('profile.noEmployees')}
         </div>
       )}
 
@@ -391,18 +509,29 @@ export default function EmployeeProfile() {
       <Modal
         isOpen={!!selectedEmployee}
         onClose={() => setSelectedEmployee(null)}
-        title="Employee Details"
+        title={t('profile.employeeDetails')}
         maxWidth="max-w-2xl"
       >
         {selectedEmployee && (
           <div className="space-y-6">
             {/* Header row */}
             <div className="flex items-start gap-4">
-              <div className={`flex items-center justify-center w-16 h-16 rounded-2xl
-                               bg-gradient-to-br ${avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
-                               text-white text-xl font-bold shadow-lg shrink-0`}>
-                {selectedEmployee.avatar}
-              </div>
+              {isEmployee ? (
+                <AvatarUpload
+                  initials={selectedEmployee.avatar}
+                  colorClass={avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
+                  imageUrl={avatarImages[selectedEmployee.id]}
+                  onImageChange={(url) => setAvatarImages(prev => ({ ...prev, [selectedEmployee.id]: url }))}
+                />
+              ) : (
+                <div className={`flex items-center justify-center w-16 h-16 rounded-2xl
+                                 bg-gradient-to-br ${avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
+                                 text-white text-xl font-bold shadow-lg shrink-0 overflow-hidden`}>
+                  {avatarImages[selectedEmployee.id]
+                    ? <img src={avatarImages[selectedEmployee.id]} alt="" className="w-full h-full object-cover" />
+                    : selectedEmployee.avatar}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-bold text-text-primary">{selectedEmployee.name}</h3>
                 <p className="text-sm text-text-secondary">{selectedEmployee.title}</p>
@@ -454,7 +583,7 @@ export default function EmployeeProfile() {
             {/* Skills */}
             {selectedEmployee.skills?.length > 0 && (
               <div>
-                <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">Skills</h4>
+                <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">{t('profile.skills')}</h4>
                 <div className="space-y-2.5">
                   {selectedEmployee.skills.map(skill => (
                     <div key={skill.name}>
@@ -477,7 +606,7 @@ export default function EmployeeProfile() {
             {/* Certifications */}
             {selectedEmployee.certifications?.length > 0 && (
               <div>
-                <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">Certifications</h4>
+                <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">{t('profile.certifications')}</h4>
                 <div className="space-y-2">
                   {selectedEmployee.certifications.map(cert => (
                     <div key={cert.name} className="flex items-start gap-3 p-3 rounded-xl bg-surface-secondary

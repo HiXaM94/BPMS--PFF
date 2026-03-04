@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
     Users, Calculator, Send, FileCheck, DollarSign, Clock, CheckCircle2, AlertCircle, FileText
 } from 'lucide-react';
@@ -5,8 +6,18 @@ import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 
 export default function HRManagerPayroll() {
+    const [submitted, setSubmitted] = useState(false);
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
+
     return (
         <div className="space-y-6 animate-fade-in">
+
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
 
             {/* High Level Stats */}
             <div>
@@ -18,7 +29,7 @@ export default function HRManagerPayroll() {
                     <StatCard title="Total Net Scheduled" value="1,058,250 MAD" subtitle="87 Employees" icon={DollarSign} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                     <StatCard title="Overtime Processed" value="12,450 MAD" subtitle="Across 18 employees" icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
                     <StatCard title="Advances Deducted" value="8,000 MAD" subtitle="Across 4 employees" icon={FileText} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
-                    <StatCard title="Calculations" value="100%" subtitle="Passed validation" icon={CheckCircle2} iconColor="bg-gradient-to-br from-violet-500 to-purple-500" />
+                    <StatCard title="Calculations" value="100%" subtitle="Passed validation" icon={CheckCircle2} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
                 </div>
             </div>
 
@@ -62,8 +73,11 @@ export default function HRManagerPayroll() {
                             </ul>
                         </div>
 
-                        <button className="w-full py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm flex items-center justify-center gap-2">
-                            <Send size={18} /> Submit for Approval
+                        <button
+                            onClick={() => { setSubmitted(true); flash('Payroll submitted to Hassan Benjelloun for approval'); }}
+                            disabled={submitted}
+                            className={`w-full py-3 rounded-xl font-bold transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer ${submitted ? 'bg-emerald-500 text-white' : 'bg-brand-500 text-white hover:bg-brand-600'} disabled:cursor-not-allowed`}>
+                            {submitted ? <><CheckCircle2 size={18} /> Submitted for Approval</> : <><Send size={18} /> Submit for Approval</>}
                         </button>
                     </div>
                 </div>

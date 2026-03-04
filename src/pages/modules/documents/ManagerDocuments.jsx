@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import {
-    Users, FileText, FileCheck, Search, Eye
+    Users, FileText, FileCheck, Search, Eye, CheckCircle2
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
@@ -37,8 +38,21 @@ const columns = [
 ];
 
 export default function ManagerDocuments() {
+    const [approvalStatus, setApprovalStatus] = useState(null);
+    const [search, setSearch] = useState('');
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+
+    const filtered = teamDocuments.filter(d => d.employee.toLowerCase().includes(search.toLowerCase()) || d.title.toLowerCase().includes(search.toLowerCase()));
+
     return (
         <div className="space-y-6 animate-fade-in">
+
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16} /> {toast}
+                </div>
+            )}
 
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
@@ -75,7 +89,7 @@ export default function ManagerDocuments() {
                             </div>
                             <StatusBadge variant="brand" size="sm" dot>In Progress</StatusBadge>
                         </div>
-                        <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center justify-between text-sm pb-3">
                             <div>
                                 <p className="font-semibold text-text-primary">Ahmed Benali</p>
                                 <p className="text-[11px] text-text-tertiary">Work Experience Letter</p>
@@ -85,6 +99,17 @@ export default function ManagerDocuments() {
                         <p className="text-[11px] text-text-tertiary text-center pt-2 border-t border-border-secondary">
                             Document approvals are handled by HR. You can view your team's status here.
                         </p>
+
+                        {approvalStatus ? (
+                            <div className={`py-2 text-center text-sm font-medium rounded-lg ${approvalStatus === 'approved' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}`}>
+                                {approvalStatus === 'approved' ? 'Training request approved' : 'Training request denied'}
+                            </div>
+                        ) : (
+                            <div className="flex gap-2 mt-4 pt-4 border-t border-surface-secondary">
+                                <button onClick={() => { setApprovalStatus('approved'); flash('Training request approved and forwarded to HR'); }} className="flex-1 py-2 bg-brand-500 text-white rounded-lg font-bold text-sm hover:bg-brand-600 transition-colors cursor-pointer">Approve</button>
+                                <button onClick={() => { setApprovalStatus('denied'); flash('Training request denied'); }} className="flex-1 py-2 bg-surface-primary border border-border-secondary text-text-primary rounded-lg font-medium text-sm hover:bg-surface-secondary transition-colors cursor-pointer">Deny</button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -94,10 +119,10 @@ export default function ManagerDocuments() {
                         <h3 className="text-base font-bold text-text-primary">Recent Team Document Activity</h3>
                         <div className="relative hidden sm:block">
                             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                            <input type="text" placeholder="Search team..." className="pl-9 pr-4 py-2 bg-surface-secondary border border-border-secondary rounded-lg text-sm text-text-primary focus:outline-none" />
+                            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search team..." className="pl-9 pr-4 py-2 bg-surface-secondary border border-border-secondary rounded-lg text-sm text-text-primary focus:outline-none" />
                         </div>
                     </div>
-                    <DataTable columns={columns} data={teamDocuments} />
+                    <DataTable columns={columns} data={filtered} />
                 </div>
 
             </div>

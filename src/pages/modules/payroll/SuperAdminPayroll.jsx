@@ -9,17 +9,17 @@ export default function SuperAdminPayroll() {
     return (
         <div className="space-y-6 animate-fade-in">
 
-            {/* Platform Overview */}
+            {/* Global Overview */}
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                     <Activity size={20} className="text-brand-500" />
-                    Platform Payroll Processing (March 2026)
+                    Global Payroll Processing (March 2026)
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard title="Total Volume" value="14.2M MAD" subtitle="Processed across 45 SMEs" icon={DollarSign} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                     <StatCard title="Active Companies" value="45" subtitle="Using Payroll Module" icon={Building2} iconColor="bg-gradient-to-br from-brand-500 to-indigo-500" />
                     <StatCard title="Payslips Generated" value="3,240" subtitle="This cycle" icon={FileText} iconColor="bg-gradient-to-br from-blue-500 to-cyan-500" />
-                    <StatCard title="Bank Files Created" value="45/45" subtitle="100% completion" icon={CheckCircle2} iconColor="bg-gradient-to-br from-violet-500 to-purple-500" />
+                    <StatCard title="Bank Files Created" value="45/45" subtitle="100% completion" icon={CheckCircle2} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
                 </div>
             </div>
 

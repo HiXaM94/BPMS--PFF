@@ -1,3 +1,5 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2,
   Users,
@@ -9,12 +11,18 @@ import {
   Globe,
   BarChart3,
   Star,
+  Palmtree,
+  UserPlus
 } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
+import Modal from '../../components/ui/Modal';
+import { useAuth } from '../../contexts/AuthContext';
 import { adminData } from '../../data/mockData';
+import { supabase, isSupabaseReady } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 
 /* ─── Asset-style cards with colored backgrounds matching template ─── */
 const assetCards = [
@@ -35,8 +43,8 @@ const assetCards = [
     sub: '89 active today',
     change: '+0.31%',
     positive: true,
-    bg: 'bg-[#f3ecfb]',
-    darkBg: 'dark:bg-purple-500/10',
+    bg: 'bg-brand-50',
+    darkBg: 'dark:bg-brand-500/10',
     icon: Users,
     iconBg: 'bg-[#8e55ea]',
   },
@@ -70,74 +78,324 @@ const orgAvatarColors = [
   'from-[#ff9a55] to-[#ffbe7b]',
 ];
 
-const orgColumns = [
-  {
-    key: 'name',
-    label: 'Name',
-    render: (val, row, idx) => (
-      <div className="flex items-center gap-3">
-        <div className={`flex items-center justify-center w-9 h-9 rounded-xl
-                         bg-gradient-to-br ${orgAvatarColors[(row.id - 1) % orgAvatarColors.length]}
-                         text-white text-[10px] font-bold shrink-0 shadow-sm`}>
-          {row.tag}
+function getOrgColumns(toggleFavorite, favorites) {
+  return [
+    {
+      key: 'name',
+      label: 'Name',
+      render: (val, row) => (
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center justify-center w-9 h-9 rounded-xl
+                           bg-gradient-to-br ${orgAvatarColors[(row.id - 1) % orgAvatarColors.length]}
+                           text-white text-[10px] font-bold shrink-0 shadow-sm`}>
+            {row.tag}
+          </div>
+          <div>
+            <span className="font-semibold text-text-primary block text-sm">{val}</span>
+            <span className="text-[11px] text-text-tertiary">{row.tag}</span>
+          </div>
         </div>
-        <div>
-          <span className="font-semibold text-text-primary block text-sm">{val}</span>
-          <span className="text-[11px] text-text-tertiary">{row.tag}</span>
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: 'users',
-    label: 'Users',
-    cellClassName: 'font-semibold text-text-primary text-sm',
-  },
-  {
-    key: 'growth',
-    label: 'Change',
-    render: (val, row) => (
-      <span className={`text-sm font-medium ${row.positive ? 'text-[#83bf6e]' : 'text-[#ff6a55]'}`}>
-        {val}
-      </span>
-    ),
-  },
-  {
-    key: 'plan',
-    label: 'Plan',
-    render: (val) => (
-      <span className="text-sm text-text-secondary">{val}</span>
-    ),
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    render: (val) => {
-      const map = { active: 'success', trial: 'warning', suspended: 'danger' };
-      return <StatusBadge variant={map[val] || 'neutral'} dot size="sm">{val}</StatusBadge>;
+      ),
     },
-  },
-  {
-    key: 'watch',
-    label: '',
-    render: () => (
-      <button className="text-text-tertiary hover:text-[#fbbf24] transition-colors cursor-pointer">
-        <Star size={16} />
-      </button>
-    ),
-  },
-];
+    {
+      key: 'users',
+      label: 'Users',
+      cellClassName: 'font-semibold text-text-primary text-sm',
+    },
+    {
+      key: 'growth',
+      label: 'Change',
+      render: (val, row) => (
+        <span className={`text-sm font-medium ${row.positive ? 'text-[#83bf6e]' : 'text-[#ff6a55]'}`}>
+          {val}
+        </span>
+      ),
+    },
+    {
+      key: 'plan',
+      label: 'Plan',
+      render: (val) => (
+        <span className="text-sm text-text-secondary">{val}</span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (val) => {
+        const map = { active: 'success', trial: 'warning', suspended: 'danger' };
+        return <StatusBadge variant={map[val] || 'neutral'} dot size="sm">{val}</StatusBadge>;
+      },
+    },
+    {
+      key: 'watch',
+      label: '',
+      render: (_, row) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(row.id); }}
+          className={`transition-colors cursor-pointer ${favorites.includes(row.id) ? 'text-[#fbbf24]' : 'text-text-tertiary hover:text-[#fbbf24]'}`}
+        >
+          <Star size={16} fill={favorites.includes(row.id) ? '#fbbf24' : 'none'} />
+        </button>
+      ),
+    },
+  ];
+}
 
 export default function AdminDashboard() {
-  const totalUserCount = adminData.stats.find(s => s.title.includes('User'))?.value || '1,846';
+  const navigate = useNavigate();
+  const [cards, setCards] = useState(assetCards);
+  const [orgs, setOrgs] = useState(orgTableData);
+  const [totalUsers, setTotalUsers] = useState('1,846');
+  const [systemLogs, setSystemLogs] = useState(adminData.systemLogs);
+  const [timeRange, setTimeRange] = useState('1Y');
+  const [chartData, setChartData] = useState(adminData.monthlyUsers || []);
+  const [orgPeriod, setOrgPeriod] = useState('month');
+  const [orgSort, setOrgSort] = useState('growing');
+  const [favorites, setFavorites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('flowly_fav_orgs') || '[]'); } catch { return []; }
+  });
+  const { profile, signUpSilently } = useAuth();
+  const [globalLeave, setGlobalLeave] = useState(adminData.globalLeaveRequests || []);
+
+  const [showAddHRModal, setShowAddHRModal] = useState(false);
+  const [hrForm, setHrForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '' });
+  const [isSubmittingHR, setIsSubmittingHR] = useState(false);
+  const [hrCreated, setHrCreated] = useState(false);
+  const [hrError, setHrError] = useState(null); // shown inside the modal
+
+  const handleCreateHR = async (e) => {
+    e.preventDefault();
+    setHrError(null);
+
+    if (!profile?.entreprise_id) {
+      setHrError('Admin enterprise ID not found. Please re-login.');
+      return;
+    }
+    if (!isSupabaseReady) {
+      setHrError('Database connection is not available. Cannot create HR account.');
+      return;
+    }
+
+    setIsSubmittingHR(true);
+    let newUserId = null;
+    try {
+      const fullName = `${hrForm.firstName} ${hrForm.lastName}`.trim();
+
+      // Step 1: Create Supabase Auth user
+      const authData = await signUpSilently(
+        hrForm.email,
+        hrForm.password,
+        { name: fullName, role: 'HR', entreprise_id: profile.entreprise_id }
+      );
+      newUserId = authData.user?.id;
+      if (!newUserId) throw new Error('Failed to create auth user — please try again.');
+
+      // Step 2: Insert into DB tables via RPC (uses admin session token)
+      const { data: sessionData } = await supabase.auth.getSession();
+      const adminAccessToken = sessionData?.session?.access_token;
+
+      const rpcResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/create_hr_profile`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${adminAccessToken}`,
+          },
+          body: JSON.stringify({
+            p_user_id: newUserId,
+            p_name: fullName,
+            p_email: hrForm.email,
+            p_phone: hrForm.phone,
+            p_password: hrForm.password,
+            p_entreprise_id: profile.entreprise_id
+          })
+        }
+      );
+
+      if (!rpcResponse.ok) {
+        const errBody = await rpcResponse.json().catch(() => ({}));
+        // Step 2 FAILED: roll back the Auth user so no orphan account is left
+        try { await supabase.auth.admin?.deleteUser?.(newUserId); } catch (_) { }
+        throw new Error(errBody?.message || `Failed to create HR profile (code ${rpcResponse.status}).`);
+      }
+
+      // Success
+      setHrCreated(true);
+      setTimeout(() => {
+        setShowAddHRModal(false);
+        setHrCreated(false);
+        setHrForm({ firstName: '', lastName: '', email: '', phone: '', password: '' });
+      }, 2500);
+
+    } catch (err) {
+      console.error('[HR Create] Error:', err);
+      setHrError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setIsSubmittingHR(false);
+    }
+  };
+
+  const leaveColumns = [
+    { key: 'employeeName', label: 'Employee', cellClassName: 'font-semibold text-text-primary text-sm' },
+    { key: 'org', label: 'Organization', cellClassName: 'text-text-tertiary text-xs font-bold uppercase' },
+    { key: 'type', label: 'Type', render: (val) => <StatusBadge variant="neutral" size="sm">{val}</StatusBadge> },
+    { key: 'dates', label: 'Period', cellClassName: 'text-text-secondary text-xs' },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (val) => {
+        const map = { approved: 'success', pending: 'warning', rejected: 'danger' };
+        return <StatusBadge variant={map[val] || 'neutral'} dot size="sm">{val}</StatusBadge>;
+      },
+    },
+  ];
+
+  // ── Toggle favorite org ──
+  const toggleFavorite = useCallback((orgId) => {
+    setFavorites(prev => {
+      const next = prev.includes(orgId) ? prev.filter(id => id !== orgId) : [...prev, orgId];
+      localStorage.setItem('flowly_fav_orgs', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // ── Build chart data based on time range ──
+  const getChartSlice = useCallback((range, fullData) => {
+    const months = { '3M': 3, '6M': 6, '1Y': 12, 'YTD': new Date().getMonth() + 1, 'ALL': fullData.length };
+    const count = months[range] || 12;
+    return fullData.slice(-count);
+  }, []);
+
+  // ── Fetch chart data from Supabase or use mock ──
+  const fetchChartData = useCallback(async (range) => {
+    if (!isSupabaseReady) {
+      const raw = adminData.monthlyUsers || [];
+      const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i + 1}`, value: v }));
+      setChartData(getChartSlice(range, arr));
+      return;
+    }
+    const data = await cacheService.getOrSet(`admin:chart:${range}`, async () => {
+      const months = { '3M': 3, '6M': 6, '1Y': 12, 'YTD': new Date().getMonth() + 1, 'ALL': 24 };
+      const count = months[range] || 12;
+      const since = new Date();
+      since.setMonth(since.getMonth() - count);
+      const { data: rows } = await supabase.from('users')
+        .select('created_at')
+        .gte('created_at', since.toISOString())
+        .order('created_at', { ascending: true });
+      if (!rows || rows.length === 0) return null;
+      // Bucket into months
+      const buckets = {};
+      rows.forEach(r => {
+        const d = new Date(r.created_at);
+        const key = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+        buckets[key] = (buckets[key] || 0) + 1;
+      });
+      // Cumulative
+      let cum = 0;
+      return Object.entries(buckets).map(([label, value]) => { cum += value; return { label, value: cum }; });
+    }, 120);
+    if (data) {
+      setChartData(data);
+    } else {
+      const raw = adminData.monthlyUsers || [];
+      const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i + 1}`, value: v }));
+      setChartData(getChartSlice(range, arr));
+    }
+  }, [getChartSlice]);
+
+  // ── Fetch orgs with period/sort filters ──
+  const fetchOrgs = useCallback(async () => {
+    if (!isSupabaseReady) {
+      let sorted = [...orgTableData];
+      if (orgSort === 'users') sorted.sort((a, b) => parseInt(b.users) - parseInt(a.users));
+      if (orgSort === 'newest') sorted.sort((a, b) => b.id - a.id);
+      setOrgs(sorted);
+      return;
+    }
+    const since = new Date();
+    if (orgPeriod === 'month') since.setMonth(since.getMonth() - 1);
+    else if (orgPeriod === 'quarter') since.setMonth(since.getMonth() - 3);
+    else since.setFullYear(since.getFullYear() - 1);
+
+    const { data } = await supabase.from('entreprises')
+      .select('id, name, status, plan, created_at')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(5);
+    if (!data || data.length === 0) return;
+    setOrgs(data.map((e) => ({
+      id: e.id,
+      name: e.name,
+      tag: e.name.slice(0, 4).toUpperCase(),
+      plan: e.plan || 'Business',
+      users: '-',
+      growth: '',
+      positive: true,
+      status: e.status || 'active',
+    })));
+  }, [orgPeriod, orgSort]);
+
+  // ── Initial data load ──
+  useEffect(() => {
+    fetchChartData(timeRange);
+
+    if (!isSupabaseReady) return;
+
+    // Counts
+    cacheService.getOrSet('admin:counts', async () => {
+      const [ents, users] = await Promise.all([
+        supabase.from('entreprises').select('id', { count: 'exact', head: true }),
+        supabase.from('users').select('id', { count: 'exact', head: true }),
+      ]);
+      return { entCount: ents.count ?? 0, userCount: users.count ?? 0 };
+    }, 120).then(({ entCount, userCount }) => {
+      setTotalUsers(userCount.toLocaleString());
+      setCards(prev => [
+        { ...prev[0], value: entCount.toString(), sub: `${userCount} employees` },
+        { ...prev[1], value: userCount.toLocaleString(), sub: 'registered users' },
+        prev[2],
+      ]);
+    });
+
+    // system_logs table does not exist — skip this query to avoid the 404 console error.
+  }, [fetchChartData, timeRange]);
+
+  // ── Refetch orgs when filters change ──
+  useEffect(() => { fetchOrgs(); }, [fetchOrgs]);
 
   return (
     <div className="space-y-6">
       {/* Header — clean like template */}
-      <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
           Overview
         </h1>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowAddHRModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <UserPlus size={16} />
+            Add HR User
+          </button>
+          <button
+            onClick={() => window.location.href = '/modules/vacation'}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <Palmtree size={16} />
+            Vacation Management
+          </button>
+          <button
+            onClick={() => window.location.href = '/modules/TaskPerformance'}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <Activity size={16} />
+            Task & Performance
+          </button>
+        </div>
       </div>
 
       {/* Top Row: Portfolio card + Asset cards */}
@@ -145,9 +403,9 @@ export default function AdminDashboard() {
         {/* Portfolio-style summary card */}
         <div className="lg:col-span-5 bg-surface-primary rounded-2xl border border-border-secondary p-6
                         animate-fade-in">
-          <h2 className="text-sm font-semibold text-text-secondary mb-1">Platform Usage</h2>
+          <h2 className="text-sm font-semibold text-text-secondary mb-1">System Usage</h2>
           <div className="flex items-baseline gap-3 mb-1">
-            <span className="text-3xl font-bold text-text-primary tracking-tight">1,846</span>
+            <span className="text-3xl font-bold text-text-primary tracking-tight">{totalUsers}</span>
             <span className="text-xs font-medium text-text-tertiary">total users</span>
           </div>
           <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#eafaf0] dark:bg-emerald-500/10 mb-4">
@@ -158,7 +416,7 @@ export default function AdminDashboard() {
           {/* Mini chart */}
           <div className="mt-2">
             <MiniChart
-              data={adminData.monthlyUsers || [120, 180, 250, 310, 420, 580, 720, 860, 1020, 1280, 1540, 1846]}
+              data={chartData}
               label="Monthly active users"
               height={80}
               colorFrom="#2a85ff"
@@ -168,11 +426,12 @@ export default function AdminDashboard() {
 
           {/* Time range tabs */}
           <div className="flex items-center gap-1 mt-4">
-            {['3M', '6M', '1Y', 'YTD', 'ALL'].map((tab, i) => (
+            {['3M', '6M', '1Y', 'YTD', 'ALL'].map((tab) => (
               <button
                 key={tab}
+                onClick={() => { setTimeRange(tab); fetchChartData(tab); }}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer
-                  ${i === 2
+                  ${tab === timeRange
                     ? 'bg-text-primary text-text-inverse'
                     : 'text-text-tertiary hover:text-text-primary hover:bg-surface-tertiary'
                   }`}
@@ -183,11 +442,11 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Asset-style cards column — stretches to match Platform Usage height */}
+        {/* Asset-style cards column — stretches to match System Usage height */}
         <div className="lg:col-span-7 flex flex-col">
           <h2 className="text-sm font-semibold text-text-secondary mb-3">Quick Stats</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
-            {assetCards.map((card, i) => (
+            {cards.map((card, i) => (
               <div
                 key={i}
                 className={`${card.bg} ${card.darkBg} rounded-2xl p-5 animate-fade-in
@@ -217,8 +476,52 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+            {/* Global Leave Stats Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-border-secondary animate-fade-in flex flex-col justify-between"
+              style={{ animationDelay: '240ms' }}>
+              <div>
+                <span className="text-sm font-semibold text-text-secondary block mb-2 uppercase tracking-wider">Global Leave</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <span className="text-xl font-bold text-text-primary block">
+                      {globalLeave.filter(r => r.status === 'pending').length}
+                    </span>
+                    <span className="text-[10px] text-text-tertiary uppercase font-bold">Pending</span>
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-xl font-bold text-text-primary block">
+                      {globalLeave.filter(r => r.status === 'approved').length}
+                    </span>
+                    <span className="text-[10px] text-text-tertiary uppercase font-bold">Approved</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-border-secondary flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-medium text-text-secondary">Normal Load</span>
+                </div>
+                <Palmtree size={14} className="text-text-tertiary" />
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Global Vacation Requests Table */}
+      <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in"
+        style={{ animationDelay: '350ms' }}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-text-primary">Cross-Organization Leave Activity</h2>
+            <StatusBadge variant="info" size="sm">Demo Data</StatusBadge>
+          </div>
+          <button onClick={() => window.location.href = '/modules/vacation'}
+            className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors">
+            Configure Policies
+          </button>
+        </div>
+        <DataTable columns={leaveColumns} data={globalLeave} />
       </div>
 
       {/* Bottom Row: Organizations table + Promo card */}
@@ -232,29 +535,35 @@ export default function AdminDashboard() {
               <span className="text-xs text-text-tertiary">overview</span>
             </div>
             <div className="flex items-center gap-2">
-              <select className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
+              <select
+                value={orgPeriod}
+                onChange={e => setOrgPeriod(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
                                  border border-border-secondary text-text-secondary cursor-pointer
                                  focus:outline-none">
-                <option>This month</option>
-                <option>This quarter</option>
-                <option>This year</option>
+                <option value="month">This month</option>
+                <option value="quarter">This quarter</option>
+                <option value="year">This year</option>
               </select>
-              <select className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
+              <select
+                value={orgSort}
+                onChange={e => setOrgSort(e.target.value)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
                                  border border-border-secondary text-text-secondary cursor-pointer
                                  focus:outline-none">
-                <option>Top growing</option>
-                <option>Most users</option>
-                <option>Newest</option>
+                <option value="growing">Top growing</option>
+                <option value="users">Most users</option>
+                <option value="newest">Newest</option>
               </select>
             </div>
           </div>
-          <DataTable columns={orgColumns} data={orgTableData} emptyMessage="No organizations found" />
+          <DataTable columns={getOrgColumns(toggleFavorite, favorites)} data={orgs} emptyMessage="No organizations found" />
         </div>
 
         {/* Promo / CTA Card — dark card matching template */}
         <div className="lg:col-span-4 bg-[#1a1d1f] rounded-2xl p-6 flex flex-col justify-between
                         min-h-[280px] animate-fade-in relative overflow-hidden"
-             style={{ animationDelay: '400ms' }}>
+          style={{ animationDelay: '400ms' }}>
           {/* Decorative geometric lines */}
           <div className="absolute -bottom-8 -right-8 w-40 h-40 border border-white/5 rounded-2xl
                           rotate-12" />
@@ -266,14 +575,16 @@ export default function AdminDashboard() {
           <div className="relative z-10">
             <h3 className="text-xl font-bold text-white leading-tight mb-2">
               Automate <span className="inline-block px-2 py-0.5 rounded-md bg-white/10 text-white text-sm font-semibold mx-0.5">free</span> processes
-              <br />with BPMS Platform!
+              <br />with Flowly!
             </h3>
             <p className="text-sm text-[#6f767e] mt-3 leading-relaxed">
               Streamline your business processes and manage workflows effortlessly.
             </p>
           </div>
 
-          <button className="relative z-10 mt-6 self-start px-5 py-2.5 rounded-xl bg-white text-[#1a1d1f]
+          <button
+            onClick={() => navigate('/enterprise')}
+            className="relative z-10 mt-6 self-start px-5 py-2.5 rounded-xl bg-white text-[#1a1d1f]
                              text-sm font-semibold hover:bg-gray-100 transition-colors cursor-pointer
                              shadow-lg shadow-black/20">
             Get Started
@@ -286,7 +597,7 @@ export default function AdminDashboard() {
                       animate-fade-in" style={{ animationDelay: '500ms' }}>
         <h2 className="text-sm font-bold text-text-primary mb-4">System Logs</h2>
         <div className="space-y-3">
-          {adminData.systemLogs.map((log) => (
+          {systemLogs.map((log) => (
             <div key={log.id} className="flex items-start gap-3 group">
               <StatusBadge variant={{ success: 'success', warning: 'warning', danger: 'danger', info: 'info' }[log.severity]} size="sm" dot>
                 {log.severity}
@@ -300,6 +611,113 @@ export default function AdminDashboard() {
           ))}
         </div>
       </div>
+
+
+      {/* Add HR Modal */}
+      <Modal
+        isOpen={showAddHRModal}
+        onClose={() => { setShowAddHRModal(false); setHrCreated(false); setHrError(null); }}
+        title="Create HR Account"
+        maxWidth="max-w-md"
+      >
+        {hrCreated ? (
+          /* ── Success screen shown INSIDE the modal ── */
+          <div className="flex flex-col items-center justify-center py-8 gap-4">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+              <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-text-primary">HR Account Created!</p>
+              <p className="text-sm text-text-secondary mt-1">
+                {hrForm.firstName} {hrForm.lastName} has been added successfully.
+              </p>
+              <p className="text-xs text-text-tertiary mt-2">This window will close automatically…</p>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleCreateHR} className="space-y-4">
+            {/* Error banner — shown when creation fails */}
+            {hrError && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400">
+                <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <p className="text-sm font-medium">{hrError}</p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">First Name *</label>
+                <input
+                  type="text" required
+                  value={hrForm.firstName}
+                  onChange={e => setHrForm(f => ({ ...f, firstName: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                  placeholder="e.g. Jane"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Last Name *</label>
+                <input
+                  type="text" required
+                  value={hrForm.lastName}
+                  onChange={e => setHrForm(f => ({ ...f, lastName: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                  placeholder="e.g. Doe"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Email Address *</label>
+              <input
+                type="email" required
+                value={hrForm.email}
+                onChange={e => setHrForm(f => ({ ...f, email: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                placeholder="jane.doe@company.com"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Phone Number *</label>
+              <input
+                type="tel" required
+                value={hrForm.phone}
+                onChange={e => setHrForm(f => ({ ...f, phone: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                placeholder="+212 600 000 000"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Initial Password *</label>
+              <input
+                type="password" required minLength={6}
+                value={hrForm.password}
+                onChange={e => setHrForm(f => ({ ...f, password: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 text-text-primary"
+                placeholder="Enter password..."
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-border-secondary">
+              <button
+                type="button"
+                onClick={() => setShowAddHRModal(false)}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:bg-surface-tertiary border border-border-secondary transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingHR}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer"
+              >
+                {isSubmittingHR ? 'Creating...' : 'Create HR Account'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

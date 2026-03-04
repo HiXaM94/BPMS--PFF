@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
     Building2, Users, DollarSign, Download, CheckCircle2,
     AlertTriangle, UploadCloud, Eye, FileText, Lock
@@ -6,8 +7,19 @@ import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 
 export default function CompanyAdminPayroll() {
+    const [approvalStatus, setApprovalStatus] = useState(null);
+    const [uploadMarked, setUploadMarked] = useState(false);
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
+
     return (
         <div className="space-y-6 animate-fade-in">
+
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
 
             {/* High Level Stats */}
             <div>
@@ -18,7 +30,7 @@ export default function CompanyAdminPayroll() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard title="Total Cost" value="1,316,865 MAD" subtitle="Net + Contributions" icon={DollarSign} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                     <StatCard title="Total Net Payroll" value="1,058,250 MAD" subtitle="To be transferred" icon={DollarSign} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
-                    <StatCard title="Employees" value="87" subtitle="Included in cycle" icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-purple-500" />
+                    <StatCard title="Employees" value="87" subtitle="Included in cycle" icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
                     <StatCard title="Employer Contrib." value="258,615 MAD" subtitle="CNSS, AMO, Taxes" icon={FileText} iconColor="bg-gradient-to-br from-orange-500 to-red-500" />
                 </div>
             </div>
@@ -74,14 +86,20 @@ export default function CompanyAdminPayroll() {
                             </ul>
                         </div>
 
-                        <div className="flex gap-3">
-                            <button className="flex-1 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm">
-                                Approve & Generate Files
-                            </button>
-                            <button className="py-2.5 px-6 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors">
-                                Request Changes
-                            </button>
-                        </div>
+                        {approvalStatus ? (
+                            <div className={`py-2.5 text-center text-sm font-bold rounded-xl ${approvalStatus === 'approved' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                                {approvalStatus === 'approved' ? 'Payroll Approved — Files Generated' : 'Changes Requested — Sent Back to HR'}
+                            </div>
+                        ) : (
+                            <div className="flex gap-3">
+                                <button onClick={() => { setApprovalStatus('approved'); flash('Payroll approved. Payslips generated and bank XML ready for download.'); }} className="flex-1 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm cursor-pointer">
+                                    Approve & Generate Files
+                                </button>
+                                <button onClick={() => { setApprovalStatus('changes'); flash('Change request sent back to HR Manager'); }} className="py-2.5 px-6 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors cursor-pointer">
+                                    Request Changes
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -104,7 +122,7 @@ export default function CompanyAdminPayroll() {
                                     <p className="font-semibold text-text-primary">ACME_Payroll_March2026.xml</p>
                                     <p className="text-text-secondary text-xs mt-1">SEPA XML (Attijariwafa) • 47 KB • 87 Transactions</p>
                                 </div>
-                                <button className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition-colors shadow-sm whitespace-nowrap">
+                                <button onClick={() => flash('Downloading ACME_Payroll_March2026.xml...')} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition-colors shadow-sm whitespace-nowrap cursor-pointer">
                                     <Download size={16} /> Download
                                 </button>
                             </div>
@@ -122,8 +140,11 @@ export default function CompanyAdminPayroll() {
 
                         <div className="pt-5 border-t border-border-secondary">
                             <h4 className="font-semibold text-text-primary text-sm mb-3">MARK UPLOAD STATUS:</h4>
-                            <button className="w-full flex justify-center items-center gap-2 py-2.5 bg-surface-primary border border-brand-500 text-brand-500 rounded-xl font-bold hover:bg-brand-50 transition-colors">
-                                <UploadCloud size={18} /> Mark as "Bank File Uploaded"
+                            <button
+                                onClick={() => { setUploadMarked(true); flash('Bank file marked as uploaded. HR and employees notified.'); }}
+                                disabled={uploadMarked}
+                                className={`w-full flex justify-center items-center gap-2 py-2.5 rounded-xl font-bold transition-colors cursor-pointer ${uploadMarked ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' : 'bg-surface-primary border border-brand-500 text-brand-500 hover:bg-brand-50'} disabled:cursor-not-allowed`}>
+                                {uploadMarked ? <><CheckCircle2 size={18} /> Bank File Uploaded</> : <><UploadCloud size={18} /> Mark as "Bank File Uploaded"</>}
                             </button>
                             <p className="text-xs text-text-tertiary text-center mt-3">This notifies HR and Employees that payment is processing.</p>
                         </div>

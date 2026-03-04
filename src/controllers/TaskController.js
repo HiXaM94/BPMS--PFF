@@ -36,6 +36,14 @@ class TaskController {
         }
         return new Task(storageService.update('tasks', taskId, updates));
     }
+
+    update(taskId, updates) {
+        return new Task(storageService.update('tasks', taskId, updates));
+    }
+
+    delete(taskId) {
+        storageService.delete('tasks', taskId);
+    }
 }
 
 export const taskController = new TaskController();

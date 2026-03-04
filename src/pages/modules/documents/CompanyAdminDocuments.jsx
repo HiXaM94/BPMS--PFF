@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
     Building2, Users, FileText, CheckCircle2, ShieldCheck,
     AlertTriangle, Eye, Download, Search, Settings
@@ -54,8 +55,21 @@ const columns = [
 ];
 
 export default function CompanyAdminDocuments() {
+    const [certStatus, setCertStatus] = useState(null);
+    const [search, setSearch] = useState('');
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+
+    const filtered = employeeCompliance.filter(d => d.employee.toLowerCase().includes(search.toLowerCase()) || d.dept.toLowerCase().includes(search.toLowerCase()));
+
     return (
         <div className="space-y-6 animate-fade-in">
+
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
 
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
@@ -63,10 +77,10 @@ export default function CompanyAdminDocuments() {
                     Acme Corporation Documents
                 </h2>
                 <div className="flex gap-2">
-                    <button className="px-4 py-2 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors text-sm flex items-center gap-2">
+                    <button onClick={() => flash('Company templates editor opened')} className="px-4 py-2 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors text-sm flex items-center gap-2 cursor-pointer">
                         <Settings size={16} /> Company Templates
                     </button>
-                    <button className="px-4 py-2 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm text-sm">
+                    <button onClick={() => flash('Bulk document request sent to all employees with missing docs')} className="px-4 py-2 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm text-sm cursor-pointer">
                         Bulk Request
                     </button>
                 </div>
@@ -100,10 +114,16 @@ export default function CompanyAdminDocuments() {
                                 <StatusBadge variant="warning" size="sm">Review</StatusBadge>
                             </div>
                             <p className="text-xs text-text-secondary mb-3">Requested by: <strong>Ahmed Hassan</strong> (Marketing)</p>
-                            <div className="flex gap-2">
-                                <button className="flex-1 py-1.5 bg-emerald-500/10 text-emerald-600 font-bold rounded-lg text-xs hover:bg-emerald-500/20">Sign & Approve</button>
-                                <button className="flex-1 py-1.5 bg-surface-secondary text-text-primary font-medium rounded-lg text-xs hover:bg-border-secondary">View Draft</button>
-                            </div>
+                            {certStatus ? (
+                                <div className="py-1.5 text-center text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-600">
+                                    Tax Certificate signed & approved
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setCertStatus('approved'); flash('Tax Certificate 2025 signed and approved'); }} className="flex-1 py-1.5 bg-emerald-500/10 text-emerald-600 font-bold rounded-lg text-xs hover:bg-emerald-500/20 cursor-pointer">Sign & Approve</button>
+                                    <button onClick={() => flash('Opening draft preview...')} className="flex-1 py-1.5 bg-surface-secondary text-text-primary font-medium rounded-lg text-xs hover:bg-border-secondary cursor-pointer">View Draft</button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="pt-2 text-xs text-text-secondary flex justify-between items-center">
@@ -122,12 +142,14 @@ export default function CompanyAdminDocuments() {
                             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                             <input
                                 type="text"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
                                 placeholder="Search employee..."
                                 className="pl-9 pr-4 py-2 bg-surface-secondary border border-border-secondary rounded-lg text-sm text-text-primary focus:outline-none focus:border-brand-500"
                             />
                         </div>
                     </div>
-                    <DataTable columns={columns} data={employeeCompliance} />
+                    <DataTable columns={columns} data={filtered} />
                 </div>
 
             </div>
