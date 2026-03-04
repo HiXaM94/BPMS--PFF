@@ -19,6 +19,7 @@ import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
+import PasswordChangeModal from '../../components/ui/PasswordChangeModal';
 import { managerData } from '../../data/mockData';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
@@ -215,6 +216,7 @@ export default function ManagerDashboard() {
   const [processComp, setProcessComp] = useState(managerData.processCompletion);
   const [selectedProject, setSelectedProject] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   const handleProjectClick = (project) => {
     setSelectedProject(project);
@@ -223,6 +225,20 @@ export default function ManagerDashboard() {
 
   useEffect(() => {
     if (!isSupabaseReady || !profile?.id) return;
+
+    // Check if password needs to be changed for TEAM_MANAGER role
+    if (profile?.role === 'TEAM_MANAGER') {
+      supabase
+        .from('team_manager_profiles')
+        .select('password_changed')
+        .eq('user_id', profile.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data && data.password_changed !== true) {
+            setShowPasswordReset(true);
+          }
+        });
+    }
 
     // Fetch team stats
     cacheService.getOrSet('manager:stats', async () => {
@@ -267,8 +283,18 @@ export default function ManagerDashboard() {
     });
   }, [profile?.id]);
 
+  const handlePasswordModalClose = () => {
+    setShowPasswordReset(false);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Shared Password Reset Modal for Manager */}
+      <PasswordChangeModal
+        isOpen={showPasswordReset}
+        onClose={handlePasswordModalClose}
+        role="TEAM_MANAGER"
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

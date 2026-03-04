@@ -13,6 +13,7 @@ import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
 import StatusBadge from '../../components/ui/StatusBadge';
 import MiniChart from '../../components/ui/MiniChart';
+import PasswordChangeModal from '../../components/ui/PasswordChangeModal';
 import { employeeData } from '../../data/mockData';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
@@ -89,9 +90,24 @@ export default function EmployeeDashboard() {
   const [myRequests, setMyRequests] = useState(employeeData.myRequests);
   const [activity, setActivity] = useState(employeeData.recentActivity);
   const [weeklyActivity, setWeeklyActivity] = useState(employeeData.weeklyActivity);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseReady || !profile?.id) return;
+
+    // Check if password needs to be changed for EMPLOYEE role
+    if (profile?.role === 'EMPLOYEE' || profile?.role === 'EMPLOYEE_HR') {
+      supabase
+        .from('employees')
+        .select('password_changed')
+        .eq('user_id', profile.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data && data.password_changed !== true) {
+            setShowPasswordReset(true);
+          }
+        });
+    }
 
     // Fetch employee's tasks
     cacheService.getOrSet(`emp:tasks:${profile.id}`, async () => {
@@ -157,8 +173,18 @@ export default function EmployeeDashboard() {
   const pending = myTasks.filter(t => t.status === 'pending').length;
   const notStarted = myTasks.filter(t => t.status === 'not-started').length;
 
+  const handleModalClose = () => {
+    setShowPasswordReset(false);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Shared Password Reset Modal for Employee */}
+      <PasswordChangeModal
+        isOpen={showPasswordReset}
+        onClose={handleModalClose}
+        role="EMPLOYEE"
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

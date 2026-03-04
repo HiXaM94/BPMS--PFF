@@ -12,7 +12,8 @@ import {
   BarChart3,
   Star,
   Palmtree,
-  UserPlus
+  UserPlus,
+  Plus
 } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
@@ -389,11 +390,18 @@ export default function AdminDashboard() {
             Vacation Management
           </button>
           <button
-            onClick={() => window.location.href = '/modules/TaskPerformance'}
+            onClick={() => navigate('/tasks')}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer"
           >
             <Activity size={16} />
             Task & Performance
+          </button>
+          <button
+            onClick={() => navigate('/tasks?tab=projects')}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer"
+          >
+            <Plus size={16} />
+            Add Project
           </button>
         </div>
       </div>

@@ -59,11 +59,13 @@ export const ROLES = [
 
 // Maps Supabase user_role enum → local role id
 export const ROLE_MAP = {
-  ADMIN:         'super_admin',
+  SUPER_ADMIN: 'super_admin',
+  ADMIN: 'company_admin',
+  admin: 'company_admin',
   COMPANY_ADMIN: 'company_admin',
-  HR:            'hr',
-  TEAM_MANAGER:  'manager',
-  EMPLOYEE:      'employee',
+  HR: 'hr',
+  TEAM_MANAGER: 'manager',
+  EMPLOYEE: 'employee',
 };
 
 const RoleContext = createContext(undefined);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Users, TrendingUp, Activity, BarChart3, Edit3, Plus, Target,
@@ -8,6 +8,7 @@ import PageHeader from '../../../components/ui/PageHeader';
 import StatCard from '../../../components/ui/StatCard';
 import DataTable from '../../../components/ui/DataTable';
 import StatusBadge from '../../../components/ui/StatusBadge';
+import { useSearchParams } from 'react-router-dom';
 
 // --- INITIAL MOCK DATA ---
 const initialEmployees = [
@@ -27,17 +28,26 @@ const initialManagers = [
     { id: 202, name: 'Sarah Connor', teamId: 102, productivity: 90, projectProgress: 85, completedTasks: 92, notes: [] },
 ];
 
-const initialProjects = [
+const INITIAL_PROJECTS = [
     { id: 301, name: 'Website Redesign', desc: 'Revamp external website UI', start: '2026-03-01', deadline: '2026-06-01', managerId: 202, status: 'Active' },
     { id: 302, name: 'Q1 MVP Launch', desc: 'Successfully launched V1', start: '2025-01-01', deadline: '2025-03-31', managerId: 201, status: 'Completed' },
 ];
+const ADMIN_TABS = ['overview', 'employees', 'managers', 'projects'];
 
 export default function AdminPerformanceView() {
     const [activeTab, setActiveTab] = useState('overview');
     const [employees] = useState(initialEmployees);
     const [teams] = useState(initialTeams);
     const [managers, setManagers] = useState(initialManagers);
-    const [projects, setProjects] = useState(initialProjects);
+    const [projects, setProjects] = useState(INITIAL_PROJECTS);
+    const [searchParams] = useSearchParams();
+
+    useEffect(() => {
+        const queryTab = searchParams.get('tab');
+        if (queryTab && ADMIN_TABS.includes(queryTab) && queryTab !== activeTab) {
+            setActiveTab(queryTab);
+        }
+    }, [searchParams, activeTab]);
 
     // Notes state
     const [selectedManager, setSelectedManager] = useState(null);

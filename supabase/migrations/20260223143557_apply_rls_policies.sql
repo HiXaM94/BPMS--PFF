@@ -1,4 +1,28 @@
 -- ============================================================
+-- TABLE: user_details
+-- ============================================================
+
+ALTER TABLE user_details ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_details_admin_all"
+  ON user_details FOR ALL
+  USING (is_admin())
+  WITH CHECK (is_admin());
+
+CREATE POLICY "user_details_self_select"
+  ON user_details FOR SELECT
+  USING (id_user = auth.uid());
+
+CREATE POLICY "user_details_self_insert"
+  ON user_details FOR INSERT
+  USING (true)
+  WITH CHECK (id_user = auth.uid());
+
+CREATE POLICY "user_details_self_update"
+  ON user_details FOR UPDATE
+  USING (id_user = auth.uid())
+  WITH CHECK (id_user = auth.uid());
+
 -- BPMS — Row Level Security (RLS) Policies
 -- Supabase PostgreSQL
 -- ============================================================
@@ -195,6 +219,11 @@ CREATE POLICY "employees_self_update"
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
+CREATE POLICY "employees_self_insert"
+  ON employees FOR INSERT
+  USING (true)
+  WITH CHECK (user_id = auth.uid());
+
 -- ============================================================
 -- TABLE: employee_skills
 -- ADMIN/HR: full CRUD
@@ -258,6 +287,16 @@ CREATE POLICY "manager_profiles_admin_all"
 CREATE POLICY "manager_profiles_self_select"
   ON team_manager_profiles FOR SELECT
   USING (employee_id = auth_employee_id());
+
+CREATE POLICY "manager_profiles_self_insert"
+  ON team_manager_profiles FOR INSERT
+  USING (employee_id = auth_employee_id())
+  WITH CHECK (employee_id = auth_employee_id());
+
+CREATE POLICY "manager_profiles_self_update"
+  ON team_manager_profiles FOR UPDATE
+  USING (employee_id = auth_employee_id())
+  WITH CHECK (employee_id = auth_employee_id());
 
 CREATE POLICY "admin_profiles_admin_all"
   ON admin_profiles FOR ALL
