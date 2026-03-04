@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
     Lock, ArrowUpCircle, ExternalLink, BellRing, UserCheck,
     CheckCircle2, Users, Receipt
@@ -5,8 +6,19 @@ import {
 import StatCard from '../../../components/ui/StatCard';
 
 export default function ManagerPayroll() {
+    const [recSubmitted, setRecSubmitted] = useState(false);
+    const [advanceStatus, setAdvanceStatus] = useState(null);
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+
     return (
         <div className="space-y-6 animate-fade-in">
+
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
 
             {/* High Level Stats (Amount Blind) */}
             <div>
@@ -87,8 +99,11 @@ export default function ManagerPayroll() {
                             <p>You are recommending the promotion level. HR and Company Admin will determine the exact financial amount based on budget, market rates, and policy.</p>
                         </div>
 
-                        <button className="w-full py-2 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors">
-                            Submit Recommendation
+                        <button
+                            onClick={() => { setRecSubmitted(true); flash('Salary increase recommendation submitted to HR'); }}
+                            disabled={recSubmitted}
+                            className={`w-full py-2 rounded-xl font-bold transition-colors cursor-pointer ${recSubmitted ? 'bg-emerald-500 text-white' : 'bg-brand-500 text-white hover:bg-brand-600'} disabled:cursor-not-allowed`}>
+                            {recSubmitted ? 'Recommendation Submitted' : 'Submit Recommendation'}
                         </button>
                     </div>
                 </div>
@@ -155,14 +170,20 @@ export default function ManagerPayroll() {
                                     Check approved based on situation and reliability. The specific amount asked will be routed securely to HR.
                                 </p>
                             </div>
-                            <div className="flex gap-2">
-                                <button className="flex-1 py-2 bg-text-primary text-surface-primary rounded-xl font-bold hover:bg-black/90 dark:hover:bg-white/90 transition-colors">
-                                    Approve (Fwd to HR)
-                                </button>
-                                <button className="py-2 px-6 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors">
-                                    Reject
-                                </button>
-                            </div>
+                            {advanceStatus ? (
+                                <div className={`py-2 text-center text-sm font-medium rounded-xl ${advanceStatus === 'approved' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}`}>
+                                    {advanceStatus === 'approved' ? 'Approved & Forwarded to HR' : 'Advance Request Rejected'}
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setAdvanceStatus('approved'); flash('Salary advance approved and forwarded to HR'); }} className="flex-1 py-2 bg-text-primary text-surface-primary rounded-xl font-bold hover:bg-black/90 dark:hover:bg-white/90 transition-colors cursor-pointer">
+                                        Approve (Fwd to HR)
+                                    </button>
+                                    <button onClick={() => { setAdvanceStatus('rejected'); flash('Salary advance request rejected'); }} className="py-2 px-6 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors cursor-pointer">
+                                        Reject
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                     </div>

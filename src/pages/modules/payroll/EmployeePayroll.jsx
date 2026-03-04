@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Download, Wallet, TrendingUp,
     FileCheck, Receipt, Clock, CheckCircle2, ShieldCheck,
@@ -40,10 +41,45 @@ function fmtDate(d) {
 }
 
 export default function EmployeePayroll() {
+    const navigate = useNavigate();
     const { profile } = useAuth();
     const [payroll, setPayroll] = useState(null);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [advanceRequested, setAdvanceRequested] = useState(false);
+    const [advanceLoading, setAdvanceLoading] = useState(false);
+    const [toast, setToast] = useState('');
+
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
+
+    const handleRequestAdvance = useCallback(async () => {
+        setAdvanceLoading(true);
+        if (!isSupabaseReady || !profile?.id) {
+            setTimeout(() => {
+                setAdvanceRequested(true);
+                setAdvanceLoading(false);
+                flash('Salary advance request submitted!');
+            }, 800);
+            return;
+        }
+        try {
+            await supabase.from('documents').insert({
+                user_id: profile.id,
+                title: 'Salary Advance Request',
+                doc_type: 'salary_advance',
+                status: 'pending',
+            });
+            setAdvanceRequested(true);
+            flash('Salary advance request submitted!');
+        } catch (err) {
+            flash('Request failed: ' + (err.message || 'Unknown error'));
+        }
+        setAdvanceLoading(false);
+    }, [profile?.id]);
+
+    const handlePrintPDF = useCallback(() => {
+        window.print();
+    }, []);
 
     useEffect(() => {
         async function fetchPayroll() {
@@ -146,7 +182,7 @@ export default function EmployeePayroll() {
                                 <p className="text-sm text-text-secondary mt-1">Employee: {profile?.name || 'Employee'}</p>
                             </div>
                         </div>
-                        <button className="hidden sm:flex items-center gap-2 px-4 py-2 bg-surface-secondary border border-border-secondary rounded-lg text-sm font-semibold hover:bg-border-secondary transition-colors">
+                        <button onClick={handlePrintPDF} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-surface-secondary border border-border-secondary rounded-lg text-sm font-semibold hover:bg-border-secondary transition-colors cursor-pointer">
                             <Download size={16} /> Print / PDF
                         </button>
                     </div>
@@ -235,8 +271,11 @@ export default function EmployeePayroll() {
                         <p className="text-sm text-text-secondary mb-4">
                             You can request a partial salary advance before the next pay cycle. Advance deductions are taken directly from next month's net pay.
                         </p>
-                        <button className="w-full py-2 bg-surface-secondary border border-border-secondary text-text-primary font-medium rounded-xl hover:bg-border-secondary transition-colors text-sm">
-                            Request Salary Advance
+                        <button
+                            onClick={handleRequestAdvance}
+                            disabled={advanceLoading || advanceRequested}
+                            className="w-full py-2 bg-surface-secondary border border-border-secondary text-text-primary font-medium rounded-xl hover:bg-border-secondary transition-colors text-sm disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed">
+                            {advanceLoading ? 'Submitting...' : advanceRequested ? 'Request Submitted' : 'Request Salary Advance'}
                         </button>
                     </div>
 
@@ -253,7 +292,7 @@ export default function EmployeePayroll() {
                                 </div>
                             ))}
                         </div>
-                        <button className="w-full p-3 text-xs font-semibold text-brand-500 hover:bg-surface-secondary transition-colors text-center border-t border-border-secondary">
+                        <button onClick={() => navigate('/payroll')} className="w-full p-3 text-xs font-semibold text-brand-500 hover:bg-surface-secondary transition-colors text-center border-t border-border-secondary cursor-pointer">
                             View All History
                         </button>
                     </div>

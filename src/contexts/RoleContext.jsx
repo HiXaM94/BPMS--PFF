@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 /**
- * Available roles in the BPMS platform.
+ * Available roles in the Flowly system.
  * Each role has an id, display label, description, and color.
  */
 export const ROLES = [
@@ -9,11 +9,11 @@ export const ROLES = [
     id: 'super_admin',
     label: 'Super Admin',
     shortLabel: 'S-Admin',
-    description: 'SaaS Platform Owner, cross-company monitoring',
+    description: 'SaaS Owner, cross-company monitoring',
     color: 'from-[#8e55ea] to-[#b38cf5]',
     textColor: 'text-[#8e55ea]',
     bgColor: 'bg-[#8e55ea]/10',
-    companyId: 0, // Platform level
+    companyId: 0, // System level
   },
   {
     id: 'company_admin',
@@ -59,10 +59,11 @@ export const ROLES = [
 
 // Maps Supabase user_role enum → local role id
 export const ROLE_MAP = {
-  ADMIN:        'super_admin',
-  HR:           'hr',
-  TEAM_MANAGER: 'manager',
-  EMPLOYEE:     'employee',
+  ADMIN:         'super_admin',
+  COMPANY_ADMIN: 'company_admin',
+  HR:            'hr',
+  TEAM_MANAGER:  'manager',
+  EMPLOYEE:      'employee',
 };
 
 const RoleContext = createContext(undefined);
@@ -77,7 +78,7 @@ export function RoleProvider({ children, profileRole }) {
     }
     // Fall back to localStorage (demo / offline mode)
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('bpms-role');
+      const stored = localStorage.getItem('flowly-role');
       const found = ROLES.find(r => r.id === stored);
       if (found) return found;
     }
@@ -96,7 +97,7 @@ export function RoleProvider({ children, profileRole }) {
     const role = ROLES.find(r => r.id === roleId);
     if (role) {
       setCurrentRole(role);
-      localStorage.setItem('bpms-role', roleId);
+      localStorage.setItem('flowly-role', roleId);
     }
   }, []);
 

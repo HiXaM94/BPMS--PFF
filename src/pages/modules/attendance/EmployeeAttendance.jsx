@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Clock, Download, CheckCircle2, History, AlertCircle, ScanLine, LogIn, Maximize2 } from 'lucide-react';
-import StatCard from '../../../components/ui/StatCard';
-import StatusBadge from '../../../components/ui/StatusBadge';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
+import { cacheService } from '../../../services/CacheService';
+import QRClockIn from './QRClockIn';
 
 function fmtTime(t) {
     if (!t) return '-';
@@ -23,26 +23,30 @@ export default function EmployeeAttendance() {
         const date = new Date().toISOString().split('T')[0];
         const monthStart = date.slice(0, 7) + '-01';
 
-        // Today's presence
-        supabase.from('presences')
-            .select('*, employees!inner(user_id)')
-            .eq('employees.user_id', profile.id)
-            .eq('date', date)
-            .maybeSingle()
-            .then(({ data }) => { if (data) setToday(data); });
+        // Today's presence – cached 60s
+        cacheService.getOrSet(`attendance:emp:${profile.id}:${date}`, async () => {
+            const { data } = await supabase.from('presences')
+                .select('*, employees!inner(user_id)')
+                .eq('employees.user_id', profile.id)
+                .eq('date', date)
+                .maybeSingle();
+            return data;
+        }, 60).then((data) => { if (data) setToday(data); });
 
-        // Monthly totals
-        supabase.from('presences')
-            .select('hours_worked, overtime_hours, employees!inner(user_id)')
-            .eq('employees.user_id', profile.id)
-            .gte('date', monthStart)
-            .then(({ data }) => {
-                if (!data || data.length === 0) return;
-                const hrs = data.reduce((s, r) => s + (r.hours_worked || 0), 0);
-                const ot  = data.reduce((s, r) => s + (r.overtime_hours || 0), 0);
-                setMonthlyHours(Math.round(hrs));
-                setOvertime(Math.round(ot * 10) / 10);
-            });
+        // Monthly totals – cached 2 min
+        cacheService.getOrSet(`attendance:emp:monthly:${profile.id}:${monthStart}`, async () => {
+            const { data } = await supabase.from('presences')
+                .select('hours_worked, overtime_hours, employees!inner(user_id)')
+                .eq('employees.user_id', profile.id)
+                .gte('date', monthStart);
+            return data;
+        }, 120).then((data) => {
+            if (!data || data.length === 0) return;
+            const hrs = data.reduce((s, r) => s + (r.hours_worked || 0), 0);
+            const ot = data.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+            setMonthlyHours(Math.round(hrs));
+            setOvertime(Math.round(ot * 10) / 10);
+        });
     }, [profile?.id]);
 
     const firstName = profile?.name?.split(' ')[0] || 'there';
@@ -64,45 +68,24 @@ export default function EmployeeAttendance() {
 
                 {/* EMP-01: Clock In Block */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className={`rounded-3xl p-6 text-white shadow-lg relative overflow-hidden
-                        ${isClockedIn ? 'bg-brand-500 shadow-brand-500/20' : 'bg-surface-primary border border-border-secondary'}`}>
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-bl-full pointer-events-none"></div>
-
-                        {isClockedIn ? (
-                            <>
-                                <h3 className="text-lg font-bold mb-1 flex items-center gap-2"><CheckCircle2 size={20} /> Clock In Successful!</h3>
-                                <p className="text-white/80 text-sm mb-6">{isOnTime ? 'You are on time today. Have a great shift!' : 'You clocked in late today.'}</p>
-                                <div className="space-y-3 mb-6 bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-white/70 text-sm">Time</span>
-                                        <span className="font-semibold">{fmtTime(today.check_in_time)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-white/70 text-sm">Status</span>
-                                        <span className="font-semibold capitalize">{today.status}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-white/70 text-sm">Shift</span>
-                                        <span className="font-semibold">9:00 - 17:00</span>
-                                    </div>
-                                </div>
-                                <button className="w-full py-3 bg-white text-brand-500 font-bold rounded-xl shadow-md hover:scale-[1.02] transition-transform">
-                                    Start Lunch Break
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <h3 className="text-lg font-bold mb-1 flex items-center gap-2 text-text-primary"><LogIn size={20} className="text-brand-500" /> Not Clocked In</h3>
-                                <p className="text-text-secondary text-sm mb-6">Use the kiosk or QR code to clock in.</p>
-                                <div className="flex items-center justify-center w-full h-24 border-2 border-dashed border-border-secondary rounded-xl mb-4">
-                                    <ScanLine size={36} className="text-text-tertiary" />
-                                </div>
-                                <button className="w-full py-3 bg-brand-500 text-white font-bold rounded-xl shadow-md hover:scale-[1.02] transition-transform">
-                                    Clock In Now
-                                </button>
-                            </>
-                        )}
-                    </div>
+                    <QRClockIn
+                        isClockedIn={isClockedIn}
+                        isOnTime={isOnTime}
+                        checkInTime={today?.check_in_time}
+                        status={today?.status}
+                        onClockIn={() => {
+                            // In a real app, this would write to Supabase
+                            // For the UI demonstration, we'll set local state
+                            setToday({
+                                ...today,
+                                check_in_time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+                                status: 'present'
+                            });
+                        }}
+                        onStartLunch={() => {
+                            console.log('Lunch break started');
+                        }}
+                    />
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 gap-4">

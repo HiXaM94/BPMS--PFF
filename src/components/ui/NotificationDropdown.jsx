@@ -4,20 +4,21 @@ import {
   Bell, CheckCircle2, AlertCircle, Info, X, Check, ExternalLink, Loader2,
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 function typeStyle(type) {
   switch (type) {
     case 'success': return { Icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' };
-    case 'warning': return { Icon: AlertCircle,  color: 'text-amber-500',   bg: 'bg-amber-500/10'   };
-    case 'error':   return { Icon: AlertCircle,  color: 'text-red-500',     bg: 'bg-red-500/10'     };
-    default:        return { Icon: Info,          color: 'text-brand-500',   bg: 'bg-brand-500/10'   };
+    case 'warning': return { Icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' };
+    case 'error': return { Icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-500/10' };
+    default: return { Icon: Info, color: 'text-brand-500', bg: 'bg-brand-500/10' };
   }
 }
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)  return 'just now';
+  if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
@@ -26,6 +27,7 @@ function timeAgo(dateStr) {
 
 export default function NotificationDropdown() {
   const { notifications, loading, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -63,11 +65,11 @@ export default function NotificationDropdown() {
                        shadow-xl overflow-hidden z-[150]
                        transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-top-right
                        ${isOpen ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
-                                : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'}`}>
+          : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-secondary">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-text-primary">Notifications</h3>
+            <h3 className="text-sm font-bold text-text-primary">{t('notifications.title')}</h3>
             {unreadCount > 0 && (
               <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full
                               text-[10px] font-bold bg-danger-500 text-white">{unreadCount}</span>
@@ -77,7 +79,7 @@ export default function NotificationDropdown() {
             <button onClick={markAllAsRead}
               className="text-[11px] font-medium text-brand-500 hover:text-brand-600
                          transition-colors cursor-pointer flex items-center gap-1">
-              <Check size={12} /> Mark all read
+              <Check size={12} /> {t('notifications.markAllRead')}
             </button>
           )}
         </div>
@@ -91,7 +93,7 @@ export default function NotificationDropdown() {
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-text-tertiary">
               <Bell size={28} className="mb-2 opacity-30" />
-              <span className="text-sm">All caught up!</span>
+              <span className="text-sm">{t('notifications.noNotifications')}</span>
             </div>
           ) : (
             notifications.map((notif, i) => {
@@ -103,7 +105,10 @@ export default function NotificationDropdown() {
                              transition-all duration-200 animate-fade-in
                              ${!notif.is_read ? 'bg-brand-500/3 hover:bg-brand-500/6' : 'hover:bg-surface-secondary/50'}`}
                   style={{ animationDelay: `${i * 40}ms` }}
-                  onClick={() => markAsRead(notif.id)}
+                  onClick={() => {
+                    markAsRead(notif.id);
+                    setIsOpen(false);
+                  }}
                 >
                   {!notif.is_read && (
                     <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full
@@ -133,7 +138,7 @@ export default function NotificationDropdown() {
           <Link to="/notifications" onClick={() => setIsOpen(false)}
             className="w-full text-center text-xs font-medium text-brand-500 hover:text-brand-600
                        transition-colors cursor-pointer py-1 flex items-center justify-center gap-1">
-            View all notifications <ExternalLink size={10} />
+            {t('common.viewAll')} <ExternalLink size={10} />
           </Link>
         </div>
       </div>

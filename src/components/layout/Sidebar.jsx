@@ -1,16 +1,48 @@
 import { NavLink } from 'react-router-dom';
 import { useSidebar } from '../../contexts/SidebarContext';
 import { useRole } from '../../contexts/RoleContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { navigationItems } from '../../config/navigation';
 import {
   ChevronsLeft,
   ChevronsRight,
   X,
-  Workflow,
 } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
+import IconWhite from '../../logo/ICONWHITE.svg';
+import IconBlack from '../../logo/ICONBLACK.svg';
 
-function SidebarLink({ item, isCollapsed }) {
+
+// Map navigation item ids → i18n keys
+const navLabelKeys = {
+  dashboard: 'nav.dashboard',
+  enterprise: 'nav.enterprise',
+  users: 'nav.userManagement',
+  profile: 'nav.employeeProfile',
+  attendance: 'nav.attendance',
+  recruitment: 'nav.recruitment',
+  tasks: 'nav.taskPerformance',
+  vacation: 'nav.vacationRequest',
+  documents: 'nav.documentRequest',
+  payroll: 'nav.payroll',
+  analytics: 'nav.analytics',
+  'ai-assistant': 'nav.aiAssistant',
+  notifications: 'nav.notifications',
+  permissions: 'nav.permissions',
+  settings: 'nav.settings',
+  'hr-workflow': 'nav.hrWorkflow',
+};
+const sectionKeys = {
+  'Overview': 'nav.overview',
+  'HR & People': 'nav.hrPeople',
+  'Workflows': 'nav.workflows',
+  'Intelligence': 'nav.intelligence',
+  'System': 'nav.system',
+};
+
+function SidebarLink({ item, isCollapsed, t }) {
   const Icon = item.icon;
+  const label = navLabelKeys[item.id] ? t(navLabelKeys[item.id]) : item.label;
 
   return (
     <NavLink
@@ -20,16 +52,16 @@ function SidebarLink({ item, isCollapsed }) {
         `group relative flex items-center rounded-xl
          transition-all duration-200 ease-in-out
          ${isCollapsed
-           ? 'justify-center w-11 h-11'
-           : 'w-full gap-3 px-3 py-2.5'
-         }
+          ? 'justify-center w-11 h-11'
+          : 'w-full gap-3 px-3 py-2.5'
+        }
          ${isActive
           ? 'bg-sidebar-active text-sidebar-text-active'
           : 'text-sidebar-text hover:bg-sidebar-hover hover:text-sidebar-text-active'
-         }
+        }
         `
       }
-      title={isCollapsed ? item.label : undefined}
+      title={isCollapsed ? label : undefined}
     >
       <Icon
         size={20}
@@ -37,20 +69,21 @@ function SidebarLink({ item, isCollapsed }) {
       />
       {!isCollapsed && (
         <span className="text-sm font-medium truncate">
-          {item.label}
+          {label}
         </span>
       )}
     </NavLink>
   );
 }
 
-function SidebarSection({ section, isCollapsed }) {
+function SidebarSection({ section, isCollapsed, t }) {
+  const sectionLabel = sectionKeys[section.section] ? t(sectionKeys[section.section]) : section.section;
   return (
     <div className="mb-3">
       {!isCollapsed && (
         <h3 className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider
                        text-sidebar-text/40 select-none">
-          {section.section}
+          {sectionLabel}
         </h3>
       )}
       {isCollapsed && (
@@ -58,7 +91,7 @@ function SidebarSection({ section, isCollapsed }) {
       )}
       <div className={`flex flex-col gap-1 ${isCollapsed ? 'items-center' : ''}`}>
         {section.items.map(item => (
-          <SidebarLink key={item.id} item={item} isCollapsed={isCollapsed} />
+          <SidebarLink key={item.id} item={item} isCollapsed={isCollapsed} t={t} />
         ))}
       </div>
     </div>
@@ -68,6 +101,8 @@ function SidebarSection({ section, isCollapsed }) {
 export default function Sidebar() {
   const { isCollapsed, isMobileOpen, toggleCollapse, closeMobile } = useSidebar();
   const { currentRole } = useRole();
+  const { t } = useLanguage();
+  const { isDark } = useTheme();
 
   // Filter navigation items based on current role
   const filteredNavigation = navigationItems
@@ -84,7 +119,7 @@ export default function Sidebar() {
       {/* Desktop Sidebar */}
       <aside
         className={`hidden lg:flex flex-col fixed top-0 left-0 h-screen z-40
-                    bg-sidebar-bg
+                    bg-sidebar-bg border-r border-sidebar-border
                     transition-all duration-300 ease-in-out
                     ${isCollapsed ? 'w-[72px]' : 'w-60'}`}
       >
@@ -92,17 +127,16 @@ export default function Sidebar() {
           {/* Logo */}
           <div className={`flex items-center h-[72px] shrink-0
                            ${isCollapsed ? 'justify-center' : 'px-5 gap-3'}`}>
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                            bg-[#272b30] shadow-sm">
-              <Workflow size={20} className="text-white" />
+            <div className="flex items-center justify-center w-10 h-10 shrink-0">
+              <img src={isDark ? IconWhite : IconBlack} alt="Logo" className="w-8 h-8 object-contain" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
-                <span className="text-sm font-bold text-white tracking-tight leading-tight">
-                  BPMS
+                <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
+                  Flowly
                 </span>
-                <span className="text-[10px] text-sidebar-text/50 font-medium tracking-wide">
-                  Platform
+                <span className="text-[10px] text-text-tertiary font-medium tracking-wide">
+                  Business Suite
                 </span>
               </div>
             )}
@@ -112,7 +146,7 @@ export default function Sidebar() {
           <nav className={`flex-1 overflow-y-auto py-3 space-y-1
                            ${isCollapsed ? 'px-3' : 'px-3'}`}>
             {filteredNavigation.map(section => (
-              <SidebarSection key={section.section} section={section} isCollapsed={isCollapsed} />
+              <SidebarSection key={section.section} section={section} isCollapsed={isCollapsed} t={t} />
             ))}
           </nav>
 
@@ -125,14 +159,14 @@ export default function Sidebar() {
                          hover:bg-sidebar-active hover:text-sidebar-text-active
                          transition-all duration-200 cursor-pointer
                          ${isCollapsed ? 'w-10 h-10' : 'w-full mx-3 h-10 gap-2'}`}
-              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={isCollapsed ? 'Expand sidebar' : t('nav.collapse')}
             >
               {isCollapsed
                 ? <ChevronsRight size={18} />
                 : (
                   <>
                     <ChevronsLeft size={18} />
-                    <span className="text-sm font-medium">Collapse</span>
+                    <span className="text-sm font-medium">{t('nav.collapse')}</span>
                   </>
                 )
               }
@@ -153,7 +187,7 @@ export default function Sidebar() {
       {/* Mobile Sidebar */}
       <aside
         className={`fixed top-0 left-0 h-screen w-72 z-50 lg:hidden
-                    bg-sidebar-bg
+                    bg-sidebar-bg border-r border-sidebar-border
                     transition-transform duration-300 ease-in-out
                     ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
@@ -170,16 +204,15 @@ export default function Sidebar() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center h-[72px] px-5 gap-3 shrink-0">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl
-                            bg-[#272b30]">
-              <Workflow size={20} className="text-white" />
+            <div className="flex items-center justify-center w-10 h-10 shrink-0">
+              <img src={isDark ? IconWhite : IconBlack} alt="Logo" className="w-8 h-8 object-contain" />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-bold text-white tracking-tight leading-tight">
-                BPMS
+              <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
+                Flowly
               </span>
-              <span className="text-[10px] text-sidebar-text/50 font-medium tracking-wide">
-                Platform
+              <span className="text-[10px] text-text-tertiary font-medium tracking-wide">
+                Business Suite
               </span>
             </div>
           </div>
@@ -187,7 +220,7 @@ export default function Sidebar() {
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
             {filteredNavigation.map(section => (
-              <SidebarSection key={section.section} section={section} isCollapsed={false} />
+              <SidebarSection key={section.section} section={section} isCollapsed={false} t={t} />
             ))}
           </nav>
         </div>

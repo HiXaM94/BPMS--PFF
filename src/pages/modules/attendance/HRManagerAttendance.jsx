@@ -1,32 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Users, Clock, AlertCircle, CheckCircle2, FileText, Download, UserCheck, MessageSquare, Settings } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
+import { cacheService } from '../../../services/CacheService';
 
 export default function HRManagerAttendance() {
     const [stats, setStats] = useState({ present: 78, late: 11, absent: 9, total: 87 });
+    const [correctionStatus, setCorrectionStatus] = useState(null);
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
     useEffect(() => {
         if (!isSupabaseReady) return;
         const today = new Date().toISOString().split('T')[0];
-        supabase
-            .from('presences')
-            .select('status')
-            .eq('date', today)
-            .then(({ data }) => {
-                if (!data || data.length === 0) return;
-                const present = data.filter(r => r.status === 'present').length;
-                const late    = data.filter(r => r.status === 'late').length;
-                const absent  = data.filter(r => r.status === 'absent').length;
-                setStats({ present: present + late, late, absent, total: data.length });
-            });
+        cacheService.getOrSet(`attendance:hr:${today}`, async () => {
+            const { data } = await supabase
+                .from('presences')
+                .select('status')
+                .eq('date', today);
+            return data;
+        }, 60).then((data) => {
+            if (!data || data.length === 0) return;
+            const present = data.filter(r => r.status === 'present').length;
+            const late    = data.filter(r => r.status === 'late').length;
+            const absent  = data.filter(r => r.status === 'absent').length;
+            setStats({ present: present + late, late, absent, total: data.length });
+        });
     }, []);
 
     const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
     return (
         <div className="space-y-6 animate-fade-in">
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
             {/* Real-Time Monitor (HR-01) */}
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
@@ -44,7 +55,7 @@ export default function HRManagerAttendance() {
                     <div className="lg:col-span-2 bg-surface-primary rounded-2xl border border-border-secondary p-5">
                         <h3 className="text-base font-semibold text-text-primary mb-4 flex justify-between items-center">
                             <span>Employees Not Clocked In</span>
-                            <button className="text-xs text-brand-500 hover:text-brand-600 font-medium">Send Mass Reminder</button>
+                            <button onClick={() => flash('Mass reminder sent to all absent employees')} className="text-xs text-brand-500 hover:text-brand-600 font-medium cursor-pointer">Send Mass Reminder</button>
                         </h3>
                         <div className="space-y-3">
                             {[
@@ -64,7 +75,7 @@ export default function HRManagerAttendance() {
                                     </div>
                                     <div className="flex gap-2">
                                         {emp.actions.map(act => (
-                                            <button key={act} className="px-3 py-1.5 text-xs font-medium bg-surface-primary border border-border-secondary rounded-lg hover:border-brand-500 transition-colors">
+                                            <button key={act} onClick={() => flash(`${act} action triggered for ${emp.name}`)} className="px-3 py-1.5 text-xs font-medium bg-surface-primary border border-border-secondary rounded-lg hover:border-brand-500 transition-colors cursor-pointer">
                                                 {act}
                                             </button>
                                         ))}
@@ -115,10 +126,16 @@ export default function HRManagerAttendance() {
                                 <p className="font-semibold text-text-primary text-xs flex items-center gap-1"><CheckCircle2 size={12} className="text-emerald-500" /> Manager confirmed ✓</p>
                             </div>
 
-                            <div className="mt-auto grid grid-cols-2 gap-2">
-                                <button className="py-2 bg-brand-500 text-white font-medium rounded-lg hover:bg-brand-600 transition-colors">Approve</button>
-                                <button className="py-2 bg-surface-secondary text-text-primary font-medium rounded-lg border border-border-secondary hover:bg-border-secondary transition-colors">Reject</button>
-                            </div>
+                            {correctionStatus ? (
+                                <div className={`mt-auto py-2 text-center text-sm font-medium rounded-lg ${correctionStatus === 'approved' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}`}>
+                                    {correctionStatus === 'approved' ? 'Correction Approved' : 'Correction Rejected'}
+                                </div>
+                            ) : (
+                                <div className="mt-auto grid grid-cols-2 gap-2">
+                                    <button onClick={() => { setCorrectionStatus('approved'); flash('Correction #CR-0342 approved'); }} className="py-2 bg-brand-500 text-white font-medium rounded-lg hover:bg-brand-600 transition-colors cursor-pointer">Approve</button>
+                                    <button onClick={() => { setCorrectionStatus('rejected'); flash('Correction #CR-0342 rejected'); }} className="py-2 bg-surface-secondary text-text-primary font-medium rounded-lg border border-border-secondary hover:bg-border-secondary transition-colors cursor-pointer">Reject</button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -134,10 +151,10 @@ export default function HRManagerAttendance() {
                         <p className="text-sm text-text-secondary mt-1">Monthly Payroll Attendance Summary (March 1-31, 2026)</p>
                     </div>
                     <div className="mt-4 lg:mt-0 flex gap-3">
-                        <button className="px-4 py-2 border border-border-secondary text-text-primary rounded-xl font-medium flex items-center gap-2 hover:bg-surface-secondary transition-colors">
+                        <button onClick={() => flash('Export scheduled for end of month')} className="px-4 py-2 border border-border-secondary text-text-primary rounded-xl font-medium flex items-center gap-2 hover:bg-surface-secondary transition-colors cursor-pointer">
                             <Settings size={16} /> Schedule Export
                         </button>
-                        <button className="px-4 py-2 bg-brand-500 text-white rounded-xl font-medium flex items-center gap-2 hover:bg-brand-600 transition-colors">
+                        <button onClick={() => { flash('Generating payroll report...'); setTimeout(() => flash('Payroll report downloaded'), 1500); }} className="px-4 py-2 bg-brand-500 text-white rounded-xl font-medium flex items-center gap-2 hover:bg-brand-600 transition-colors cursor-pointer">
                             <Download size={16} /> Generate .xlsx
                         </button>
                     </div>

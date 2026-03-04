@@ -5,7 +5,7 @@ const ThemeContext = createContext(undefined);
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('bpms-theme');
+      const stored = localStorage.getItem('flowly-theme');
       if (stored === 'dark' || stored === 'light') return stored;
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
@@ -16,7 +16,7 @@ export function ThemeProvider({ children }) {
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
-    localStorage.setItem('bpms-theme', theme);
+    localStorage.setItem('flowly-theme', theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

@@ -10,7 +10,8 @@ import PageHeader from '../../../components/ui/PageHeader';
 import StatCard from '../../../components/ui/StatCard';
 import DataTable from '../../../components/ui/DataTable';
 import StatusBadge from '../../../components/ui/StatusBadge';
-import { CheckCircle2, Clock, ListChecks, AlertCircle, PlayCircle, Bell } from 'lucide-react';
+import { CheckCircle2, Clock, ListChecks, AlertCircle, PlayCircle, Bell, Trash2 } from 'lucide-react';
+import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 
 export default function EmployeeDashboard() {
     const { currentRole } = useRole();
@@ -43,6 +44,17 @@ export default function EmployeeDashboard() {
     const [selectedNotification, setSelectedNotification] = useState(null);
     const [activeTab, setActiveTab] = useState('active');
     const [updating, setUpdating] = useState(null);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+
+    const confirmDeleteTask = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
+        taskController.delete(deleteTarget.id);
+        await refreshTasks();
+        setDeleting(false);
+        setDeleteTarget(null);
+    };
 
     const getTaskDescription = (task) => task.description || "No additional details provided for this task.";
 
@@ -329,7 +341,18 @@ export default function EmployeeDashboard() {
                                     <StatusBadge variant={row.validationStatus === 'Validated' ? 'success' : 'neutral'} size="sm">{val}</StatusBadge>
                                 )
                             }
-                        ])
+                        ]),
+                        ...(showActions ? [{
+                            key: 'delete', label: '', render: (_, row) => (
+                                <button
+                                    onClick={() => setDeleteTarget(row)}
+                                    className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                                    title="Delete Task"
+                                >
+                                    <Trash2 size={14} className="text-red-400" />
+                                </button>
+                            )
+                        }] : [])
                     ]}
                     data={dataSet}
                     emptyMessage="No tasks found."
@@ -351,7 +374,7 @@ export default function EmployeeDashboard() {
                 <StatCard title="Active Tasks" value={activeTasks.length} icon={ListChecks} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" subtitle="To Do & In Progress" />
                 <StatCard title="Pending Validation" value={reviewTasks.length} icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" subtitle="Awaiting Manager" />
                 <StatCard title="Tasks Validated" value={historyTasks.length} icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-600" subtitle="All time" />
-                <StatCard title="Completion Rate" value={`${performance?.completionRate || 0}%`} icon={PlayCircle} iconColor="bg-gradient-to-br from-violet-500 to-purple-600" subtitle="Performance Metric" />
+                <StatCard title="Completion Rate" value={`${performance?.completionRate || 0}%`} icon={PlayCircle} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" subtitle="Performance Metric" />
             </div>
 
             {/* Notifications */}
@@ -490,6 +513,17 @@ export default function EmployeeDashboard() {
                 </div>,
                 document.body
             )}
+
+            {/* Delete Task Confirmation */}
+            <ConfirmDialog
+                isOpen={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+                onConfirm={confirmDeleteTask}
+                title="Delete Task"
+                message={deleteTarget ? `Are you sure you want to delete "${deleteTarget.title}"? This action cannot be undone.` : ''}
+                confirmLabel="Delete Task"
+                loading={deleting}
+            />
         </div>
     );
 }

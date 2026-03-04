@@ -7,12 +7,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import ThemeToggle from '../ui/ThemeToggle';
 import RoleSwitcher from '../ui/RoleSwitcher';
 import NotificationDropdown from '../ui/NotificationDropdown';
+import LanguageSwitcher from '../ui/LanguageSwitcher';
 import Breadcrumb from '../ui/Breadcrumb';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function Navbar() {
   const { toggleMobile } = useSidebar();
   const { currentRole } = useRole();
   const { profile, signOut } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -62,14 +65,20 @@ export default function Navbar() {
 
       {/* Right */}
       <div className="flex items-center gap-1.5">
-        <RoleSwitcher />
-        <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1" />
+        {/* Role switching restricted to privileged admin roles only */}
+        {(currentRole.id === 'super_admin' || currentRole.id === 'company_admin') && (
+          <>
+            <RoleSwitcher />
+            <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1" />
+          </>
+        )}
         <button className="flex items-center justify-center w-9 h-9 rounded-xl
                            hover:bg-surface-tertiary transition-colors duration-200 cursor-pointer group"
           aria-label="Search">
           <Search size={18} className="text-text-tertiary group-hover:text-text-primary transition-colors" />
         </button>
         <ThemeToggle />
+        <LanguageSwitcher />
         <NotificationDropdown />
         <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1.5" />
 
@@ -106,19 +115,19 @@ export default function Navbar() {
               <button onClick={() => { navigate('/profile'); setUserMenuOpen(false); }}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary
                            hover:bg-surface-secondary hover:text-text-primary transition-colors cursor-pointer">
-                <User size={15} /> My Profile
+                <User size={15} /> {t('navbar.myProfile')}
               </button>
               <button onClick={() => { navigate('/settings'); setUserMenuOpen(false); }}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary
                            hover:bg-surface-secondary hover:text-text-primary transition-colors cursor-pointer">
-                <Settings size={15} /> Settings
+                <Settings size={15} /> {t('navbar.settings')}
               </button>
             </div>
             <div className="border-t border-border-secondary py-1">
               <button onClick={handleSignOut}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500
                            hover:bg-red-500/8 transition-colors cursor-pointer">
-                <LogOut size={15} /> Sign out
+                <LogOut size={15} /> {t('auth.logout')}
               </button>
             </div>
           </div>

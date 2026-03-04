@@ -1,19 +1,30 @@
+import { useState } from 'react';
 import { Server, Activity, Users, AlertTriangle, Monitor, HardDrive, Cpu, CheckCircle2, AlertOctagon } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 
 export default function SuperAdminAttendance() {
+    const [ticketStatus, setTicketStatus] = useState(null);
+    const [toast, setToast] = useState('');
+    const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Platform Statistics */}
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16}/> {toast}
+                </div>
+            )}
+
+            {/* Global Statistics */}
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                     <Activity size={20} className="text-brand-500" />
-                    Platform Statistics (All Companies)
+                    Global Statistics (All Companies)
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard title="Active Companies" value="47" icon={Building} iconColor="bg-gradient-to-br from-blue-500 to-cyan-500" />
-                    <StatCard title="Total Employees" value="3,842" icon={Users} iconColor="bg-gradient-to-br from-indigo-500 to-purple-500" />
+                    <StatCard title="Total Employees" value="3,842" icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
                     <StatCard title="Clock-ins Today" value="3,156" subtitle="82% attendance rate" icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                     <StatCard title="Active Kiosks" value="128" icon={Monitor} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
                 </div>
@@ -115,8 +126,14 @@ export default function SuperAdminAttendance() {
                         <p className="text-brand-500 mt-2 font-medium">→ Temporary Workaround Activated: Enabled direct mobile clock-in (bypass kiosk) for Acme Corp</p>
                     </div>
                     <div className="pt-2 flex gap-3">
-                        <button className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors">Resolve Ticket</button>
-                        <button className="px-4 py-2 bg-surface-secondary text-text-primary hover:bg-border-secondary rounded-lg font-medium transition-colors">Contact Company</button>
+                        {ticketStatus === 'resolved' ? (
+                            <div className="px-4 py-2 bg-emerald-500/10 text-emerald-600 rounded-lg font-medium text-sm">Ticket #1247 Resolved</div>
+                        ) : (
+                            <>
+                                <button onClick={() => { setTicketStatus('resolved'); flash('Ticket #1247 resolved. Acme Corporation notified.'); }} className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors cursor-pointer">Resolve Ticket</button>
+                                <button onClick={() => flash('Contacting Acme Corporation admin...')} className="px-4 py-2 bg-surface-secondary text-text-primary hover:bg-border-secondary rounded-lg font-medium transition-colors cursor-pointer">Contact Company</button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -124,7 +141,7 @@ export default function SuperAdminAttendance() {
             {/* Cross-Company Analytics SA-03 */}
             <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5">
                 <h3 className="text-base font-semibold text-text-primary mb-4 flex items-center gap-2">
-                    <Cpu size={18} className="text-purple-500" /> Feature Usage Analytics
+                    <Cpu size={18} className="text-brand-500" /> Feature Usage Analytics
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-3">

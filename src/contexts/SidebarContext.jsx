@@ -5,7 +5,7 @@ const SidebarContext = createContext(undefined);
 export function SidebarProvider({ children }) {
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('bpms-sidebar-collapsed');
+      const stored = localStorage.getItem('flowly-sidebar-collapsed');
       if (stored !== null) return stored === 'true';
       // Default to collapsed (icon-only) on desktop — matches template
       return true;
@@ -29,7 +29,7 @@ export function SidebarProvider({ children }) {
   const toggleCollapse = useCallback(() => {
     setIsCollapsed(prev => {
       const next = !prev;
-      localStorage.setItem('bpms-sidebar-collapsed', String(next));
+      localStorage.setItem('flowly-sidebar-collapsed', String(next));
       return next;
     });
   }, []);
