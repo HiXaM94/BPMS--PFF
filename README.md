@@ -53,6 +53,8 @@ This project includes comprehensive documentation covering every aspect:
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
+| **[PRESENTATION_GUIDE.md](./PRESENTATION_GUIDE.md)** | Complete jury presentation package (slides, demo script, team roles) | Team preparing defense |
+| **[KIMI_PPT_PROMPT.md](./KIMI_PPT_PROMPT.md)** | Copy-paste prompt for Kimi AI to generate PowerPoint | Team preparing slides |
 | **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** | Quick start and development environment setup | Everyone |
 | **[DOCUMENTATION.md](./DOCUMENTATION.md)** | Complete project documentation and feature guide | Developers, Users |
 | **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Technical architecture and design patterns | Developers, Architects |

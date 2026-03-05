@@ -8,23 +8,69 @@ import { supabase } from '../../services/supabase';
 const HR_SUGGESTIONS = [
   { label: 'Rank candidates for React role', icon: Users },
   { label: 'Summarize pending leave requests', icon: Calendar },
+  { label: 'Generate onboarding checklist', icon: FileText },
+  { label: 'Draft employment contract', icon: FileText },
   { label: 'Analyze team performance trends', icon: TrendingUp },
-  { label: 'Draft job description for UX Designer', icon: FileText },
+  { label: 'Prepare interview questions', icon: Users },
 ];
+
+function matchResponse(text) {
+  const last = text.toLowerCase();
+
+  // ── Candidate ranking / CV screening ──
+  if (last.includes('candidate') || last.includes('cv') || last.includes('rank') || last.includes('screen'))
+    return `**Candidate Ranking — Senior React Developer**\n\n1. 🥇 **Nadia Benali** — Score: 94/100\n   • 6 years React experience, strong portfolio, excellent technical test\n   • Stage: Offer → Recommend immediate offer\n\n2. 🥈 **Youssef Alami** — Score: 78/100\n   • 4 years experience, good portfolio\n   • Stage: Technical Interview → Schedule final round\n\n3. 🥉 **Karim Idrissi** — Score: 65/100\n   • 5 years full-stack, pending technical review\n   • Stage: HR Screen → Move to technical test\n\n**Recommendation:** Proceed with Nadia Benali — she meets all requirements and her test scores are exceptional.\n\nWould you like me to **generate an offer letter** for Nadia or **prepare interview questions** for Youssef?`;
+
+  // ── Leave / vacation ──
+  if (last.includes('leave') || last.includes('vacation') || last.includes('pending'))
+    return `**Pending Leave Requests Summary**\n\n• **3 requests** awaiting approval\n• Ibrahim Rouass: Feb 20–24 (Annual Leave, 5 days)\n• Ahmed Hassan: Mar 3–7 (Annual Leave, 5 days)\n• Carlos Ruiz: Feb 25–26 (Sick Leave, 2 days)\n\n⚠️ **Conflict Alert:** Ibrahim and Ahmed's requests overlap. Engineering team coverage drops below 60%.\n\n**Recommendation:**\n1. Approve Ibrahim's request (submitted first)\n2. Ask Ahmed to shift to Mar 10–14\n3. Approve Carlos (different team, no conflict)\n\nShall I draft a **rescheduling email** for Ahmed?`;
+
+  // ── Performance ──
+  if (last.includes('performance') || last.includes('trend'))
+    return `**Team Performance Analysis — Q4 2025**\n\n📈 **Top Performers:**\n• Clara Dupont — 94/100 (Exceptional HR management)\n• Ibrahim Rouass — 90/100 (Strong leadership)\n\n📉 **Needs Attention:**\n• Ahmed Hassan — 76/100 (Task delays noted)\n• Bob Tanaka — 78/100 (Documentation gaps)\n\n📊 **Department Averages:**\n• Engineering: 84/100 (+3 vs Q3)\n• Design: 88/100 (+1 vs Q3)\n• Marketing: 79/100 (-2 vs Q3)\n\n**Recommendation:** Schedule 1:1 coaching sessions for Ahmed and Bob. Consider Ibrahim for team lead promotion.\n\nShall I **generate performance review letters** or **draft improvement plans**?`;
+
+  // ── Job description ──
+  if (last.includes('job') || last.includes('description'))
+    return `**Draft Job Description — UX Designer**\n\n**Position:** Senior UX Designer\n**Department:** Design\n**Location:** Casablanca, Morocco (Hybrid)\n**Salary Range:** 15,000–22,000 MAD/month\n\n**About the Role:**\nJoin Flowly's design team to shape the future of HR technology.\n\n**Responsibilities:**\n• Lead end-to-end UX design for product features\n• Conduct user research and usability testing\n• Create wireframes, prototypes, and design systems\n• Collaborate with engineering and product teams\n• Mentor junior designers\n\n**Requirements:**\n• 3+ years UX design experience\n• Proficiency in Figma, user research methods\n• Portfolio demonstrating complex product design\n• Excellent communication skills (French + English)\n\n**Benefits:**\n• Health insurance, remote work flexibility, annual training budget\n\nShall I refine this, **post it to the recruitment pipeline**, or **draft screening criteria**?`;
+
+  // ── Onboarding ──
+  if (last.includes('onboarding') || last.includes('checklist') || last.includes('new hire') || last.includes('new employee'))
+    return `**New Employee Onboarding Checklist**\n\n**📋 Pre-arrival (1 week before):**\n☐ Send welcome email with start date & location\n☐ Prepare workstation (laptop, badge, access cards)\n☐ Create accounts (email, Flowly, project tools)\n☐ Assign buddy/mentor\n☐ Notify team about new member\n\n**📅 Day 1:**\n☐ Welcome meeting with HR\n☐ Office tour & team introductions\n☐ Sign employment contract & NDA\n☐ Collect required documents (CNSS, CIN, RIB, diploma)\n☐ IT setup & tool walkthrough\n\n**📅 Week 1:**\n☐ Department orientation meetings\n☐ Manager 1:1 — goals & expectations\n☐ Review company handbook & policies\n☐ Complete compliance training\n☐ Set up payroll & benefits\n\n**📅 Month 1:**\n☐ 30-day check-in with HR\n☐ First performance touchpoint\n☐ Team project assignment\n☐ Feedback survey\n\nShall I **customize this for a specific department** or **generate the welcome email**?`;
+
+  // ── Contract / offer letter ──
+  if (last.includes('contract') || last.includes('offer letter') || last.includes('employment'))
+    return `**Draft Employment Contract**\n\n---\n**EMPLOYMENT AGREEMENT**\n\n**Between:** [Company Name], hereinafter "Employer"\n**And:** [Employee Full Name], hereinafter "Employee"\n\n**Position:** [Job Title]\n**Department:** [Department]\n**Start Date:** [Date]\n**Contract Type:** CDI (Permanent)\n\n**Article 1 — Compensation:**\n• Gross Monthly Salary: [Amount] MAD\n• Transportation Allowance: 500 MAD/month\n• Performance Bonus: Up to 15% of annual salary\n\n**Article 2 — Working Hours:**\n• 40 hours/week (Mon–Fri, 9:00–18:00)\n• Lunch break: 12:30–13:30\n\n**Article 3 — Leave Entitlements:**\n• Annual Leave: 18 working days/year\n• Sick Leave: As per Moroccan Labor Code\n• Maternity/Paternity: As per law\n\n**Article 4 — Probation Period:**\n• 3 months, renewable once\n\n**Article 5 — Confidentiality:**\n• Employee agrees to NDA terms (see Annex A)\n\n---\n\n⚠️ **Note:** This is a template. Consult legal counsel before issuing.\n\nShall I **adjust for a CDD (fixed-term)** contract or **add specific clauses**?`;
+
+  // ── Interview questions ──
+  if (last.includes('interview') || last.includes('question'))
+    return `**Interview Questions — Technical + Behavioral**\n\n**🔧 Technical Questions:**\n1. Describe a complex UI component you built. How did you handle state management?\n2. How would you optimize a React app with 50+ components and slow rendering?\n3. Explain the difference between SSR and CSR. When would you use each?\n4. Walk me through how you'd design a role-based access control system.\n5. How do you handle API errors and loading states in a production app?\n\n**🧠 Behavioral Questions:**\n1. Tell me about a time you disagreed with a teammate. How did you resolve it?\n2. Describe a project where requirements changed mid-sprint. What did you do?\n3. How do you prioritize tasks when everything feels urgent?\n4. Give an example of mentoring or helping a junior developer.\n5. What's the most impactful feedback you've received, and how did it change you?\n\n**📊 Scoring Rubric:**\n• Technical depth: /25\n• Problem-solving: /25\n• Communication: /20\n• Culture fit: /15\n• Growth mindset: /15\n\nShall I **tailor these for a specific role** or **create a full interview scorecard**?`;
+
+  // ── Policy / handbook ──
+  if (last.includes('policy') || last.includes('handbook') || last.includes('rules') || last.includes('regulation'))
+    return `**Company Policy Document — Leave Policy**\n\n**1. Annual Leave:**\n• Entitlement: 18 working days per year (accrued monthly: 1.5 days)\n• Must be requested at least 5 working days in advance\n• Maximum consecutive days: 10 (unless approved by department head)\n• Unused days carry over up to 5 days to next year\n\n**2. Sick Leave:**\n• Short-term (1–3 days): Self-certification accepted\n• Extended (4+ days): Medical certificate required within 48 hours\n• Paid sick leave: Up to 26 weeks at full salary (per labor code)\n\n**3. Remote Work:**\n• Eligible after probation period completion\n• Maximum 2 days/week unless otherwise approved\n• Must be available during core hours (10:00–16:00)\n\n**4. Special Leave:**\n• Marriage: 3 days\n• Birth of child: 3 days (father), 14 weeks (mother)\n• Bereavement: 3 days (immediate family)\n\n**5. Public Holidays:**\n• As per Moroccan official calendar (12 days/year)\n\nShall I **draft another policy** (dress code, expense, etc.) or **format this for the employee handbook**?`;
+
+  // ── Payslip / salary ──
+  if (last.includes('payslip') || last.includes('salary') || last.includes('payroll') || last.includes('compensation'))
+    return `**Salary Structure Breakdown — Example**\n\n**Employee:** [Name]\n**Position:** Software Engineer\n**Grade:** E3\n\n**💰 Monthly Earnings:**\n• Base Salary: 12,000 MAD\n• Transportation: 500 MAD\n• Meal Allowance: 600 MAD\n• Performance Bonus: 1,800 MAD (15%)\n• **Gross Total: 14,900 MAD**\n\n**📉 Deductions:**\n• CNSS (Employee): 643 MAD (4.48%)\n• AMO (Health): 306 MAD (2.26%)\n• IR (Income Tax): 1,290 MAD (estimated)\n• **Total Deductions: 2,239 MAD**\n\n**✅ Net Salary: 12,661 MAD**\n\n**Employer Cost:**\n• CNSS (Employer): 1,222 MAD (8.98%)\n• AMO (Employer): 539 MAD (3.98%)\n• Professional Tax: 223 MAD\n• **Total Employer Cost: 16,884 MAD**\n\nShall I **generate payslips for the full team** or **model a salary increase scenario**?`;
+
+  // ── Warning / disciplinary ──
+  if (last.includes('warning') || last.includes('disciplinary') || last.includes('termination'))
+    return `**Draft Written Warning Letter**\n\n---\n**[Company Letterhead]**\n\nDate: [Today's Date]\n\nTo: [Employee Name]\nFrom: Human Resources\nSubject: **Written Warning — [Nature of Infraction]**\n\nDear [Employee Name],\n\nThis letter serves as a formal written warning regarding [describe the specific behavior or incident, including dates].\n\n**Details of Infraction:**\n• [Incident 1 — date, description]\n• [Incident 2 — date, description, if applicable]\n\n**Company Policy Reference:**\nThis behavior violates Section [X] of the Employee Handbook regarding [policy name].\n\n**Expected Corrective Action:**\n• [Specific, measurable expectation]\n• [Timeline for improvement]\n\n**Consequences:**\nFailure to improve may result in further disciplinary action, up to and including termination of employment.\n\nPlease sign below to acknowledge receipt.\n\n---\n\n⚠️ **Legal Note:** Ensure compliance with Moroccan Labor Code Articles 37-39 regarding disciplinary procedures.\n\nShall I **adjust the severity** or **draft a termination letter** instead?`;
+
+  // ── Certificate / attestation ──
+  if (last.includes('certificate') || last.includes('attestation') || last.includes('work certificate') || last.includes('letter'))
+    return `**Draft Work Certificate (Attestation de Travail)**\n\n---\n**[Company Letterhead]**\n\n**WORK CERTIFICATE**\n\nWe, the undersigned, [Company Name], located at [Address], hereby certify that:\n\n**Mr./Ms. [Full Name]**\nCIN: [National ID Number]\n\nHas been employed by our company from **[Start Date]** to **[End Date / Present]** in the capacity of:\n\n**Position:** [Job Title]\n**Department:** [Department]\n**Employment Type:** CDI / CDD\n\nDuring their tenure, [Employee Name] demonstrated [professionalism/dedication/excellence] in their role.\n\nThis certificate is issued at the request of the interested party for whatever purpose it may serve.\n\n[City], [Date]\n\n[Signature]\n[HR Manager Name]\n[Company Stamp]\n\n---\n\nShall I **generate a salary certificate** instead, or **create a recommendation letter**?`;
+
+  // ── Default fallback ──
+  return null;
+}
 
 async function callAI(messages) {
   if (!supabase) {
-    // Fallback smart mock when Supabase not configured
-    const last = messages[messages.length - 1].content.toLowerCase();
-    if (last.includes('candidate') || last.includes('cv') || last.includes('rank'))
-      return `**Candidate Ranking — Senior React Developer**\n\n1. 🥇 **Nadia Benali** — Score: 94/100\n   • 6 years React experience, strong portfolio, excellent technical test\n   • Stage: Offer → Recommend immediate offer\n\n2. 🥈 **Youssef Alami** — Score: 78/100\n   • 4 years experience, good portfolio\n   • Stage: Technical Interview → Schedule final round\n\n3. 🥉 **Karim Idrissi** — Score: 65/100\n   • 5 years full-stack, pending technical review\n   • Stage: HR Screen → Move to technical test\n\n**Recommendation:** Proceed with Nadia Benali — she meets all requirements and her test scores are exceptional.`;
-    if (last.includes('leave') || last.includes('vacation') || last.includes('pending'))
-      return `**Pending Leave Requests Summary**\n\n• **3 requests** awaiting approval\n• Ibrahim Rouass: Feb 20–24 (Annual Leave, 5 days)\n• Ahmed Hassan: Mar 3–7 (Annual Leave, 5 days)\n• Carlos Ruiz: Feb 25–26 (Sick Leave, 2 days — rejected)\n\n⚡ **Action needed:** Ibrahim and Ahmed's requests overlap. Recommend staggering approvals to maintain team coverage.`;
-    if (last.includes('performance') || last.includes('trend'))
-      return `**Team Performance Analysis — Q4 2025**\n\n� **Top Performers:**\n• Clara Dupont — 94/100 (Exceptional HR management)\n• Ibrahim Rouass — 90/100 (Strong leadership)\n\n� **Needs Attention:**\n• Ahmed Hassan — 76/100 (Task delays noted)\n• Bob Tanaka — 78/100 (Documentation gaps)\n\n**Recommendation:** Schedule 1:1 coaching sessions for Ahmed and Bob. Consider Ibrahim for team lead promotion.`;
-    if (last.includes('job') || last.includes('description') || last.includes('draft'))
-      return `**Draft Job Description — UX Designer**\n\n**Position:** Senior UX Designer\n**Department:** Design\n**Location:** Casablanca, Morocco\n\n**Responsibilities:**\n• Lead end-to-end UX design for Flowly product features\n• Conduct user research and usability testing\n• Create wireframes, prototypes, and design systems\n• Collaborate with engineering and product teams\n\n**Requirements:**\n• 3+ years UX design experience\n• Proficiency in Figma, user research methods\n• Portfolio demonstrating complex product design\n\nShall I refine this further or adjust the requirements?`;
-    return `I'm your **HR AI Assistant**. I can help you:\n\n• 📋 **Rank & screen candidates** from your recruitment pipeline\n• 📊 **Analyze performance** trends across your team\n• 🗓 **Summarize leave requests** and flag conflicts\n• ✍️ **Draft job descriptions** and HR policies\n• 🔍 **Parse CVs** and extract key qualifications\n\nWhat would you like to explore?`;
+    const last = messages[messages.length - 1].content;
+    const matched = matchResponse(last);
+    if (matched) return matched;
+    return `I'm your **HR AI Assistant**. I can help you with:\n\n**📋 Recruitment & Candidates:**\n• Rank & screen candidates from your pipeline\n• Generate interview questions & scorecards\n• Draft job descriptions\n\n**� HR Documentation:**\n• Employment contracts & offer letters\n• Work certificates & attestations\n• Warning letters & disciplinary actions\n• Company policies & handbook sections\n\n**👥 People Management:**\n• Analyze team performance trends\n• Summarize leave requests & flag conflicts\n• Generate onboarding checklists\n• Model salary & compensation structures\n\n**🔄 Workflows:**\n• Onboarding process automation\n• Leave approval chain configuration\n• Performance review cycle setup\n\nWhat would you like to explore?`;
   }
 
   try {
@@ -48,7 +94,7 @@ function formatMessage(text) {
 
 const INITIAL_MESSAGE = {
   id: 1, role: 'assistant',
-  content: `Hello! I'm your **HR AI Assistant**. I can help you:\n\n• 📋 **Rank & screen candidates** from your recruitment pipeline\n• 📊 **Analyze performance** trends across your team\n• 🗓 **Summarize leave requests** and flag conflicts\n• ✍️ **Draft job descriptions** and HR policies\n• 🔍 **Parse CVs** and extract key qualifications\n\nWhat would you like to explore?`,
+  content: `Hello! I'm your **HR AI Assistant**. I can help you with:\n\n**📋 Recruitment & Candidates:**\n• Rank & screen candidates from your pipeline\n• Generate interview questions & scorecards\n• Draft job descriptions & offer letters\n\n**📄 HR Documentation:**\n• Employment contracts & work certificates\n• Warning letters & disciplinary actions\n• Company policies & handbook sections\n\n**� People Management:**\n• Analyze team performance trends\n• Summarize leave requests & flag conflicts\n• Generate onboarding checklists\n• Model salary & compensation structures\n\nWhat would you like to explore?`,
   time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
 };
 
