@@ -46,7 +46,7 @@
   --color-sidebar-bg: #ffffff;
   --color-sidebar-hover: #f4f4f5;
   --color-sidebar-active: #f5f5f4;
-  --color-sidebar-text: #6b7280;
+  --color-sidebar-text: #0d0d0d;
   --color-sidebar-text-active: #1a1d1f;
   --color-sidebar-border: #ffffff;
 
@@ -83,7 +83,7 @@
   --color-sidebar-bg: #111315;
   --color-sidebar-hover: #1a1d1f;
   --color-sidebar-active: #272b30;
-  --color-sidebar-text: #9a9fa5;
+  --color-sidebar-text: #0d0d0d;
   --color-sidebar-text-active: #ffffff;
   --color-sidebar-border: #ffffff;
 
@@ -113,7 +113,7 @@
 
   h1, h2, h3, h4, h5, h6,
   p, span, label, figcaption, legend, a {
-    font-weight: 600;
+    font-weight: 500;
   }
 
   * {
