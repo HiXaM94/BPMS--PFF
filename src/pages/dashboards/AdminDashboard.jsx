@@ -157,6 +157,9 @@ export default function AdminDashboard() {
   });
   const { profile, signUpSilently } = useAuth();
   const [globalLeave, setGlobalLeave] = useState(adminData.globalLeaveRequests || []);
+  const [projectsOverview, setProjectsOverview] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectValidationProcessing, setProjectValidationProcessing] = useState({});
 
   const [showAddHRModal, setShowAddHRModal] = useState(false);
   const [hrForm, setHrForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '' });
@@ -339,13 +342,88 @@ export default function AdminDashboard() {
     })));
   }, [orgPeriod, orgSort]);
 
+  const fetchProjectsOverview = useCallback(async () => {
+    if (!profile?.entreprise_id) return;
+    setProjectsLoading(true);
+    try {
+      const { data: projectData = [], error: projectError } = await supabase
+        .from('projects')
+        .select('id, name, status, valider, team_manager_assigned (id, name)')
+        .eq('entreprise_id', profile.entreprise_id)
+        .order('created_at', { ascending: false });
+
+      if (projectError) throw projectError;
+
+      const projectIds = projectData.map(p => p.id).filter(Boolean);
+      let tasks = [];
+      if (projectIds.length) {
+        const { data: taskData = [], error: tasksError } = await supabase
+          .from('tasks')
+          .select('project_id, status')
+          .in('project_id', projectIds);
+        if (tasksError) throw tasksError;
+        tasks = taskData;
+      }
+
+      const progressLookup = projectIds.reduce((acc, id) => ({
+        ...acc,
+        [id]: { total: 0, completed: 0 },
+      }), {});
+      tasks.forEach(task => {
+        const entry = progressLookup[task.project_id];
+        if (!entry) return;
+        entry.total += 1;
+        if (task.status === 'completed' || task.status === 'validated') {
+          entry.completed += 1;
+        }
+      });
+
+      setProjectsOverview(projectData.map(project => {
+        const progressEntry = progressLookup[project.id];
+        const progress = progressEntry && progressEntry.total > 0
+          ? Math.round((progressEntry.completed / progressEntry.total) * 100)
+          : 0;
+
+        return {
+          id: project.id,
+          title: project.name,
+          managerName: project.team_manager_assigned?.name || 'Unassigned',
+          status: project.status,
+          valider: project.valider || false,
+          progress,
+        };
+      }));
+    } catch (err) {
+      console.error('[Admin Dashboard] Failed to load projects overview', err);
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, [profile?.entreprise_id]);
+
+  const handleToggleProjectValidation = useCallback(async (projectId, currentState) => {
+    setProjectValidationProcessing(prev => ({ ...prev, [projectId]: true }));
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ valider: !currentState })
+        .eq('id', projectId);
+      if (error) throw error;
+      setProjectsOverview(prev => prev.map(p => (
+        p.id === projectId ? { ...p, valider: !currentState } : p
+      )));
+    } catch (err) {
+      console.error('[Admin Dashboard] Failed to toggle project validation', err);
+    } finally {
+      setProjectValidationProcessing(prev => ({ ...prev, [projectId]: false }));
+    }
+  }, []);
+
   // ── Initial data load ──
   useEffect(() => {
     fetchChartData(timeRange);
 
     if (!isSupabaseReady) return;
 
-    // Counts
     cacheService.getOrSet('admin:counts', async () => {
       const [ents, users] = await Promise.all([
         supabase.from('entreprises').select('id', { count: 'exact', head: true }),
@@ -360,8 +438,6 @@ export default function AdminDashboard() {
         prev[2],
       ]);
     });
-
-    // system_logs table does not exist — skip this query to avoid the 404 console error.
   }, [fetchChartData, timeRange]);
 
   // ── Refetch orgs when filters change ──
@@ -516,20 +592,76 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Global Vacation Requests Table */}
+      {/* Projects Overview Table */}
       <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in"
         style={{ animationDelay: '350ms' }}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-text-primary">Cross-Organization Leave Activity</h2>
-            <StatusBadge variant="info" size="sm">Demo Data</StatusBadge>
+          <div>
+            <h2 className="text-sm font-bold text-text-primary">Projects Overview</h2>
+            <p className="text-xs text-text-tertiary">Monitor project progress and toggle validation status instantly.</p>
           </div>
-          <button onClick={() => window.location.href = '/modules/vacation'}
-            className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors">
-            Configure Policies
-          </button>
+          <StatusBadge variant="success" size="sm">Live Data</StatusBadge>
         </div>
-        <DataTable columns={leaveColumns} data={globalLeave} />
+        <div className="overflow-x-auto">
+          {projectsLoading ? (
+            <div className="flex items-center justify-center py-8 text-sm text-text-tertiary">Loading projects…</div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-surface-secondary/50 border-b border-border-secondary text-xs uppercase text-text-tertiary font-bold tracking-wider">
+                  <th className="px-5 py-3">Project Title</th>
+                  <th className="px-5 py-3">Project Manager</th>
+                  <th className="px-5 py-3">Progress</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3 text-right">Validation</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-secondary">
+                {projectsOverview.map(project => (
+                  <tr key={project.id} className="hover:bg-surface-secondary/50 transition-colors">
+                    <td className="px-5 py-4 font-medium text-text-primary">{project.title}</td>
+                    <td className="px-5 py-4 text-sm text-text-secondary">{project.managerName}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-28 h-1.5 bg-surface-secondary rounded-full overflow-hidden border border-border-secondary">
+                          <div className="h-full bg-gradient-to-r from-brand-500 to-brand-400" style={{ width: `${project.progress}%` }} />
+                        </div>
+                        <span className="text-xs font-semibold text-text-secondary">{project.progress}%</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <StatusBadge
+                        variant={project.valider ? 'success' : 'warning'}
+                        size="sm"
+                        dot
+                      >
+                        {project.valider ? 'Validated' : project.status?.replace('_', ' ') || 'Pending'}
+                      </StatusBadge>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <button
+                        disabled={projectValidationProcessing[project.id]}
+                        onClick={() => handleToggleProjectValidation(project.id, project.valider)}
+                        className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-wait ${project.valider ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
+                      >
+                        {projectValidationProcessing[project.id]
+                          ? 'Updating…'
+                          : project.valider ? 'Set to Pending' : 'Validate'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {projectsOverview.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-6 text-center text-xs font-semibold text-text-tertiary">
+                      No projects found for this enterprise.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* Bottom Row: Organizations table + Promo card */}

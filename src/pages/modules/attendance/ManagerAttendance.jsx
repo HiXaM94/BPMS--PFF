@@ -9,23 +9,72 @@ import { useState, useEffect } from 'react';
 
 export default function ManagerAttendance() {
     const { profile } = useAuth();
-    const [today, setToday] = useState(null);
-    const [showContactModal, setShowContactModal] = useState(false);
+    const [teamAttendance, setTeamAttendance] = useState([]);
+    const [teamLoading, setTeamLoading] = useState(true);
+    const [stats, setStats] = useState({ present: 0, total: 0, late: 0, absent: 0 });
 
     useEffect(() => {
-        if (!isSupabaseReady || !profile?.id) return;
-        const date = new Date().toISOString().split('T')[0];
+        if (!isSupabaseReady || !profile?.id || !profile?.entreprise_id) return;
 
-        // Fetch Today's presence
-        cacheService.getOrSet(`attendance:mgr:${profile.id}:${date}`, async () => {
-            const { data } = await supabase.from('presences')
-                .select('*, employees!inner(user_id)')
-                .eq('employees.user_id', profile.id)
-                .eq('date', date)
-                .maybeSingle();
-            return data;
-        }, 60).then((data) => { if (data) setToday(data); });
-    }, [profile?.id]);
+        const fetchTeamData = async () => {
+            setTeamLoading(true);
+            try {
+                const date = new Date().toISOString().split('T')[0];
+
+                // 1. Fetch team members
+                const { data: teamMembers, error: teamErr } = await supabase
+                    .from('user_details')
+                    .select('id_user, department, phone, users(name, role)')
+                    .eq('reports_to', profile.id);
+
+                if (teamErr) throw teamErr;
+
+                // 2. Fetch today's presences for these members
+                const userIds = teamMembers.map(m => m.id_user);
+                let presencesMap = {};
+                if (userIds.length > 0) {
+                    const { data: presData } = await supabase
+                        .from('presences')
+                        .select('*')
+                        .in('id_user', userIds)
+                        .eq('date', date);
+
+                    if (presData) {
+                        presData.forEach(p => { presencesMap[p.id_user] = p; });
+                    }
+                }
+
+                // 3. Map to UI format
+                const mapped = teamMembers.map(m => {
+                    const p = presencesMap[m.id_user];
+                    return {
+                        id: m.id_user,
+                        name: m.users?.name || 'Unknown',
+                        pos: m.users?.role || 'Employee',
+                        status: p ? (p.status === 'present' ? 'Present' : p.status === 'late' ? 'Late' : 'Absent') : 'Absent',
+                        time: p?.check_in_time ? new Date(`2000-01-01T${p.check_in_time}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
+                        color: p?.status === 'late' ? 'text-amber-500' : (p?.status === 'present' ? 'text-emerald-500' : 'text-red-500'),
+                        bg: p?.status === 'late' ? 'bg-amber-500/10' : (p?.status === 'present' ? 'bg-emerald-500/10' : 'bg-red-500/10')
+                    };
+                });
+
+                setTeamAttendance(mapped);
+
+                // 4. Calculate stats
+                const present = mapped.filter(m => m.status === 'Present' || m.status === 'Late').length;
+                const late = mapped.filter(m => m.status === 'Late').length;
+                const absent = mapped.length - present;
+                setStats({ present, total: mapped.length, late, absent });
+
+            } catch (err) {
+                console.error('Error fetching team attendance:', err);
+            } finally {
+                setTeamLoading(false);
+            }
+        };
+
+        fetchTeamData();
+    }, [profile?.id, profile?.entreprise_id]);
 
     const isClockedIn = today?.check_in_time && !today?.check_out_time;
 
@@ -36,13 +85,13 @@ export default function ManagerAttendance() {
             <div>
                 <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                     <Users size={20} className="text-brand-500" />
-                    IT Team Attendance (Youssef Tazi) - 9:15 AM
+                    {profile?.name || 'Team'}'s Attendance - {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <StatCard title="Present Today" value="21/23" subtitle="91.3% attendance" icon={UserCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
-                    <StatCard title="Late Arrivals" value="4" subtitle="Needs attention" icon={AlertCircle} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
-                    <StatCard title="Absent Today" value="2" subtitle="HR notified" icon={UserMinus} iconColor="bg-gradient-to-br from-red-500 to-rose-500" />
-                    <StatCard title="Team Punctuality" value="89.2%" subtitle="Target: 90% ⚠️" icon={Clock} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
+                    <StatCard title="Present Today" value={`${stats.present}/${stats.total}`} subtitle={`${stats.total ? Math.round((stats.present / stats.total) * 100) : 0}% attendance`} icon={UserCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
+                    <StatCard title="Late Arrivals" value={stats.late.toString()} subtitle="Requires attention" icon={AlertCircle} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
+                    <StatCard title="Absent Today" value={stats.absent.toString()} subtitle="Unexcused" icon={UserMinus} iconColor="bg-gradient-to-br from-red-500 to-rose-500" />
+                    <StatCard title="Team Punctuality" value={`${stats.present ? Math.round(((stats.present - stats.late) / stats.present) * 100) : 100}%`} subtitle="Target: 90%" icon={Clock} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
                 </div>
             </div>
 
@@ -66,60 +115,52 @@ export default function ManagerAttendance() {
                     />
                 </div>
 
-                {/* 2. Late Arrival Alert */}
+                {/* 2. Late Arrival Alert — Placeholder or first late member */}
                 <div className="lg:col-span-1 h-full">
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 flex flex-col gap-4 animate-fade-in h-full">
-                        <div className="flex gap-4">
-                            <div className="bg-amber-500/20 p-3 h-fit rounded-2xl mt-1 shrink-0">
-                                <BellRing size={24} className="text-amber-500" />
+                    {teamAttendance.find(m => m.status === 'Late') ? (
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 flex flex-col gap-4 animate-fade-in h-full">
+                            <div className="flex gap-4">
+                                <div className="bg-amber-500/20 p-3 h-fit rounded-2xl mt-1 shrink-0">
+                                    <BellRing size={24} className="text-amber-500" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-base font-bold text-amber-500 mb-2">Late Arrival Alert</h3>
+                                    <span className="font-semibold text-text-primary block mb-1">{teamAttendance.find(m => m.status === 'Late').name}</span>
+                                    <p className="text-sm text-text-secondary leading-relaxed mb-4">
+                                        Clocked in at {teamAttendance.find(m => m.status === 'Late').time}. <br />
+                                        Requires intervention for consistency.
+                                    </p>
+                                </div>
                             </div>
-                            <div className="flex-1">
-                                <h3 className="text-base font-bold text-amber-500 mb-2">Late Arrival Alert</h3>
-                                <span className="font-semibold text-text-primary block mb-1">Karim Alami (DevOps)</span>
-                                <p className="text-sm text-text-secondary leading-relaxed mb-4">
-                                    Clocked in at 9:22 AM (22 mins late). <br />
-                                    This is his 4th late arrival this month. Requires intervention.
-                                </p>
+                            <div className="flex gap-3 mt-auto">
+                                <button onClick={() => setShowContactModal(true)} className="flex-1 py-3 bg-amber-500 text-white text-sm font-bold rounded-xl hover:bg-amber-600 shadow-md shadow-amber-500/20 transition-all active:scale-95">Contact</button>
+                                <button className="flex-1 py-3 border-2 border-amber-500 text-amber-500 text-sm font-bold rounded-xl hover:bg-amber-500/10 transition-colors">Dismiss</button>
                             </div>
                         </div>
-                        <div className="flex gap-3 mt-auto">
-                            <button onClick={() => setShowContactModal(true)} className="flex-1 py-3 bg-amber-500 text-white text-sm font-bold rounded-xl hover:bg-amber-600 shadow-md shadow-amber-500/20 transition-all active:scale-95">Contact Karim</button>
-                            <button className="flex-1 py-3 border-2 border-amber-500 text-amber-500 text-sm font-bold rounded-xl hover:bg-amber-500/10 transition-colors">Dismiss</button>
+                    ) : (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 animate-fade-in h-full text-center">
+                            <CheckCircle2 size={40} className="text-emerald-500" />
+                            <div>
+                                <h3 className="text-base font-bold text-emerald-600 mb-1">Excellent Punctuality</h3>
+                                <p className="text-sm text-emerald-700/80">No late arrivals reported for your team today.</p>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
-                {/* 3. Pending Approval */}
+                {/* 3. Pending Approval — Mocked but updated status */}
                 <div className="lg:col-span-1 h-full">
                     <div className="bg-surface-primary rounded-3xl border border-border-secondary p-6 flex flex-col h-full shadow-sm relative overflow-hidden">
                         <h3 className="text-base font-bold text-text-primary mb-4 flex items-center gap-2">
-                            <CheckCircle2 size={20} className="text-brand-500" /> Pending Approval (1)
+                            <CheckCircle2 size={20} className="text-brand-500" /> Requests (0)
                         </h3>
 
-                        <div className="p-4 border border-border-secondary rounded-2xl bg-surface-secondary mb-4 flex-1">
-                            <div className="flex justify-between items-start mb-2">
-                                <div>
-                                    <p className="font-bold text-text-primary">Ahmed Benali</p>
-                                    <p className="text-xs font-medium text-text-secondary">Missing clock-out (Mar 17)</p>
-                                </div>
-                                <StatusBadge variant="warning">Action Req</StatusBadge>
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                            <div className="w-12 h-12 rounded-2xl bg-surface-secondary flex items-center justify-center mb-3">
+                                <CheckCircle2 size={24} className="text-text-tertiary" />
                             </div>
-                            <p className="text-xs text-text-secondary italic mb-4 p-3 bg-surface-primary rounded-xl border border-border-secondary/50">"Forgot to clock out yesterday. Left at 5:00 PM."</p>
-
-                            <div className="space-y-3 text-sm">
-                                <div>
-                                    <p className="font-semibold text-text-primary mb-2">Was Ahmed working?</p>
-                                    <div className="flex gap-2">
-                                        <span className="px-3 py-1.5 bg-brand-500 text-white font-bold rounded-lg text-xs cursor-pointer shadow-md shadow-brand-500/20">Yes</span>
-                                        <span className="px-3 py-1.5 bg-surface-primary border border-border-secondary rounded-lg text-xs text-text-secondary font-medium cursor-pointer hover:bg-surface-tertiary transition-colors">No</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-auto grid grid-cols-2 gap-3">
-                            <button className="py-3 bg-brand-500 text-white text-sm font-bold rounded-xl hover:bg-brand-600 shadow-md shadow-brand-500/20 transition-all active:scale-95">Approve</button>
-                            <button className="py-3 bg-surface-primary border border-border-secondary text-text-secondary text-sm font-bold rounded-xl hover:text-text-primary hover:bg-surface-secondary transition-colors">Reject</button>
+                            <p className="text-sm font-medium text-text-primary">All Caught Up!</p>
+                            <p className="text-xs text-text-tertiary mt-1">No pending attendance corrections for your team.</p>
                         </div>
                     </div>
                 </div>
@@ -130,7 +171,7 @@ export default function ManagerAttendance() {
                 <div className="p-5 border-b border-border-secondary flex items-center justify-between bg-surface-secondary/30">
                     <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
                         <Users size={18} className="text-brand-500" />
-                        Team Members Present/Late
+                        Team Attendance
                     </h3>
                     <div className="relative">
                         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
@@ -149,27 +190,33 @@ export default function ManagerAttendance() {
                             </tr>
                         </thead>
                         <tbody className="text-text-primary divide-y divide-border-secondary">
-                            {[
-                                { name: 'Ahmed Benali', pos: 'Developer', status: 'Present', time: '8:55 AM', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-                                { name: 'Sara Idrissi', pos: 'Developer', status: 'Present', time: '8:50 AM', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-                                { name: 'Karim Alami', pos: 'DevOps', status: 'Late', time: '9:22 AM', color: 'text-amber-500', bg: 'bg-amber-500/10' },
-                                { name: 'Omar Fahmi', pos: 'QA Engineer', status: 'Absent', time: '—', color: 'text-red-500', bg: 'bg-red-500/10' },
-                                { name: 'Fatima Hassan', pos: 'Developer', status: 'Present', time: '8:45 AM', color: 'text-emerald-500', bg: 'bg-emerald-500/10' }
-                            ].map((row, i) => (
-                                <tr key={i} className="hover:bg-surface-secondary/50 transition-colors group cursor-pointer">
-                                    <td className="px-5 py-4 font-bold">{row.name}</td>
-                                    <td className="px-5 py-4 text-text-secondary font-medium">{row.pos}</td>
-                                    <td className="px-5 py-4">
-                                        <span className={`px-3 py-1.5 text-xs font-bold rounded-lg ${row.color} ${row.bg}`}>
-                                            {row.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-5 py-4 text-text-secondary font-medium">{row.time}</td>
-                                    <td className="px-5 py-4 text-right">
-                                        <button className="text-brand-500 hover:text-brand-600 font-bold text-sm bg-brand-500/10 hover:bg-brand-500/20 px-4 py-2 rounded-xl transition-colors">View Profile</button>
-                                    </td>
+                            {teamLoading ? (
+                                Array(3).fill(0).map((_, i) => (
+                                    <tr key={i} className="animate-pulse">
+                                        <td colSpan={5} className="px-5 py-4"><div className="h-4 bg-gray-200 rounded w-full"></div></td>
+                                    </tr>
+                                ))
+                            ) : teamAttendance.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="px-5 py-12 text-center text-text-tertiary">No team members found reporting to you.</td>
                                 </tr>
-                            ))}
+                            ) : (
+                                teamAttendance.map((row, i) => (
+                                    <tr key={i} className="hover:bg-surface-secondary/50 transition-colors group">
+                                        <td className="px-5 py-4 font-bold">{row.name}</td>
+                                        <td className="px-5 py-4 text-text-secondary font-medium">{row.pos}</td>
+                                        <td className="px-5 py-4">
+                                            <span className={`px-3 py-1.5 text-xs font-bold rounded-lg ${row.color} ${row.bg}`}>
+                                                {row.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-4 text-text-secondary font-medium">{row.time}</td>
+                                        <td className="px-5 py-4 text-right">
+                                            <button className="text-brand-500 hover:text-brand-600 font-bold text-sm bg-brand-500/10 hover:bg-brand-500/20 px-4 py-2 rounded-xl transition-colors">View History</button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>

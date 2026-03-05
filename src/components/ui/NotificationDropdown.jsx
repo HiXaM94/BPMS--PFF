@@ -107,6 +107,7 @@ export default function NotificationDropdown() {
                   style={{ animationDelay: `${i * 40}ms` }}
                   onClick={() => {
                     markAsRead(notif.id);
+                    setSelectedNotification(notif);
                     setIsOpen(false);
                   }}
                 >
@@ -119,10 +120,19 @@ export default function NotificationDropdown() {
                     <Icon size={16} className={color} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm leading-tight line-clamp-2
+                    <div className={`text-sm leading-tight
                       ${!notif.is_read ? 'font-semibold text-text-primary' : 'font-medium text-text-secondary'}`}>
-                      {notif.message}
-                    </p>
+                      {notif.message.includes('Reason: ') ? (
+                        <>
+                          <span className="block mb-1.5">{notif.message.split('. Reason: ')[0].trim()}</span>
+                          <span className="block text-xs text-red-700 bg-red-50 p-2 rounded-lg border border-red-100 font-medium line-clamp-3">
+                            <span className="font-bold">Reason:</span> {notif.message.split('. Reason: ')[1]?.trim() || 'No reason provided'}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="line-clamp-2">{notif.message}</span>
+                      )}
+                    </div>
                     <span className="text-[10px] text-text-tertiary mt-1 block">
                       {timeAgo(notif.created_at)}
                     </span>

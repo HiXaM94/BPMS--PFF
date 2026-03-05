@@ -6,8 +6,8 @@ import { cacheService } from '../services/CacheService';
 
 const LEAVE_TYPE_TO_BALANCE = {
     'Annual Leave': { usedCol: 'annual_used' },
-    'Sick Leave':   { usedCol: 'sick_used' },
-    'Remote Work':  { usedCol: 'remote_used' },
+    'Sick Leave': { usedCol: 'sick_used' },
+    'Remote Work': { usedCol: 'remote_used' },
     'Unpaid Leave': { usedCol: 'unpaid_used' },
 };
 
@@ -28,6 +28,9 @@ class VacationController {
             .order('created_at', { ascending: false });
 
         if (filter.userId) query = query.eq('user_id', filter.userId);
+        if (filter.userIds && Array.isArray(filter.userIds)) {
+            query = query.in('user_id', filter.userIds);
+        }
         if (filter.status) query = query.eq('status', filter.status);
         if (filter.entrepriseId) query = query.eq('entreprise_id', filter.entrepriseId);
 

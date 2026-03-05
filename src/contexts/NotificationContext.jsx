@@ -10,6 +10,7 @@ export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [profileReminder, setProfileReminder] = useState(null);
+  const [selectedNotification, setSelectedNotification] = useState(null);
 
   const userId = session?.user?.id;
 
@@ -36,19 +37,35 @@ export function NotificationProvider({ children }) {
     let cancelled = false;
 
     const checkReminder = async () => {
+      // General account completion check for all roles
+      if (!profile.name || !profile.email) {
+        setProfileReminder({
+          id: 'complete_profile_basic',
+          user_id: userId,
+          message: '👋 Welcome! Please visit your profile to ensure your account details are complete.',
+          type: 'info',
+          metadata: { event: 'complete_profile', redirectTo: '/profile' },
+        });
+        return;
+      }
+
       if (profile.role === 'EMPLOYEE') {
         const { data } = await supabase
           .from('user_details')
-          .select('id')
+          .select('*')
           .eq('id_user', userId)
           .maybeSingle();
 
         if (cancelled) return;
-        if (!data) {
+
+        // Check if record is missing OR key fields are empty
+        const isMissingFields = !data || !data.cnss || !data.rib || !data.department;
+
+        if (isMissingFields) {
           setProfileReminder({
             id: 'complete_profile_employee',
             user_id: userId,
-            message: '📋 Complete your onboarding profile to keep your employee record active.',
+            message: '📋 Almost there! Complete your onboarding profile (CNSS, RIB, etc.) to unlock all features.',
             type: 'warning',
             metadata: { event: 'complete_profile', role: 'EMPLOYEE', redirectTo: '/complete-profile' },
           });
@@ -59,29 +76,38 @@ export function NotificationProvider({ children }) {
       }
 
       if (profile.role === 'TEAM_MANAGER') {
+        const { data: userDetails } = await supabase
+          .from('user_details')
+          .select('*')
+          .eq('id_user', userId)
+          .maybeSingle();
+
+        if (cancelled) return;
+
         const { data: emp } = await supabase
           .from('employees')
           .select('id')
           .eq('user_id', userId)
           .maybeSingle();
 
-        if (cancelled || !emp?.id) {
-          setProfileReminder(null);
-          return;
-        }
+        if (cancelled) return;
 
         const { data: profileData } = await supabase
           .from('team_manager_profiles')
           .select('salary_base')
-          .eq('employee_id', emp.id)
+          .eq('employee_id', emp?.id)
           .maybeSingle();
 
         if (cancelled) return;
-        if (!profileData || !profileData.salary_base) {
+
+        const isMissingUserDetails = !userDetails || !userDetails.cnss || !userDetails.rib;
+        const isMissingManagerProfile = !profileData || !profileData.salary_base;
+
+        if (isMissingUserDetails || isMissingManagerProfile) {
           setProfileReminder({
             id: 'complete_profile_manager',
             user_id: userId,
-            message: '💼 Tell us your salary base so we can finish setting up your manager account.',
+            message: '💼 Manager Setup: Please complete your profile details (Salary, CNSS, RIB) to finish account setup.',
             type: 'warning',
             metadata: { event: 'complete_profile', role: 'TEAM_MANAGER', redirectTo: '/complete-profile' },
           });
@@ -188,6 +214,8 @@ export function NotificationProvider({ children }) {
       clearAll,
       refetch: fetchNotifications,
       dismissProfileNotification,
+      selectedNotification,
+      setSelectedNotification,
     }}>
       {children}
     </NotificationContext.Provider>
