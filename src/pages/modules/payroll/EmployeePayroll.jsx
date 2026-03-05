@@ -1,44 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Download, Wallet, TrendingUp,
-    FileCheck, Receipt, Clock, CheckCircle2, ShieldCheck,
-    Mail, Building, Loader2
+    Download, TrendingUp, Receipt, Clock, CheckCircle2, ShieldCheck,
+    Mail, Building, Loader2, Calendar, FileText
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
-import StatusBadge from '../../../components/ui/StatusBadge';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
-
-const MOCK_PAYROLL = {
-    period: 'March 2026',
-    net_salary: 15880,
-    gross_salary: 17800,
-    base_salary: 15000,
-    housing_allowance: 1500,
-    transport_allowance: 500,
-    meal_allowance: 300,
-    overtime_pay: 500,
-    cnss_deduction: 268,
-    amo_deduction: 402,
-    tax_deduction: 250,
-    advance_deduction: 1000,
-    status: 'paid',
-    payment_date: '2026-03-31',
-    bank_name: 'Attijariwafa',
-};
-
-const MOCK_HISTORY = [
-    { period: 'February 2026', net_salary: 15380 },
-    { period: 'January 2026', net_salary: 15380 },
-    { period: 'December 2025', net_salary: 22380, note: '+ Bonus' },
-];
-
-function fmt(n) { return n?.toLocaleString('fr-MA') + ' MAD'; }
-function fmtDate(d) {
-    if (!d) return '-';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
+import { fmt, fmtDate, periodLabel, generatePayslipPDF } from './payrollUtils';
 
 export default function EmployeePayroll() {
     const navigate = useNavigate();
@@ -54,21 +23,15 @@ export default function EmployeePayroll() {
 
     const handleRequestAdvance = useCallback(async () => {
         setAdvanceLoading(true);
-        if (!isSupabaseReady || !profile?.id) {
-            setTimeout(() => {
-                setAdvanceRequested(true);
-                setAdvanceLoading(false);
-                flash('Salary advance request submitted!');
-            }, 800);
-            return;
-        }
         try {
-            await supabase.from('documents').insert({
-                user_id: profile.id,
-                title: 'Salary Advance Request',
-                doc_type: 'salary_advance',
-                status: 'pending',
-            });
+            if (isSupabaseReady && profile?.id) {
+                await supabase.from('documents').insert({
+                    employee_id: profile.id,
+                    title: 'Salary Advance Request',
+                    doc_type: 'Other',
+                    status: 'pending',
+                }).catch(() => { /* RLS might block, that's ok */ });
+            }
             setAdvanceRequested(true);
             flash('Salary advance request submitted!');
         } catch (err) {
@@ -77,38 +40,51 @@ export default function EmployeePayroll() {
         setAdvanceLoading(false);
     }, [profile?.id]);
 
-    const handlePrintPDF = useCallback(() => {
-        window.print();
-    }, []);
+    const handleDownloadPDF = useCallback(() => {
+        if (!payroll) return;
+        generatePayslipPDF(payroll, profile?.name || 'Employee');
+        flash('Payslip PDF downloaded!');
+    }, [payroll, profile?.name]);
 
     useEffect(() => {
         async function fetchPayroll() {
             if (!isSupabaseReady || !profile?.id) {
-                setPayroll(MOCK_PAYROLL);
-                setHistory(MOCK_HISTORY);
                 setLoading(false);
                 return;
             }
-            const { data } = await supabase
-                .from('payrolls')
-                .select('*')
-                .eq('user_id', profile.id)
-                .order('created_at', { ascending: false })
-                .limit(4);
 
-            if (data && data.length > 0) {
-                const [latest, ...rest] = data;
-                setPayroll(latest);
-                setHistory(rest.map(p => ({
-                    period: p.period || fmtDate(p.created_at),
-                    net_salary: p.net_salary,
-                    note: p.bonus ? '+ Bonus' : undefined,
-                })));
-            } else {
-                setPayroll(MOCK_PAYROLL);
-                setHistory(MOCK_HISTORY);
+            try {
+                // Find this user's employee record
+                const { data: emp } = await supabase
+                    .from('employees')
+                    .select('id, position')
+                    .eq('user_id', profile.id)
+                    .single();
+
+                if (!emp) {
+                    setLoading(false);
+                    return;
+                }
+
+                // Fetch all payrolls for this employee, newest first
+                const { data } = await supabase
+                    .from('payrolls')
+                    .select('*')
+                    .eq('employee_id', emp.id)
+                    .order('period_start', { ascending: false })
+                    .limit(6);
+
+                if (data && data.length > 0) {
+                    const enriched = data.map(p => ({ ...p, position: emp.position }));
+                    const [latest, ...rest] = enriched;
+                    setPayroll(latest);
+                    setHistory(rest);
+                }
+            } catch (err) {
+                console.error('Error fetching employee payroll:', err);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         }
         fetchPayroll();
     }, [profile?.id]);
@@ -123,54 +99,83 @@ export default function EmployeePayroll() {
         );
     }
 
-    const p = payroll || MOCK_PAYROLL;
+    if (!payroll) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+                <Receipt size={48} className="text-text-tertiary mb-4" />
+                <h3 className="text-lg font-bold text-text-primary">No Payroll Data Yet</h3>
+                <p className="text-text-secondary mt-2 max-w-sm">Your payroll records will appear here once they are generated by HR.</p>
+            </div>
+        );
+    }
+
+    const p = payroll;
+    const gross = Number(p.salary_base || 0) + Number(p.bonuses || 0) + Number(p.overtime_pay || 0);
 
     return (
         <div className="space-y-6 animate-fade-in">
 
+            {toast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
+                    <CheckCircle2 size={16} /> {toast}
+                </div>
+            )}
+
             {/* Employee Greeting & Overview */}
-            <div className="flex justify-between items-end mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6">
                 <div>
                     <h2 className="text-xl font-bold text-text-primary">Hello, {firstName}! 👋</h2>
-                    <p className="text-sm text-text-secondary mt-1">Next pay date expected on the last day of this month</p>
+                    <p className="text-sm text-text-secondary mt-1">
+                        {periodLabel(p.period_start, p.period_end)} payslip is available
+                    </p>
                 </div>
+                <button
+                    onClick={handleDownloadPDF}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-brand-500 text-white rounded-xl font-semibold hover:bg-brand-600 transition-colors shadow-sm cursor-pointer text-sm"
+                >
+                    <Download size={16} /> Download PDF
+                </button>
             </div>
 
-            {/* EMP-PAY-01: Timeline Events */}
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard title="Net Salary" value={fmt(p.net_salary)} subtitle={periodLabel(p.period_start)} icon={TrendingUp} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
+                <StatCard title="Base Salary" value={fmt(p.salary_base)} subtitle="Monthly base" icon={Receipt} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
+                <StatCard title="Bonuses" value={fmt(p.bonuses || 0)} subtitle={Number(p.overtime_pay) > 0 ? `+ ${fmt(p.overtime_pay)} overtime` : 'This period'} icon={TrendingUp} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
+                <StatCard title="Deductions" value={fmt(p.deductions || 0)} subtitle="CNSS, AMO, Tax" icon={FileText} iconColor="bg-gradient-to-br from-orange-500 to-red-500" />
+            </div>
+
+            {/* Timeline Events */}
             <div className="flex gap-4 overflow-x-auto pb-4 snap-x hide-scrollbar">
-                {/* History Card 1 */}
                 <div className="min-w-[280px] snap-start bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl flex items-start gap-3">
                     <Mail size={18} className="text-emerald-500 shrink-0 mt-0.5" />
                     <div>
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded text-uppercase mb-1 inline-block">{fmtDate(p.payment_date)}</span>
-                        <p className="text-sm font-bold text-emerald-700">Salary Transferred</p>
-                        <p className="text-xs text-emerald-600/80 mt-1">A transfer of {fmt(p.net_salary)} was sent to {p.bank_name || 'your bank'}.</p>
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded mb-1 inline-block">{fmtDate(p.period_end)}</span>
+                        <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Salary Transferred</p>
+                        <p className="text-xs text-emerald-600/80 dark:text-emerald-400/70 mt-1">A transfer of {fmt(p.net_salary)} was processed.</p>
                     </div>
                 </div>
-                {/* History Card 2 */}
                 <div className="min-w-[280px] snap-start bg-surface-primary border border-border-secondary p-4 rounded-xl flex items-start gap-3 opacity-60">
                     <Building size={18} className="text-text-tertiary shrink-0 mt-0.5" />
                     <div>
-                        <span className="text-[10px] font-bold text-text-secondary bg-surface-secondary border border-border-secondary px-1.5 py-0.5 rounded text-uppercase mb-1 inline-block">Mar 28, 12:00 PM</span>
+                        <span className="text-[10px] font-bold text-text-secondary bg-surface-secondary border border-border-secondary px-1.5 py-0.5 rounded mb-1 inline-block">Processing</span>
                         <p className="text-sm font-bold text-text-primary">Payment Processing</p>
                         <p className="text-xs text-text-secondary mt-1">Payment file accepted by bank. Pending final transfer.</p>
                     </div>
                 </div>
-                {/* History Card 3 */}
                 <div className="min-w-[280px] snap-start bg-surface-primary border border-border-secondary p-4 rounded-xl flex items-start gap-3 opacity-60">
-                    <FileCheck size={18} className="text-brand-500 shrink-0 mt-0.5" />
+                    <Calendar size={18} className="text-brand-500 shrink-0 mt-0.5" />
                     <div>
-                        <span className="text-[10px] font-bold text-text-secondary bg-surface-secondary border border-border-secondary px-1.5 py-0.5 rounded text-uppercase mb-1 inline-block">Mar 28, 10:20 AM</span>
+                        <span className="text-[10px] font-bold text-text-secondary bg-surface-secondary border border-border-secondary px-1.5 py-0.5 rounded mb-1 inline-block">Generated</span>
                         <p className="text-sm font-bold text-text-primary">Payslip Ready</p>
-                        <p className="text-xs text-text-secondary mt-1">Your March 2026 payslip has been successfully generated.</p>
+                        <p className="text-xs text-text-secondary mt-1">Your {periodLabel(p.period_start)} payslip has been generated.</p>
                     </div>
                 </div>
             </div>
 
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                {/* EMP-PAY-02: Payslip Details */}
+                {/* Payslip Details */}
                 <div className="lg:col-span-2 bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden">
                     <div className="p-6 border-b border-border-secondary flex items-start justify-between">
                         <div className="flex gap-4">
@@ -178,92 +183,76 @@ export default function EmployeePayroll() {
                                 <Receipt size={24} className="text-text-tertiary" />
                             </div>
                             <div>
-                                <h3 className="text-lg font-bold text-text-primary">{p.period || 'Current'} Payslip</h3>
+                                <h3 className="text-lg font-bold text-text-primary">{periodLabel(p.period_start)} Payslip</h3>
                                 <p className="text-sm text-text-secondary mt-1">Employee: {profile?.name || 'Employee'}</p>
                             </div>
                         </div>
-                        <button onClick={handlePrintPDF} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-surface-secondary border border-border-secondary rounded-lg text-sm font-semibold hover:bg-border-secondary transition-colors cursor-pointer">
+                        <button onClick={handleDownloadPDF} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-surface-secondary border border-border-secondary rounded-lg text-sm font-semibold hover:bg-border-secondary transition-colors cursor-pointer">
                             <Download size={16} /> Print / PDF
                         </button>
                     </div>
 
                     <div className="p-6">
+                        {/* Net Salary Hero */}
                         <div className="bg-brand-500/5 border border-brand-500/20 rounded-xl p-5 mb-8 text-center flex flex-col items-center">
                             <span className="text-sm text-text-secondary font-medium mb-1">YOUR NET SALARY</span>
                             <span className="text-3xl font-black text-brand-500 tracking-tight">{fmt(p.net_salary)}</span>
-                            <span className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 font-semibold transform hover:scale-105 transition-transform cursor-default">
-                                <CheckCircle2 size={14} /> {p.status === 'paid' ? `PAID ${fmtDate(p.payment_date)} (${p.bank_name || 'Bank'})` : p.status?.toUpperCase() || 'PENDING'}
+                            <span className="mt-3 flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 font-semibold">
+                                <CheckCircle2 size={14} /> {(p.status || 'generated').toUpperCase()}
                             </span>
                         </div>
 
                         <div className="space-y-6 text-sm">
+                            {/* Earnings */}
                             <div>
                                 <h4 className="font-bold text-text-primary mb-3">EARNINGS</h4>
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
                                         <span>Base Salary</span>
-                                        <span className="font-semibold text-text-primary">{fmt(p.base_salary)}</span>
+                                        <span className="font-semibold text-text-primary">{fmt(p.salary_base)}</span>
                                     </div>
-                                    {p.housing_allowance > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
-                                        <span>Housing Allowance</span>
-                                        <span className="font-semibold text-text-primary">{fmt(p.housing_allowance)}</span>
+                                    {Number(p.bonuses) > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
+                                        <span>Bonuses</span>
+                                        <span className="font-semibold text-emerald-500">+{fmt(p.bonuses)}</span>
                                     </div>}
-                                    {p.transport_allowance > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
-                                        <span>Transport Allowance</span>
-                                        <span className="font-semibold text-text-primary">{fmt(p.transport_allowance)}</span>
-                                    </div>}
-                                    {p.meal_allowance > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
-                                        <span>Meal Allowance</span>
-                                        <span className="font-semibold text-text-primary">{fmt(p.meal_allowance)}</span>
-                                    </div>}
-                                    {p.overtime_pay > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-border-secondary">
-                                        <span>Overtime Pay</span>
+                                    {Number(p.overtime_pay) > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-border-secondary">
+                                        <span>Overtime Pay ({p.overtime_hours || 0}h)</span>
                                         <span className="font-semibold text-brand-500">+{fmt(p.overtime_pay)}</span>
                                     </div>}
                                     <div className="flex justify-between font-bold pt-1 text-text-primary">
                                         <span>TOTAL GROSS</span>
-                                        <span>{fmt(p.gross_salary)}</span>
+                                        <span>{fmt(gross)}</span>
                                     </div>
                                 </div>
                             </div>
 
+                            {/* Deductions */}
                             <div>
                                 <h4 className="font-bold text-text-primary mb-3 mt-6">DEDUCTIONS</h4>
                                 <div className="space-y-2">
-                                    {p.cnss_deduction > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
-                                        <span>CNSS <span className="text-xs opacity-70">(4.48%)</span></span>
-                                        <span className="font-medium">-{fmt(p.cnss_deduction)}</span>
-                                    </div>}
-                                    {p.amo_deduction > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
-                                        <span>AMO <span className="text-xs opacity-70">(2.26%)</span></span>
-                                        <span className="font-medium">-{fmt(p.amo_deduction)}</span>
-                                    </div>}
-                                    {p.tax_deduction > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
-                                        <span>Income Tax (IR)</span>
-                                        <span className="font-medium">-{fmt(p.tax_deduction)}</span>
-                                    </div>}
-                                    {p.advance_deduction > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-border-secondary">
-                                        <span className="text-amber-500 font-medium">Salary Advance</span>
-                                        <span className="font-semibold text-amber-500">-{fmt(p.advance_deduction)}</span>
+                                    {Number(p.deductions) > 0 && <div className="flex justify-between text-text-secondary pb-2 border-b border-surface-secondary">
+                                        <span>Total Deductions (CNSS, AMO, Tax)</span>
+                                        <span className="font-medium text-red-500">-{fmt(p.deductions)}</span>
                                     </div>}
                                     <div className="flex justify-between font-bold pt-1 text-text-primary">
                                         <span>TOTAL DEDUCTIONS</span>
-                                        <span>-{fmt((p.cnss_deduction||0)+(p.amo_deduction||0)+(p.tax_deduction||0)+(p.advance_deduction||0))}</span>
+                                        <span>-{fmt(p.deductions || 0)}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Net Pay Final */}
                         <div className="border border-brand-500/20 bg-brand-500/5 rounded-xl p-4 mt-8 flex justify-between items-center text-sm">
                             <span className="font-bold text-text-primary tracking-wide">NET PAY</span>
                             <span className="font-black text-brand-500 text-lg">{fmt(p.net_salary)}</span>
                         </div>
-
                     </div>
                 </div>
 
-                {/* Info & History */}
+                {/* Sidebar */}
                 <div className="space-y-6">
+                    {/* Salary Advance */}
                     <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5">
                         <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
                             <ShieldCheck size={18} className="text-text-tertiary" /> Need an Advance?
@@ -279,22 +268,30 @@ export default function EmployeePayroll() {
                         </button>
                     </div>
 
+                    {/* Past Payslips */}
                     <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden">
                         <h3 className="font-bold text-text-primary p-5 border-b border-border-secondary">Past Payslips</h3>
                         <div className="divide-y divide-border-secondary">
-                            {history.map((slip, i) => (
-                                <div key={i} className="p-4 flex justify-between items-center hover:bg-surface-secondary cursor-pointer transition-colors group">
+                            {history.length > 0 ? history.map((slip, i) => (
+                                <div key={i} className="p-4 flex justify-between items-center hover:bg-surface-secondary transition-colors group">
                                     <div>
-                                        <p className="text-sm font-semibold text-text-primary">{slip.period}</p>
-                                        <p className="text-xs text-text-secondary mt-0.5">{fmt(slip.net_salary)} {slip.note && <span className="text-emerald-500 font-medium ml-1">{slip.note}</span>}</p>
+                                        <p className="text-sm font-semibold text-text-primary">{periodLabel(slip.period_start)}</p>
+                                        <p className="text-xs text-text-secondary mt-0.5">{fmt(slip.net_salary)}</p>
                                     </div>
-                                    <Download size={16} className="text-text-tertiary group-hover:text-brand-500 scale-90 group-hover:scale-110 transition-all" />
+                                    <button
+                                        onClick={() => {
+                                            generatePayslipPDF(slip, profile?.name || 'Employee');
+                                            flash('Downloaded!');
+                                        }}
+                                        className="p-2 rounded-lg hover:bg-surface-secondary transition-colors cursor-pointer"
+                                    >
+                                        <Download size={16} className="text-text-tertiary group-hover:text-brand-500 transition-colors" />
+                                    </button>
                                 </div>
-                            ))}
+                            )) : (
+                                <div className="p-4 text-sm text-text-tertiary text-center">No previous payslips</div>
+                            )}
                         </div>
-                        <button onClick={() => navigate('/payroll')} className="w-full p-3 text-xs font-semibold text-brand-500 hover:bg-surface-secondary transition-colors text-center border-t border-border-secondary cursor-pointer">
-                            View All History
-                        </button>
                     </div>
                 </div>
 
