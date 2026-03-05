@@ -111,9 +111,16 @@
       color 0.3s var(--transition-timing-smooth);
   }
 
-  h1, h2, h3, h4, h5, h6,
-  p, span, label, figcaption, legend, a {
+  h1, h2, h3, h4, h5, h6 {
     font-weight: 500;
+  }
+
+  p, span, label, figcaption, legend, a {
+    font-weight: 400;
+  }
+
+  figure, .text-3xl, .text-2xl, .text-4xl, .text-5xl, .text-6xl {
+    font-weight: 400;
   }
 
   * {
