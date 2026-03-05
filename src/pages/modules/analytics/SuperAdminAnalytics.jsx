@@ -129,7 +129,7 @@ export default function SuperAdminAnalytics() {
                     title="Avg. Subscription"
                     value="4.2 Months"
                     icon={Calendar}
-                    iconColor="bg-gradient-to-br from-pink-500 to-rose-500"
+                    iconColor="bg-gradient-to-br from-sky-500 to-cyan-500"
                     delay={240}
                 />
             </div>

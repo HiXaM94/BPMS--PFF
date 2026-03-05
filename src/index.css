@@ -3,7 +3,7 @@
 /* ===== CUSTOM THEME — Coinview-inspired clean UI ===== */
 @theme {
   /* Typography */
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 
   /* Brand Colors — sleek dark charcoal accent */
   --color-brand-50: #f5f5f4;
@@ -104,6 +104,7 @@
 
   body {
     font-family: var(--font-sans);
+    font-size: 14px;
     background-color: var(--color-surface-secondary);
     color: var(--color-text-primary);
     transition: background-color 0.3s var(--transition-timing-smooth),
