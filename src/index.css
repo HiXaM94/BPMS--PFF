@@ -111,6 +111,11 @@
       color 0.3s var(--transition-timing-smooth);
   }
 
+  h1, h2, h3, h4, h5, h6,
+  p, span, label, figcaption, legend, a {
+    font-weight: 600;
+  }
+
   * {
     border-color: var(--color-border-primary);
   }
