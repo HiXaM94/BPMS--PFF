@@ -7,10 +7,10 @@ import { supabase, isSupabaseReady } from '../../../../services/supabase';
 
 /**
  * Get today's QR code token for a specific company
- * @param {string} companyId - UUID of the company
+ * @param {string} entrepriseId - UUID of the company
  * @returns {Promise<{token: string, date: string, generatedAt: string} | null>}
  */
-export async function getTodayQRCode(companyId) {
+export async function getTodayQRCode(entrepriseId) {
     if (!isSupabaseReady) {
         // Fallback: generate a local demo token
         return getDemoToken();
@@ -21,7 +21,7 @@ export async function getTodayQRCode(companyId) {
     const { data, error } = await supabase
         .from('daily_qr_codes')
         .select('secret_token, date, generated_at')
-        .eq('company_id', companyId)
+        .eq('entreprise_id', entrepriseId)
         .eq('date', today)
         .eq('is_active', true)
         .maybeSingle();
@@ -34,7 +34,7 @@ export async function getTodayQRCode(companyId) {
     if (!data) {
         // pg_cron hasn't generated today's token yet — generate it now
         console.log('[QR Service] No token for today, generating...');
-        return await generateDailyToken(companyId);
+        return await generateDailyToken(entrepriseId);
     }
 
     return {
@@ -46,9 +46,9 @@ export async function getTodayQRCode(companyId) {
 
 /**
  * Manually generate a daily token (fallback if pg_cron hasn't run)
- * @param {string} companyId
+ * @param {string} entrepriseId
  */
-export async function generateDailyToken(companyId) {
+export async function generateDailyToken(entrepriseId) {
     if (!isSupabaseReady) return getDemoToken();
 
     const today = new Date().toISOString().split('T')[0];
@@ -57,13 +57,13 @@ export async function generateDailyToken(companyId) {
     const { data, error } = await supabase
         .from('daily_qr_codes')
         .upsert({
-            company_id: companyId,
+            entreprise_id: entrepriseId,
             date: today,
             secret_token: token,
             generated_at: new Date().toISOString(),
             expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             is_active: true
-        }, { onConflict: 'company_id,date' })
+        }, { onConflict: 'entreprise_id,date' })
         .select()
         .single();
 
@@ -82,10 +82,10 @@ export async function generateDailyToken(companyId) {
 /**
  * Validate a scanned QR token against today's active token
  * @param {string} scannedToken - The token read from the QR code
- * @param {string} companyId - UUID of the company
+ * @param {string} entrepriseId - UUID of the company
  * @returns {Promise<{valid: boolean, message: string}>}
  */
-export async function validateScanToken(scannedToken, companyId) {
+export async function validateScanToken(scannedToken, entrepriseId) {
     if (!isSupabaseReady) {
         // Demo mode: accept any token that starts with QR-
         if (scannedToken && scannedToken.startsWith('QR-')) {
@@ -99,7 +99,7 @@ export async function validateScanToken(scannedToken, companyId) {
     const { data, error } = await supabase
         .from('daily_qr_codes')
         .select('secret_token')
-        .eq('company_id', companyId)
+        .eq('entreprise_id', entrepriseId)
         .eq('date', today)
         .eq('is_active', true)
         .maybeSingle();

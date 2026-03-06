@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  User, Mail, Phone, MapPin, Calendar, Briefcase, Award,
+  User, Users, Mail, Phone, MapPin, Calendar, Briefcase, Award,
   Edit, Building2, Clock, Star, GraduationCap, FileText, ShieldAlert,
   Search, CreditCard, Landmark, Hash, Camera, Upload, Loader2, CheckCircle2,
+  LayoutGrid, Move, Save, X, Settings2
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -288,6 +289,237 @@ function AvatarUpload({ initials, colorClass, imageUrl, onImageChange }) {
   );
 }
 
+// Team Assignment Tool Component
+function TeamAssignmentTool({ employees, onClose, onSave, entrepriseId }) {
+  const [assignments, setAssignments] = useState({ unassigned: [] });
+  const [saving, setSaving] = useState(false);
+  const [draggedItem, setDraggedItem] = useState(null);
+
+  useEffect(() => {
+    // Initialize assignments from employees state
+    const initial = { unassigned: [] };
+    const managers = employees.filter(e =>
+      e.role?.toUpperCase() === 'TEAM_MANAGER' ||
+      e.role?.toLowerCase() === 'manager'
+    );
+
+    managers.forEach(m => {
+      initial[m.id] = [];
+    });
+
+    employees.filter(e => e.role?.toLowerCase() === 'employee').forEach(emp => {
+      const managerId = emp.reports_to;
+      if (managerId && initial[managerId]) {
+        initial[managerId].push(emp);
+      } else {
+        initial['unassigned'].push(emp);
+      }
+    });
+    setAssignments(initial);
+  }, [employees]);
+
+  const managers = employees.filter(e =>
+    e.role?.toUpperCase() === 'TEAM_MANAGER' ||
+    e.role?.toLowerCase() === 'manager'
+  );
+
+  const onDragStart = (e, employee, sourceId) => {
+    setDraggedItem({ employee, sourceId });
+    e.dataTransfer.setData('text/plain', employee.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const onDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const onDrop = (e, targetManagerId) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+
+    const { employee, sourceId } = draggedItem;
+    if (sourceId === targetManagerId) return;
+
+    setAssignments(prev => {
+      const newAssignments = { ...prev };
+      // Remove from source
+      newAssignments[sourceId] = newAssignments[sourceId].filter(id => id.id !== employee.id);
+      // Add to target
+      newAssignments[targetManagerId] = [...(newAssignments[targetManagerId] || []), employee];
+      return newAssignments;
+    });
+    setDraggedItem(null);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updates = [];
+      Object.entries(assignments).forEach(([managerId, emps]) => {
+        const reportsTo = managerId === 'unassigned' ? null : managerId;
+        emps.forEach(emp => {
+          updates.push({
+            id_user: emp.id,
+            reports_to: reportsTo,
+            entreprise_id: entrepriseId
+          });
+        });
+      });
+
+      console.log('Applying team assignment updates:', updates.length);
+
+      // Use upsert to create rows if they don't exist in user_details
+      const results = await Promise.all(updates.map(update =>
+        supabase
+          .from('user_details')
+          .upsert({
+            id_user: update.id_user,
+            reports_to: update.reports_to,
+            entreprise_id: update.entreprise_id
+          }, { onConflict: 'id_user' })
+      ));
+
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) {
+        console.error('Some updates failed:', errors);
+        alert('Some assignments could not be saved. Please check console for details.');
+      }
+
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Save assignments error:', err);
+      alert('An error occurred while saving assignments.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-[80vh]">
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* Fixed Unassigned Sidebar */}
+        <div
+          className="w-80 h-full bg-surface-secondary/50 rounded-2xl border-2 border-dashed border-border-secondary flex flex-col mr-6"
+          onDragOver={onDragOver}
+          onDrop={(e) => onDrop(e, 'unassigned')}
+        >
+          <div className="p-4 border-b border-border-secondary flex items-center justify-between bg-surface-primary/50 rounded-t-2xl sticky top-0 z-10 backdrop-blur-sm">
+            <h4 className="text-sm font-bold text-text-primary flex items-center gap-2">
+              <Users size={16} className="text-text-tertiary" />
+              Unassigned ({assignments.unassigned?.length || 0})
+            </h4>
+          </div>
+          <div className="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar">
+            {assignments.unassigned?.map(emp => (
+              <div
+                key={emp.id}
+                draggable
+                onDragStart={(e) => onDragStart(e, emp, 'unassigned')}
+                className="p-3 bg-surface-primary rounded-xl border border-border-secondary shadow-sm cursor-move hover:border-brand-500/50 hover:shadow-md transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-600 font-bold text-xs uppercase">
+                    {emp.avatar}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-text-primary truncate">{emp.name}</p>
+                    <p className="text-[10px] text-text-tertiary truncate">{emp.department}</p>
+                  </div>
+                  <Move size={12} className="text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+            ))}
+            {(!assignments.unassigned || assignments.unassigned.length === 0) && (
+              <div className="h-24 flex items-center justify-center text-center p-4 border-2 border-dashed border-border-secondary/30 rounded-xl">
+                <p className="text-[11px] text-text-tertiary">All employees are assigned.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable Manager Grid */}
+        <div className="flex-1 overflow-y-auto pb-4 pr-1 custom-scrollbar">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 p-1">
+            {/* Manager Columns */}
+            {managers.map(manager => (
+              <div
+                key={manager.id}
+                className="bg-surface-secondary/50 rounded-2xl border-2 border-border-secondary flex flex-col h-[400px]"
+                onDragOver={onDragOver}
+                onDrop={(e) => onDrop(e, manager.id)}
+              >
+                <div className="p-4 border-b border-border-secondary bg-surface-primary/50 rounded-t-2xl sticky top-0 z-10 backdrop-blur-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-bold text-xs">
+                      {manager.avatar}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-text-primary truncate">{manager.name}</h4>
+                      <p className="text-[11px] text-text-tertiary">Team Manager</p>
+                    </div>
+                    <StatusBadge size="sm" variant="brand">{assignments[manager.id]?.length || 0}</StatusBadge>
+                  </div>
+                </div>
+                <div className="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar">
+                  {assignments[manager.id]?.map(emp => (
+                    <div
+                      key={emp.id}
+                      draggable
+                      onDragStart={(e) => onDragStart(e, emp, manager.id)}
+                      className="p-3 bg-surface-primary rounded-xl border border-border-secondary shadow-sm cursor-move hover:border-brand-500/50 hover:shadow-md transition-all group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-bold text-xs">
+                          {emp.avatar}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-text-primary truncate">{emp.name}</p>
+                          <p className="text-[10px] text-text-tertiary truncate">{emp.department}</p>
+                        </div>
+                        <Move size={12} className="text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </div>
+                  ))}
+                  {(!assignments[manager.id] || assignments[manager.id].length === 0) && (
+                    <div className="h-24 flex items-center justify-center text-center p-4 border-2 border-dashed border-border-secondary/50 rounded-xl">
+                      <p className="text-[11px] text-text-tertiary">Drag employees here to assign to {manager.name.split(' ')[0]}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 pt-6 border-t border-border-secondary flex items-center justify-between">
+        <p className="text-xs text-text-tertiary italic">
+          <Settings2 size={12} className="inline mr-1" />
+          Drag and drop employees between columns to reassign. Click Save to apply changes to the database.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 text-sm font-semibold text-text-secondary hover:bg-surface-secondary rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-6 py-2.5 bg-brand-500 text-white text-sm font-bold rounded-xl hover:bg-brand-600 shadow-lg shadow-brand-500/20 transition-all active:scale-95 disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            Save Team Assignments
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EmployeeProfile() {
   const { currentRole } = useRole();
   const { t } = useLanguage();
@@ -297,86 +529,90 @@ export default function EmployeeProfile() {
   const [deptFilter, setDeptFilter] = useState('all');
   const [avatarImages, setAvatarImages] = useState({});
   const [employees, setEmployees] = useState(isSupabaseReady ? [] : allEmployees);
+  const [showAssignmentTool, setShowAssignmentTool] = useState(false);
 
   const isEmployee = currentRole.id === 'employee';
 
-  useEffect(() => {
+  const fetchProfiles = useCallback(async () => {
     if (!isSupabaseReady || !authProfile?.entreprise_id) return;
+    try {
+      // Query all users of this company (employees, HR, managers)
+      const { data: usersData, error: usersError } = await supabase.from('users')
+        .select('*')
+        .eq('entreprise_id', authProfile.entreprise_id)
+        .neq('role', 'ADMIN')
+        .order('created_at', { ascending: false });
 
-    const fetchProfiles = async () => {
-      try {
-        // Query all users of this company (employees, HR, managers)
-        const { data: usersData, error: usersError } = await supabase.from('users')
-          .select('*')
-          .eq('entreprise_id', authProfile.entreprise_id)
-          .neq('role', 'ADMIN')
-          .order('created_at', { ascending: false });
-
-        if (usersError) {
-          console.error('Fetch profiles error (users query):', usersError);
-          return;
-        }
-
-        const validUsers = usersData || [];
-
-        // Fetch employee details for those users
-        let empMap = {};
-        if (validUsers.length > 0) {
-          const userIds = validUsers.map(u => u.id);
-          const { data: empData, error: empError } = await supabase
-            .from('user_details')
-            .select('*')
-            .in('id_user', userIds);
-
-          if (!empError && empData) {
-            empData.forEach(e => {
-              if (e.id_user) empMap[e.id_user] = e;
-            });
-          }
-        }
-
-        setEmployees(validUsers.map((u, idx) => {
-          const e = empMap[u.id] || {};
-          const name = u.name || u.email?.split('@')[0] || `User ${idx + 1}`;
-          return {
-            id: u.id,
-            name,
-            email: u.email || '-',
-            phone: e?.phone || '-',
-            cnss: e?.cnss || '-',
-            rib: e?.rib || '-',
-            department: e?.department || '-',
-            title: e?.position || (u.role === 'HR' ? 'HR Manager' : u.role === 'TEAM_MANAGER' ? 'Team Manager' : 'Employee'),
-            location: e?.location || 'Morocco',
-            manager: '-',
-            joinDate: e?.join_date ? new Date(e.join_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
-            employeeId: `EMP-${u.id?.toString().slice(0, 8)}`,
-            status: u.status || 'active',
-            avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-            bio: e?.bio || '',
-            skills: [],
-            certifications: [],
-            user_id: u.id,
-            role: u.role,
-          };
-        }));
-      } catch (err) {
-        console.error('Fetch profiles catch error:', err);
+      if (usersError) {
+        console.error('Fetch profiles error (users query):', usersError);
+        return;
       }
-    };
 
-    fetchProfiles();
+      const validUsers = usersData || [];
+
+      // Fetch employee details for those users
+      let empMap = {};
+      if (validUsers.length > 0) {
+        const userIds = validUsers.map(u => u.id);
+        const { data: empData, error: empError } = await supabase
+          .from('user_details')
+          .select('*')
+          .in('id_user', userIds);
+
+        if (!empError && empData) {
+          empData.forEach(e => {
+            if (e.id_user) empMap[e.id_user] = e;
+          });
+        }
+      }
+
+      setEmployees(validUsers.map((u, idx) => {
+        const e = empMap[u.id] || {};
+        const name = u.name || u.email?.split('@')[0] || `User ${idx + 1}`;
+        return {
+          id: u.id,
+          name,
+          email: u.email || '-',
+          phone: e?.phone || '-',
+          cnss: e?.cnss || '-',
+          rib: e?.rib || '-',
+          department: e?.department || '-',
+          title: e?.position || (u.role === 'HR' ? 'HR Manager' : u.role === 'TEAM_MANAGER' ? 'Team Manager' : 'Employee'),
+          location: e?.location || 'Morocco',
+          manager: '-',
+          reports_to: e?.reports_to,
+          joinDate: e?.join_date ? new Date(e.join_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
+          employeeId: `EMP-${u.id?.toString().slice(0, 8)}`,
+          status: u.status || 'active',
+          avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+          bio: e?.bio || '',
+          skills: [],
+          certifications: [],
+          user_id: u.id,
+          role: u.role,
+        };
+      }));
+    } catch (err) {
+      console.error('Fetch profiles catch error:', err);
+    }
   }, [authProfile?.entreprise_id]);
 
+  useEffect(() => {
+    fetchProfiles();
+  }, [fetchProfiles]);
+
+
+  const isManager = currentRole.id === 'manager' || currentRole.id?.toLowerCase() === 'team_manager';
 
   const visibleEmployees = isEmployee
     ? employees.filter(e => e.user_id === authProfile?.id || e.email === authProfile?.email)
-    : employees;
+    : isManager
+      ? employees.filter(e => e.reports_to === authProfile?.id || e.user_id === authProfile?.id)
+      : employees;
 
-  // Fallback: if employee role but no match found, show first mock
-  const effectiveVisible = isEmployee && visibleEmployees.length === 0
-    ? allEmployees.filter(e => e.id === 3)
-    : visibleEmployees;
+  // Final check: if we have zero employees after filtering, we show an empty list
+  // instead of falling back to mock data which can be confusing.
+  const effectiveVisible = visibleEmployees;
 
   const departments = [...new Set(employees.map(e => e.department))];
 
@@ -386,6 +622,10 @@ export default function EmployeeProfile() {
       e.department.toLowerCase().includes(search.toLowerCase());
     const matchDept = deptFilter === 'all' || e.department === deptFilter;
     return matchSearch && matchDept;
+  }).sort((a, b) => {
+    if (a.id === authProfile?.id) return -1;
+    if (b.id === authProfile?.id) return 1;
+    return 0;
   });
 
   return (
@@ -397,6 +637,9 @@ export default function EmployeeProfile() {
           : `${effectiveVisible.length} ${t('profile.inOrganization')}`}
         icon={User}
         iconColor="from-brand-500 to-brand-600"
+        actionLabel={(currentRole.id === 'hr' || currentRole.id === 'company_admin') ? "Manage Teams" : null}
+        actionIcon={LayoutGrid}
+        onAction={() => setShowAssignmentTool(true)}
       />
 
       {/* Employee restriction notice */}
@@ -458,12 +701,19 @@ export default function EmployeeProfile() {
                                group-hover:scale-110 transition-transform duration-300`}>
                 {emp.avatar}
               </div>
-              <StatusBadge
-                variant={emp.status === 'active' ? 'success' : emp.status === 'inactive' ? 'danger' : 'warning'}
-                dot size="sm"
-              >
-                {emp.status}
-              </StatusBadge>
+              <div className="flex flex-col items-end gap-2">
+                <StatusBadge
+                  variant={emp.status === 'active' ? 'success' : emp.status === 'inactive' ? 'danger' : 'warning'}
+                  dot size="sm"
+                >
+                  {emp.status}
+                </StatusBadge>
+                {emp.id === authProfile?.id && (
+                  <span className="px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:bg-white dark:text-brand-700 text-[10px] font-bold border border-brand-500/20 dark:border-white shadow-sm">
+                    Your Account
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Name */}
@@ -624,6 +874,24 @@ export default function EmployeeProfile() {
             )}
           </div>
         )}
+      </Modal>
+
+      {/* ═══ Team Assignment Tool Modal ═══ */}
+      <Modal
+        isOpen={showAssignmentTool}
+        onClose={() => setShowAssignmentTool(false)}
+        title="Manage Team Assignments"
+        maxWidth="max-w-7xl"
+      >
+        <TeamAssignmentTool
+          employees={employees}
+          entrepriseId={authProfile?.entreprise_id}
+          onClose={() => setShowAssignmentTool(false)}
+          onSave={() => {
+            fetchProfiles();
+            // Close is handled inside the tool, but we refresh here
+          }}
+        />
       </Modal>
     </div>
   );

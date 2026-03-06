@@ -29,6 +29,7 @@ import Analytics from '../pages/modules/Analytics';
 import RealAnalyticsRouter from '../pages/modules/RealAnalyticsRouter';
 import QRKiosk from '../pages/modules/attendance/qrcode/QRKiosk';
 import Notifications from '../pages/modules/Notifications';
+import CompleteProfile from '../pages/modules/CompleteProfile';
 
 const router = createBrowserRouter([
   // ── Public auth routes ──
@@ -67,6 +68,7 @@ const router = createBrowserRouter([
       // System
       { path: 'permissions', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><Permissions /></RoleGuard> },
       { path: 'settings', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Settings /></RoleGuard> },
+      { path: 'complete-profile', element: <RoleGuard allowedRoles={['employee', 'manager', 'team_manager']}><CompleteProfile /></RoleGuard> },
 
       { path: '*', element: <PlaceholderPage title="Page Not Found" /> },
     ],

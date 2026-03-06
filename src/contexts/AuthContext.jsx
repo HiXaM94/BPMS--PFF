@@ -139,12 +139,17 @@ export function AuthProvider({ children }) {
     return data;
   }, [fetchProfile]);
 
-  // signUpSilently: creates an auth user WITHOUT switching the active session
-  // Use this when an admin creates a sub-user (HR, employee, etc.)
+  // signUpSilently: creates an auth user WITHOUT switching the active session.
+  // Use this when HR/Admin creates a sub-user (employee, manager, etc.)
   const signUpSilently = useCallback(async (email, password, meta = {}) => {
     if (!supabase) throw new Error('Supabase not configured');
-    // Freeze the auth listener so the new user's session is ignored
+
+    // ── 1. Snapshot the current (HR/Admin) session BEFORE signUp replaces it ──
+    const { data: { session: originalSession } } = await supabase.auth.getSession();
+
+    // ── 2. Freeze React state so auth listener ignores the new user's events ──
     suppressAuthChange.current = true;
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -154,8 +159,22 @@ export function AuthProvider({ children }) {
       if (error) throw error;
       return data;
     } finally {
-      // Give Supabase 500ms to finish state propagation, then unfreeze
-      setTimeout(() => { suppressAuthChange.current = false; }, 500);
+      // ── 3. Immediately restore the original session token ──
+      // This is critical: without it, the Supabase client uses the NEW user's
+      // JWT for subsequent calls (RPC, table inserts) → RLS blocks everything
+      // and the app falls back to demo/empty state on error.
+      if (originalSession?.access_token && originalSession?.refresh_token) {
+        try {
+          await supabase.auth.setSession({
+            access_token: originalSession.access_token,
+            refresh_token: originalSession.refresh_token,
+          });
+        } catch (restoreErr) {
+          console.error('[signUpSilently] Session restore failed:', restoreErr);
+        }
+      }
+      // ── 4. Unfreeze auth listener after token propagation settles ──
+      setTimeout(() => { suppressAuthChange.current = false; }, 800);
     }
   }, []);
 

@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 
 const DEMO_ACCOUNTS = [
-  { role: 'Admin',    email: 'admin@techcorp.ma' },
-  { role: 'HR',       email: 'hr@techcorp.ma' },
-  { role: 'Manager',  email: 'manager@techcorp.ma' },
+  { role: 'Super Admin', email: 'owner@flowly.io' },
+  { role: 'Admin', email: 'admin@techcorp.ma' },
+  { role: 'HR', email: 'hr@techcorp.ma' },
+  { role: 'Manager', email: 'manager@techcorp.ma' },
   { role: 'Employee', email: 'employee@techcorp.ma' },
 ];
 const DEMO_PASSWORD = 'Demo@123456';
@@ -30,20 +31,20 @@ export default function AuthPage() {
 
   // Determine initial mode from URL
   const [isRegister, setIsRegister] = useState(location.pathname === '/register');
-  const [animating, setAnimating]   = useState(false);
+  const [animating, setAnimating] = useState(false);
 
   // Login state
-  const [email, setEmail]       = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw]     = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Register state
-  const [regForm, setRegForm]       = useState({ name: '', email: '', password: '', confirm: '' });
-  const [regShowPw, setRegShowPw]   = useState(false);
+  const [regForm, setRegForm] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [regShowPw, setRegShowPw] = useState(false);
   const [regLoading, setRegLoading] = useState(false);
-  const [regError, setRegError]     = useState('');
+  const [regError, setRegError] = useState('');
   const [regSuccess, setRegSuccess] = useState(false);
 
   // Google OAuth state
@@ -146,8 +147,8 @@ export default function AuthPage() {
       <div className="relative z-10">
         <div className="flex items-center gap-3 mb-10">
           <svg viewBox="0 0 30.54 21.4" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 shrink-0">
-              <path fill="#231f20" stroke="#231f20" strokeMiterlimit="10" strokeWidth="2" d="M26.58,1v6.31c0,1.84-1.49,3.32-3.32,3.32s-3.32-1.49-3.32-3.32v-1.81c0-1.12-.41-2.14-1.08-2.93-.82-.96-2.05-1.57-3.42-1.57-1.87,0-3.47,1.14-4.15,2.75-.2.46-.32.96-.35,1.49,0,.09,0,.17,0,.26s0,.17,0,.26v8.47c-.22,1.62-1.61,2.86-3.29,2.86-1.83,0-3.32-1.49-3.32-3.32V1H1v12.94c0,3.57,2.9,6.47,6.47,6.47s6.47-2.9,6.47-6.47c0-.22-.01-.43-.03-.64v-3.56s.02,0,.03.01v-4.66c0-.74.6-1.34,1.34-1.34s1.34.6,1.34,1.34v2.38c0,.79.14,1.55.4,2.25.92,2.46,3.29,4.22,6.07,4.22,3.44,0,6.26-2.69,6.46-6.09h.01V1h-2.96Z"/>
-            </svg>
+            <path fill="#231f20" stroke="#231f20" strokeMiterlimit="10" strokeWidth="2" d="M26.58,1v6.31c0,1.84-1.49,3.32-3.32,3.32s-3.32-1.49-3.32-3.32v-1.81c0-1.12-.41-2.14-1.08-2.93-.82-.96-2.05-1.57-3.42-1.57-1.87,0-3.47,1.14-4.15,2.75-.2.46-.32.96-.35,1.49,0,.09,0,.17,0,.26s0,.17,0,.26v8.47c-.22,1.62-1.61,2.86-3.29,2.86-1.83,0-3.32-1.49-3.32-3.32V1H1v12.94c0,3.57,2.9,6.47,6.47,6.47s6.47-2.9,6.47-6.47c0-.22-.01-.43-.03-.64v-3.56s.02,0,.03.01v-4.66c0-.74.6-1.34,1.34-1.34s1.34.6,1.34,1.34v2.38c0,.79.14,1.55.4,2.25.92,2.46,3.29,4.22,6.07,4.22,3.44,0,6.26-2.69,6.46-6.09h.01V1h-2.96Z" />
+          </svg>
           <div>
             <span className="text-xl font-bold tracking-tight">Flowly</span>
             <span className="block text-xs text-gray-900/50 font-medium tracking-wide">Business Suite</span>
@@ -215,7 +216,7 @@ export default function AuthPage() {
           {/* Mobile-only logo */}
           <div className="flex items-center gap-3 mb-6 md:hidden">
             <svg viewBox="0 0 30.54 21.4" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 shrink-0">
-              <path className="fill-[#231f20] stroke-[#231f20] dark:fill-white dark:stroke-white" strokeMiterlimit="10" strokeWidth="2" d="M26.58,1v6.31c0,1.84-1.49,3.32-3.32,3.32s-3.32-1.49-3.32-3.32v-1.81c0-1.12-.41-2.14-1.08-2.93-.82-.96-2.05-1.57-3.42-1.57-1.87,0-3.47,1.14-4.15,2.75-.2.46-.32.96-.35,1.49,0,.09,0,.17,0,.26s0,.17,0,.26v8.47c-.22,1.62-1.61,2.86-3.29,2.86-1.83,0-3.32-1.49-3.32-3.32V1H1v12.94c0,3.57,2.9,6.47,6.47,6.47s6.47-2.9,6.47-6.47c0-.22-.01-.43-.03-.64v-3.56s.02,0,.03.01v-4.66c0-.74.6-1.34,1.34-1.34s1.34.6,1.34,1.34v2.38c0,.79.14,1.55.4,2.25.92,2.46,3.29,4.22,6.07,4.22,3.44,0,6.26-2.69,6.46-6.09h.01V1h-2.96Z"/>
+              <path className="fill-[#231f20] stroke-[#231f20] dark:fill-white dark:stroke-white" strokeMiterlimit="10" strokeWidth="2" d="M26.58,1v6.31c0,1.84-1.49,3.32-3.32,3.32s-3.32-1.49-3.32-3.32v-1.81c0-1.12-.41-2.14-1.08-2.93-.82-.96-2.05-1.57-3.42-1.57-1.87,0-3.47,1.14-4.15,2.75-.2.46-.32.96-.35,1.49,0,.09,0,.17,0,.26s0,.17,0,.26v8.47c-.22,1.62-1.61,2.86-3.29,2.86-1.83,0-3.32-1.49-3.32-3.32V1H1v12.94c0,3.57,2.9,6.47,6.47,6.47s6.47-2.9,6.47-6.47c0-.22-.01-.43-.03-.64v-3.56s.02,0,.03.01v-4.66c0-.74.6-1.34,1.34-1.34s1.34.6,1.34,1.34v2.38c0,.79.14,1.55.4,2.25.92,2.46,3.29,4.22,6.07,4.22,3.44,0,6.26-2.69,6.46-6.09h.01V1h-2.96Z" />
             </svg>
             <span className="text-lg font-bold text-text-primary tracking-tight">Flowly</span>
           </div>
@@ -302,10 +303,10 @@ export default function AuthPage() {
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                   </svg>
                 )}
                 {googleLoading ? 'Redirecting…' : 'Continue with Google'}

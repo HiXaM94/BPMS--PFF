@@ -6,10 +6,10 @@ import {
     CreditCard, Tag, Search, Filter, Globe,
     UserCheck, UserX, BarChart3, PieChart
 } from 'lucide-react';
-import PageHeader from '../../components/ui/PageHeader';
-import StatCard from '../../components/ui/StatCard';
-import DataTable from '../../components/ui/DataTable';
-import StatusBadge from '../../components/ui/StatusBadge';
+import PageHeader from '../../../components/ui/PageHeader';
+import StatCard from '../../../components/ui/StatCard';
+import DataTable from '../../../components/ui/DataTable';
+import StatusBadge from '../../../components/ui/StatusBadge';
 
 // --- MOCK SAAS DATA ---
 const SaaSData = {
@@ -33,7 +33,7 @@ const SaaSData = {
     ]
 };
 
-export default function SaaSDashboard() {
+export default function SuperAdminDashboard() {
     // Calculated Aggregations
     const totalEmployees = SaaSData.companies.reduce((sum, c) => sum + c.employees, 0);
     const activeEmployees = SaaSData.companies.reduce((sum, c) => sum + c.activeEmployees, 0);

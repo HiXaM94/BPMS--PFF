@@ -57,21 +57,33 @@ export default function VacationRequest() {
     try {
       setLoading(true);
       const isManager = currentRole.id === 'manager';
-      const isEmployee = currentRole.id === 'employee';
+      let teamMemberIds = [];
+
+      if (isManager) {
+        const { data: teamData } = await supabase
+          .from('user_details')
+          .select('id_user')
+          .eq('reports_to', profile?.id);
+        if (teamData) teamMemberIds = teamData.map(d => d.id_user);
+      }
 
       const [personalReqs, bal, allReqs] = await Promise.all([
         vacationController.getRequests({ userId: profile?.id }),
         vacationController.getBalance(profile?.id),
         (isManager || currentRole.id === 'hr' || currentRole.id === 'company_admin')
-          ? vacationController.getRequests({})
+          ? vacationController.getRequests({
+            entrepriseId: profile?.entreprise_id,
+            userIds: isManager ? teamMemberIds : null
+          })
           : Promise.resolve([])
       ]);
 
       setRequests(personalReqs);
       setLeaveBalance(bal);
 
-      // Inject demo data if no real requests exist (for demo purposes)
-      if (allReqs.length === 0 && (currentRole.id === 'hr' || currentRole.id === 'manager' || currentRole.id === 'company_admin')) {
+      // Inject demo data ONLY if no real requests exist AND it's HR or Admin
+      // For managers, if they have no team or no requests, we show empty rather than company demo data
+      if (allReqs.length === 0 && (currentRole.id === 'hr' || currentRole.id === 'company_admin')) {
         setTeamRequests(hrData.leaveRequests);
       } else {
         setTeamRequests(allReqs);
@@ -225,9 +237,8 @@ export default function VacationRequest() {
       />
 
       {toast && (
-        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-slide-up ${
-          toast.startsWith('Error') ? 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-        }`}>
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-slide-up ${toast.startsWith('Error') ? 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+          }`}>
           <CheckCircle2 size={16} /> {toast}
         </div>
       )}

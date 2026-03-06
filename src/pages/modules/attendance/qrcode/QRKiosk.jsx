@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { QrCode, Clock, Shield, Building2, RefreshCw } from 'lucide-react';
 import { getTodayQRCode, generateDailyToken } from './qrCodeService';
+import LogoWhite from '../../../../logo/ICONWHITE.svg';
 
 export default function QRKiosk() {
+    const [searchParams] = useSearchParams();
+    const entrepriseId = searchParams.get('entreprise');
+
     const [qrData, setQrData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -22,10 +27,14 @@ export default function QRKiosk() {
             setLoading(true);
             setError(null);
             try {
-                const companyId = 'demo';
-                let data = await getTodayQRCode(companyId);
+                if (!entrepriseId) {
+                    setError('Enterprise ID missing from URL. Please open this from the HR Dashboard.');
+                    return;
+                }
+
+                let data = await getTodayQRCode(entrepriseId);
                 if (!data) {
-                    data = await generateDailyToken(companyId);
+                    data = await generateDailyToken(entrepriseId);
                 }
                 setQrData(data);
             } catch (err) {
@@ -90,25 +99,19 @@ export default function QRKiosk() {
     };
 
     const handleRefresh = async () => {
+        if (!entrepriseId) return;
         setLoading(true);
-        const companyId = 'demo';
-        const data = await generateDailyToken(companyId);
+        const data = await generateDailyToken(entrepriseId);
         setQrData(data);
         setLoading(false);
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col items-center justify-center p-8 relative overflow-hidden">
-            {/* Background decorations */}
-            <div className="absolute top-0 left-0 w-96 h-96 bg-brand-500/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-            <div className="absolute bottom-0 right-0 w-96 h-96 bg-brand-500/5 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-
+        <div className="min-h-screen bg-black flex flex-col items-center justify-center p-8 relative overflow-hidden">
             {/* Header */}
             <div className="text-center mb-8 relative z-10">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                    <div className="w-14 h-14 bg-brand-500 rounded-2xl flex items-center justify-center shadow-lg shadow-brand-500/30">
-                        <Building2 size={28} className="text-white" />
-                    </div>
+                    <img src={LogoWhite} alt="Company Logo" className="h-14 w-auto object-contain" />
                 </div>
                 <h1 className="text-4xl font-black text-white tracking-tight mb-2">
                     Office Attendance

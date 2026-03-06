@@ -13,6 +13,13 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 
+CREATE EXTENSION IF NOT EXISTS "pg_cron" WITH SCHEMA "pg_catalog";
+
+
+
+
+
+
 COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
@@ -269,7 +276,8 @@ CREATE TYPE "public"."user_role" AS ENUM (
     'TEAM_MANAGER',
     'HR',
     'EMPLOYEE',
-    'admin'
+    'admin',
+    'SUPER_ADMIN'
 );
 
 
@@ -317,14 +325,327 @@ $$;
 ALTER FUNCTION "public"."auth_user_entreprise"() OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."auth_user_role"() RETURNS "text"
+CREATE OR REPLACE FUNCTION "public"."auth_user_role"() RETURNS "public"."user_role"
     LANGUAGE "sql" STABLE SECURITY DEFINER
     AS $$
-  SELECT COALESCE((SELECT role::text FROM public.users WHERE id = auth.uid()), 'EMPLOYEE');
+  SELECT role FROM public.users WHERE id = auth.uid();
 $$;
 
 
 ALTER FUNCTION "public"."auth_user_role"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."clock_in_out"("p_entreprise_id" "uuid", "p_scanned_token" "text", "p_user_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+    v_qr_code public.daily_qr_codes%ROWTYPE;
+    v_employee_id UUID;
+    v_presence public.presences%ROWTYPE;
+    v_now TIMESTAMP WITH TIME ZONE := NOW();
+    v_current_time TIME := v_now::TIME;
+    v_status TEXT;
+    v_late_threshold TIME := '09:15:00'::TIME;
+BEGIN
+    -- 1. Validate the QR token
+    SELECT * INTO v_qr_code 
+    FROM public.daily_qr_codes 
+    WHERE secret_token = p_scanned_token 
+    AND entreprise_id = p_entreprise_id 
+    AND date = CURRENT_DATE 
+    AND is_active = true;
+
+    IF v_qr_code IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Invalid or expired QR code.');
+    END IF;
+
+    -- 2. Get Employee ID
+    SELECT id INTO v_employee_id FROM public.employees WHERE user_id = p_user_id;
+
+    IF v_employee_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Employee record not found.');
+    END IF;
+
+    -- 3. Check for existing presence today
+    SELECT * INTO v_presence FROM public.presences WHERE employee_id = v_employee_id AND date = CURRENT_DATE;
+
+    IF v_presence IS NULL THEN
+        -- CLOCK IN
+        IF v_current_time > v_late_threshold THEN
+            v_status := 'late';
+        ELSE
+            v_status := 'present';
+        END IF;
+
+        INSERT INTO public.presences (employee_id, date, check_in_time, status)
+        VALUES (v_employee_id, CURRENT_DATE, v_current_time, v_status);
+        
+        RETURN jsonb_build_object(
+            'success', true, 
+            'action', 'clock_in', 
+            'time', v_current_time, 
+            'status', v_status,
+            'message', 'Clocked in successfully!'
+        );
+    ELSE
+        -- CLOCK OUT
+        IF v_presence.check_out_time IS NOT NULL THEN
+            RETURN jsonb_build_object('success', false, 'message', 'Already clocked out for today.');
+        END IF;
+
+        UPDATE public.presences 
+        SET check_out_time = v_current_time,
+            hours_worked = EXTRACT(EPOCH FROM (v_current_time - v_presence.check_in_time))/3600
+        WHERE id = v_presence.id;
+
+        RETURN jsonb_build_object(
+            'success', true, 
+            'action', 'clock_out', 
+            'time', v_current_time, 
+            'message', 'Clocked out successfully!'
+        );
+    END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."clock_in_out"("p_entreprise_id" "uuid", "p_scanned_token" "text", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text" DEFAULT '000000'::"text") RETURNS json
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  v_employee_id UUID;
+BEGIN
+  UPDATE public.users
+  SET
+    entreprise_id   = p_entreprise_id,
+    name            = p_full_name,
+    avatar_initials = p_avatar,
+    role            = 'EMPLOYEE'
+  WHERE id = p_user_id;
+
+  INSERT INTO public.employees (user_id, entreprise_id, position, password)
+  VALUES (p_user_id, p_entreprise_id, 'Employee', p_password)
+  RETURNING id INTO v_employee_id;
+
+  RETURN json_build_object('success', true, 'employee_id', v_employee_id);
+EXCEPTION WHEN OTHERS THEN
+  RAISE EXCEPTION 'create_employee failed: %', SQLERRM;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text" DEFAULT '000000'::"text") RETURNS json
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE v_employee_id UUID;
+BEGIN
+  INSERT INTO public.users (id, entreprise_id, name, email, role, status, avatar_initials)
+  VALUES (p_user_id, p_entreprise_id, p_full_name, p_email, 'EMPLOYEE', 'active', p_avatar)
+  ON CONFLICT (id) DO UPDATE SET
+    entreprise_id=EXCLUDED.entreprise_id, name=EXCLUDED.name,
+    avatar_initials=EXCLUDED.avatar_initials, role='EMPLOYEE';
+  INSERT INTO public.employees (user_id, entreprise_id, position, password)
+  VALUES (p_user_id, p_entreprise_id, 'Employee', p_password) RETURNING id INTO v_employee_id;
+  RETURN json_build_object('success', true, 'employee_id', v_employee_id);
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'create_employee failed: %', SQLERRM;
+END; $$;
+
+
+ALTER FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_hr_profile"("p_user_id" "uuid", "p_name" "text", "p_email" "text", "p_phone" "text", "p_password" "text", "p_entreprise_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  -- 1. Insert into public.users (linked to the admin's company)
+  INSERT INTO public.users (id, entreprise_id, name, email, role, status, avatar_initials)
+  VALUES (
+    p_user_id,
+    p_entreprise_id,
+    p_name,
+    p_email,
+    'HR',
+    'active',
+    UPPER(LEFT(p_name, 2))
+  )
+  ON CONFLICT (id) DO UPDATE
+    SET entreprise_id = EXCLUDED.entreprise_id,
+        name         = EXCLUDED.name,
+        role         = EXCLUDED.role,
+        status       = EXCLUDED.status;
+
+  -- 2. Insert into public.hr_profiles using user_id (matches your current schema)
+  INSERT INTO public.hr_profiles (user_id, password_hash)
+  VALUES (p_user_id, p_password)
+  ON CONFLICT (user_id) DO NOTHING;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_hr_profile"("p_user_id" "uuid", "p_name" "text", "p_email" "text", "p_phone" "text", "p_password" "text", "p_entreprise_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text" DEFAULT '000000'::"text") RETURNS json
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  v_employee_id UUID;
+BEGIN
+  UPDATE public.users
+  SET
+    entreprise_id   = p_entreprise_id,
+    name            = p_full_name,
+    avatar_initials = p_avatar,
+    role            = 'TEAM_MANAGER'
+  WHERE id = p_user_id;
+
+  INSERT INTO public.employees (user_id, entreprise_id, position, password)
+  VALUES (p_user_id, p_entreprise_id, 'Team Manager', p_password)
+  RETURNING id INTO v_employee_id;
+
+  INSERT INTO public.team_manager_profiles (employee_id, password)
+  VALUES (v_employee_id, p_password);
+
+  RETURN json_build_object('success', true, 'employee_id', v_employee_id);
+EXCEPTION WHEN OTHERS THEN
+  RAISE EXCEPTION 'create_team_manager failed: %', SQLERRM;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") RETURNS json
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+declare
+  v_employee_id uuid;
+begin
+  insert into public.users (id, email, name, role, entreprise_id)
+  values (p_user_id, p_email, p_full_name, 'TEAM_MANAGER', p_entreprise_id)
+  on conflict (id) do update set
+    email = excluded.email,
+    name = excluded.name,
+    role = excluded.role,
+    entreprise_id = excluded.entreprise_id;
+
+  insert into public.employees (user_id, entreprise_id, position)
+  values (p_user_id, p_entreprise_id, 'Team Manager')
+  on conflict (user_id) do update set
+    entreprise_id = excluded.entreprise_id,
+    position = excluded.position
+  returning id into v_employee_id;
+
+  insert into public.team_manager_profiles (employee_id)
+  values (coalesce(v_employee_id, (select id from employees where user_id = p_user_id)))
+  on conflict (employee_id) do nothing;
+
+  return json_build_object('success', true, 'user_id', p_user_id, 'employee_id', v_employee_id);
+exception when others then
+  raise exception 'Failed to create team manager: %', SQLERRM;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."generate_daily_qr_codes"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+    company public.entreprises%ROWTYPE;
+    today_date DATE := CURRENT_DATE;
+    new_token TEXT;
+BEGIN
+    FOR company IN SELECT * FROM public.entreprises LOOP
+        new_token := 'QR-' || REPLACE(today_date::TEXT, '-', '') || '-' || encode(gen_random_bytes(8), 'hex');
+        
+        INSERT INTO public.daily_qr_codes(entreprise_id, date, secret_token, expires_at)
+        VALUES (
+            company.id, 
+            today_date, 
+            new_token, 
+            (today_date + INTERVAL '1 day' + INTERVAL '6 hours') -- Expires next day at 6 AM
+        )
+        ON CONFLICT (entreprise_id, date) DO NOTHING;
+    END LOOP;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."generate_daily_qr_codes"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_my_entreprise_id"() RETURNS "uuid"
+    LANGUAGE "sql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  SELECT entreprise_id FROM public.users WHERE id = auth.uid() LIMIT 1;
+$$;
+
+
+ALTER FUNCTION "public"."get_my_entreprise_id"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_pending_task_count"("p_entreprise_id" "uuid") RETURNS integer
+    LANGUAGE "sql" SECURITY DEFINER
+    AS $$
+  SELECT COUNT(DISTINCT t.id)::INTEGER
+  FROM tasks t
+  JOIN users u ON (t.assigned_to = u.id OR t.created_by = u.id)
+  WHERE u.entreprise_id = p_entreprise_id
+  AND t.validated_by IS NULL;
+$$;
+
+
+ALTER FUNCTION "public"."get_pending_task_count"("p_entreprise_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_project_progress"("p_entreprise_id" "uuid") RETURNS TABLE("project_id" "uuid", "total_tasks" integer, "completed_tasks" integer, "progress_percent" integer)
+    LANGUAGE "sql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  with project_tasks as (
+    select
+      t.project_id,
+      count(*) as total_tasks,
+      count(*) filter (
+        where coalesce(lower(t.status::text), '') in ('completed', 'validated', 'finished', 'done')
+          or t.validated_at is not null
+      ) as completed_tasks
+    from tasks t
+    join projects p on p.id = t.project_id
+    where p.entreprise_id = p_entreprise_id
+    group by t.project_id
+  )
+  select
+    p.id as project_id,
+    coalesce(pt.total_tasks, 0) as total_tasks,
+    coalesce(pt.completed_tasks, 0) as completed_tasks,
+    case
+      when coalesce(pt.total_tasks, 0) = 0 then 0
+      else round((pt.completed_tasks::numeric / pt.total_tasks::numeric) * 100)::int
+    end as progress_percent
+  from projects p
+  left join project_tasks pt on pt.project_id = p.id
+  where p.entreprise_id = p_entreprise_id;
+$$;
+
+
+ALTER FUNCTION "public"."get_project_progress"("p_entreprise_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
@@ -335,24 +656,17 @@ BEGIN
   INSERT INTO public.users (id, entreprise_id, name, email, role, status, avatar_initials)
   VALUES (
     NEW.id,
-    '11111111-0001-0001-0001-000000000001',
-    COALESCE(NEW.raw_user_meta_data->>'name', NEW.email),
+    (NEW.raw_user_meta_data->>'entreprise_id')::uuid,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     NEW.email,
-    COALESCE(
-      NULLIF(NEW.raw_user_meta_data->>'role', '')::user_role,
-      'EMPLOYEE'::user_role
-    ),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'EMPLOYEE')::user_role,
     'active'::user_status,
     UPPER(LEFT(COALESCE(NEW.raw_user_meta_data->>'name', NEW.email), 2))
   )
-  ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    name = EXCLUDED.name;
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE LOG 'handle_new_user error (non-fatal): %', SQLERRM;
-    RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
 END;
 $$;
 
@@ -360,10 +674,24 @@ $$;
 ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."insert_user_details"("p_user_id" "uuid", "p_cnss" "text", "p_rib" "text", "p_phone" "text", "p_department" "text", "p_join_date" "date") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  INSERT INTO public.user_details (id_user, cnss, rib, phone, department, join_date)
+  VALUES (p_user_id, p_cnss, p_rib, p_phone, p_department, p_join_date);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."insert_user_details"("p_user_id" "uuid", "p_cnss" "text", "p_rib" "text", "p_phone" "text", "p_department" "text", "p_join_date" "date") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     AS $$
-  SELECT COALESCE(public.auth_user_role() = 'ADMIN', false);
+  SELECT COALESCE((SELECT role::text FROM public.users WHERE id = auth.uid()), '') IN ('ADMIN', 'SUPER_ADMIN');
 $$;
 
 
@@ -383,7 +711,7 @@ ALTER FUNCTION "public"."is_admin_hr_or_manager"() OWNER TO "postgres";
 CREATE OR REPLACE FUNCTION "public"."is_admin_or_hr"() RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     AS $$
-  SELECT COALESCE(public.auth_user_role() IN ('ADMIN', 'HR'), false);
+  SELECT COALESCE((SELECT role::text FROM public.users WHERE id = auth.uid()), '') IN ('ADMIN', 'SUPER_ADMIN', 'HR');
 $$;
 
 
@@ -540,6 +868,54 @@ $$;
 ALTER FUNCTION "public"."provision_enterprise_admin"("p_auth_user_id" "uuid", "p_name" "text", "p_industry" "text", "p_phone" "text", "p_email" "text", "p_location" "text", "p_plan" "text", "p_legal_form" "text", "p_ice" "text", "p_rc" "text", "p_if_number" "text", "p_cnss" "text", "p_patente" "text", "p_country" "text", "p_logo_url" "text", "p_first_name" "text", "p_last_name" "text", "p_user_email" "text", "p_password_hash" "text", "p_avatar_initials" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."rpc_complete_manager_profile"("p_user_id" "uuid", "p_salary_base" numeric, "p_location" "text", "p_cnss" "text", "p_rib" "text", "p_join_date" "date", "p_department" "text", "p_phone" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+declare
+  v_employee_id uuid;
+  v_entreprise_id uuid;
+begin
+  if auth.uid() is null or auth.uid() <> p_user_id then
+    raise exception 'You can only update your own manager profile.';
+  end if;
+
+  select entreprise_id into v_entreprise_id from users where id = p_user_id;
+  select id into v_employee_id from employees where user_id = p_user_id;
+
+  if v_employee_id is null then
+    raise exception 'Employee record missing; ask HR to initialize your profile.';
+  end if;
+
+  insert into user_details (id_user, cnss, rib, join_date, department, phone, entreprise_id)
+    values (
+      p_user_id,
+      p_cnss,
+      p_rib,
+      p_join_date,
+      p_department,
+      p_phone,
+      v_entreprise_id
+    )
+    on conflict (id_user) do update
+      set cnss = coalesce(excluded.cnss, user_details.cnss),
+          rib = coalesce(excluded.rib, user_details.rib),
+          join_date = coalesce(excluded.join_date, user_details.join_date),
+          department = coalesce(excluded.department, user_details.department),
+          phone = coalesce(excluded.phone, user_details.phone);
+
+  insert into team_manager_profiles (employee_id, user_id, salary_base, location)
+    values (v_employee_id, p_user_id, coalesce(p_salary_base, 0), p_location)
+    on conflict (employee_id) do update
+    set salary_base = coalesce(excluded.salary_base, team_manager_profiles.salary_base),
+        location = coalesce(excluded.location, team_manager_profiles.location),
+        user_id = coalesce(excluded.user_id, team_manager_profiles.user_id);
+end;
+$$;
+
+
+ALTER FUNCTION "public"."rpc_complete_manager_profile"("p_user_id" "uuid", "p_salary_base" numeric, "p_location" "text", "p_cnss" "text", "p_rib" "text", "p_join_date" "date", "p_department" "text", "p_phone" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."same_entreprise_employee"("emp_id" "uuid") RETURNS boolean
     LANGUAGE "sql" STABLE SECURITY DEFINER
     AS $$
@@ -554,6 +930,60 @@ $$;
 ALTER FUNCTION "public"."same_entreprise_employee"("emp_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."update_hr_password"("p_user_id" "uuid", "p_password" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  UPDATE public.hr_profiles
+  SET password_hash    = p_password,
+      password_changed = true
+  WHERE user_id = p_user_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_hr_password"("p_user_id" "uuid", "p_password" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_profile_password"("p_user_id" "uuid", "p_role" "text", "p_password" "text") RETURNS json
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  IF p_role = 'HR' THEN
+    UPDATE public.hr_profiles
+    SET password_hash = p_password, password_changed = TRUE
+    WHERE user_id = p_user_id;
+
+  ELSIF p_role = 'EMPLOYEE' THEN
+    UPDATE public.employees
+    SET password = p_password, password_changed = TRUE
+    WHERE user_id = p_user_id;
+
+  ELSIF p_role = 'TEAM_MANAGER' THEN
+    -- Update both employees (base profile) and team_manager_profiles
+    UPDATE public.employees
+    SET password = p_password, password_changed = TRUE
+    WHERE user_id = p_user_id;
+
+    UPDATE public.team_manager_profiles
+    SET password = p_password, password_changed = TRUE
+    WHERE user_id = p_user_id;
+  ELSE
+    RAISE EXCEPTION 'Invalid role provided: %', p_role;
+  END IF;
+
+  RETURN json_build_object('success', true);
+EXCEPTION WHEN OTHERS THEN
+  RAISE EXCEPTION 'update_profile_password failed: %', SQLERRM;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_profile_password"("p_user_id" "uuid", "p_role" "text", "p_password" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -566,9 +996,84 @@ $$;
 
 ALTER FUNCTION "public"."update_updated_at"() OWNER TO "postgres";
 
+
+CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_updated_at_column"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_user_details_updated_at_column"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    NEW.updated_at = timezone('utc'::text, now());
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_user_details_updated_at_column"() OWNER TO "postgres";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
+
+
+CREATE TABLE IF NOT EXISTS "public"."users" (
+    "id" "uuid" NOT NULL,
+    "entreprise_id" "uuid",
+    "name" "text" NOT NULL,
+    "email" "text" NOT NULL,
+    "role" "public"."user_role" DEFAULT 'EMPLOYEE'::"public"."user_role" NOT NULL,
+    "status" "public"."user_status" DEFAULT 'active'::"public"."user_status" NOT NULL,
+    "avatar_initials" "text",
+    "last_login_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "profile_image_url" "text",
+    "password_hash" "text"
+);
+
+
+ALTER TABLE "public"."users" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."verify_login"("p_email" "text", "p_password" "text") RETURNS SETOF "public"."users"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  RETURN QUERY
+  SELECT * FROM public.users
+  WHERE LOWER(email) = LOWER(p_email);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."verify_login"("p_email" "text", "p_password" "text") OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."admin_notes" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "entreprise_id" "uuid" NOT NULL,
+    "author_user_id" "uuid" NOT NULL,
+    "author_role" "text" NOT NULL,
+    "note" "text" NOT NULL,
+    "assigned_to" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "admin_notes_author_role_check" CHECK (("author_role" = ANY (ARRAY['ADMIN'::"text", 'HR'::"text"])))
+);
+
+
+ALTER TABLE "public"."admin_notes" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."admin_profiles" (
@@ -697,6 +1202,22 @@ CREATE TABLE IF NOT EXISTS "public"."candidates" (
 ALTER TABLE "public"."candidates" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."daily_qr_codes" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "entreprise_id" "uuid" NOT NULL,
+    "date" "date" NOT NULL,
+    "secret_token" "text" NOT NULL,
+    "generated_at" timestamp with time zone DEFAULT "now"(),
+    "expires_at" timestamp with time zone NOT NULL,
+    "is_active" boolean DEFAULT true,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."daily_qr_codes" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."departments" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "entreprise_id" "uuid" NOT NULL,
@@ -773,7 +1294,9 @@ CREATE TABLE IF NOT EXISTS "public"."employees" (
     "bio" "text",
     "status" "public"."user_status" DEFAULT 'active'::"public"."user_status" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "password" "text",
+    "password_changed" boolean DEFAULT false
 );
 
 
@@ -825,8 +1348,10 @@ ALTER TABLE "public"."file_uploads" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."hr_profiles" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "employee_id" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "user_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "password_hash" "text",
+    "password_changed" boolean DEFAULT false NOT NULL
 );
 
 
@@ -930,11 +1455,17 @@ CREATE TABLE IF NOT EXISTS "public"."projects" (
     "budget" numeric(12,2),
     "created_by" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "team_manager_assigned" "uuid",
+    "valider" boolean DEFAULT false
 );
 
 
 ALTER TABLE "public"."projects" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."projects"."valider" IS 'Manual validation flag by the team manager.';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."recrutements" (
@@ -1019,21 +1550,56 @@ CREATE TABLE IF NOT EXISTS "public"."tasks" (
     "validated_at" timestamp with time zone,
     "validated_by" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "finish" boolean,
+    "rejection_reason" "text",
+    "finished" boolean DEFAULT false,
+    "entreprise_id" "uuid"
 );
 
 
 ALTER TABLE "public"."tasks" OWNER TO "postgres";
 
 
+COMMENT ON COLUMN "public"."tasks"."rejection_reason" IS 'Reason provided by manager when a task validation is rejected.';
+
+
+
+COMMENT ON COLUMN "public"."tasks"."finished" IS 'Whether the task has been fully validated and finished.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."team_manager_profiles" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "employee_id" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "employee_id" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "password" "text",
+    "user_id" "uuid",
+    "password_changed" boolean DEFAULT false,
+    "salary_base" numeric,
+    "location" "text"
 );
 
 
 ALTER TABLE "public"."team_manager_profiles" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."user_details" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "id_user" "uuid" NOT NULL,
+    "entreprise_id" "uuid",
+    "cnss" character varying(50),
+    "rib" character varying(100),
+    "join_date" "date",
+    "department" character varying(100),
+    "phone" character varying(50),
+    "reports_to" "uuid",
+    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
+    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"())
+);
+
+
+ALTER TABLE "public"."user_details" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."user_preferences" (
@@ -1049,25 +1615,6 @@ CREATE TABLE IF NOT EXISTS "public"."user_preferences" (
 
 
 ALTER TABLE "public"."user_preferences" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."users" (
-    "id" "uuid" NOT NULL,
-    "entreprise_id" "uuid",
-    "name" "text" NOT NULL,
-    "email" "text" NOT NULL,
-    "role" "public"."user_role" DEFAULT 'EMPLOYEE'::"public"."user_role" NOT NULL,
-    "status" "public"."user_status" DEFAULT 'active'::"public"."user_status" NOT NULL,
-    "avatar_initials" "text",
-    "last_login_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "profile_image_url" "text",
-    "password_hash" "text"
-);
-
-
-ALTER TABLE "public"."users" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."vacances" (
@@ -1087,6 +1634,11 @@ CREATE TABLE IF NOT EXISTS "public"."vacances" (
 
 
 ALTER TABLE "public"."vacances" OWNER TO "postgres";
+
+
+ALTER TABLE ONLY "public"."admin_notes"
+    ADD CONSTRAINT "admin_notes_pkey" PRIMARY KEY ("id");
+
 
 
 ALTER TABLE ONLY "public"."admin_profiles"
@@ -1131,6 +1683,16 @@ ALTER TABLE ONLY "public"."cache_metadata"
 
 ALTER TABLE ONLY "public"."candidates"
     ADD CONSTRAINT "candidates_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."daily_qr_codes"
+    ADD CONSTRAINT "daily_qr_codes_entreprise_date_key" UNIQUE ("entreprise_id", "date");
+
+
+
+ALTER TABLE ONLY "public"."daily_qr_codes"
+    ADD CONSTRAINT "daily_qr_codes_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1180,12 +1742,12 @@ ALTER TABLE ONLY "public"."file_uploads"
 
 
 ALTER TABLE ONLY "public"."hr_profiles"
-    ADD CONSTRAINT "hr_profiles_employee_id_key" UNIQUE ("employee_id");
+    ADD CONSTRAINT "hr_profiles_pkey" PRIMARY KEY ("id");
 
 
 
 ALTER TABLE ONLY "public"."hr_profiles"
-    ADD CONSTRAINT "hr_profiles_pkey" PRIMARY KEY ("id");
+    ADD CONSTRAINT "hr_profiles_user_id_key" UNIQUE ("user_id");
 
 
 
@@ -1284,6 +1846,16 @@ ALTER TABLE ONLY "public"."team_manager_profiles"
 
 
 
+ALTER TABLE ONLY "public"."user_details"
+    ADD CONSTRAINT "unique_user_details" UNIQUE ("id_user");
+
+
+
+ALTER TABLE ONLY "public"."user_details"
+    ADD CONSTRAINT "user_details_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."user_preferences"
     ADD CONSTRAINT "user_preferences_pkey" PRIMARY KEY ("id");
 
@@ -1306,6 +1878,14 @@ ALTER TABLE ONLY "public"."users"
 
 ALTER TABLE ONLY "public"."vacances"
     ADD CONSTRAINT "vacances_pkey" PRIMARY KEY ("id");
+
+
+
+CREATE INDEX "idx_admin_notes_assigned_to" ON "public"."admin_notes" USING "btree" ("assigned_to");
+
+
+
+CREATE INDEX "idx_admin_notes_entreprise" ON "public"."admin_notes" USING "btree" ("entreprise_id");
 
 
 
@@ -1569,7 +2149,26 @@ CREATE OR REPLACE TRIGGER "trg_vacances_updated_at" BEFORE UPDATE ON "public"."v
 
 
 
+CREATE OR REPLACE TRIGGER "update_user_details_updated_at" BEFORE UPDATE ON "public"."user_details" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
 CREATE OR REPLACE TRIGGER "users_updated_at" BEFORE UPDATE ON "public"."users" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
+
+
+
+ALTER TABLE ONLY "public"."admin_notes"
+    ADD CONSTRAINT "admin_notes_assigned_to_fkey" FOREIGN KEY ("assigned_to") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."admin_notes"
+    ADD CONSTRAINT "admin_notes_author_user_id_fkey" FOREIGN KEY ("author_user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."admin_notes"
+    ADD CONSTRAINT "admin_notes_entreprise_id_fkey" FOREIGN KEY ("entreprise_id") REFERENCES "public"."entreprises"("id") ON DELETE CASCADE;
 
 
 
@@ -1620,6 +2219,11 @@ ALTER TABLE ONLY "public"."audit_logs"
 
 ALTER TABLE ONLY "public"."candidates"
     ADD CONSTRAINT "candidates_recrutement_id_fkey" FOREIGN KEY ("recrutement_id") REFERENCES "public"."recrutements"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."daily_qr_codes"
+    ADD CONSTRAINT "daily_qr_codes_entreprise_id_fkey" FOREIGN KEY ("entreprise_id") REFERENCES "public"."entreprises"("id") ON DELETE CASCADE;
 
 
 
@@ -1684,7 +2288,7 @@ ALTER TABLE ONLY "public"."file_uploads"
 
 
 ALTER TABLE ONLY "public"."hr_profiles"
-    ADD CONSTRAINT "hr_profiles_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "hr_profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -1720,6 +2324,11 @@ ALTER TABLE ONLY "public"."projects"
 
 ALTER TABLE ONLY "public"."projects"
     ADD CONSTRAINT "projects_entreprise_id_fkey" FOREIGN KEY ("entreprise_id") REFERENCES "public"."entreprises"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."projects"
+    ADD CONSTRAINT "projects_team_manager_assigned_fkey" FOREIGN KEY ("team_manager_assigned") REFERENCES "public"."users"("id");
 
 
 
@@ -1779,6 +2388,11 @@ ALTER TABLE ONLY "public"."tasks"
 
 
 ALTER TABLE ONLY "public"."tasks"
+    ADD CONSTRAINT "tasks_entreprise_id_fkey" FOREIGN KEY ("entreprise_id") REFERENCES "public"."entreprises"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."tasks"
     ADD CONSTRAINT "tasks_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE CASCADE;
 
 
@@ -1790,6 +2404,26 @@ ALTER TABLE ONLY "public"."tasks"
 
 ALTER TABLE ONLY "public"."team_manager_profiles"
     ADD CONSTRAINT "team_manager_profiles_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."team_manager_profiles"
+    ADD CONSTRAINT "team_manager_profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_details"
+    ADD CONSTRAINT "user_details_entreprise_id_fkey" FOREIGN KEY ("entreprise_id") REFERENCES "public"."entreprises"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_details"
+    ADD CONSTRAINT "user_details_id_user_fkey" FOREIGN KEY ("id_user") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."user_details"
+    ADD CONSTRAINT "user_details_reports_to_fkey" FOREIGN KEY ("reports_to") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
@@ -1813,23 +2447,9 @@ ALTER TABLE ONLY "public"."vacances"
 
 
 
-CREATE POLICY "Admin HR manage departments" ON "public"."departments" USING ("public"."is_admin_or_hr"());
-
-
-
-CREATE POLICY "Admin HR manage employees" ON "public"."employees" USING ("public"."is_admin_or_hr"());
-
-
-
-CREATE POLICY "Admin HR read all employees" ON "public"."employees" FOR SELECT USING ("public"."is_admin_or_hr"());
-
-
-
-CREATE POLICY "Admin HR read all users" ON "public"."users" FOR SELECT USING ("public"."is_admin_or_hr"());
-
-
-
-CREATE POLICY "Admin HR update users" ON "public"."users" FOR UPDATE USING ("public"."is_admin_or_hr"());
+CREATE POLICY "Admin and HR can manage company details" ON "public"."user_details" USING ((EXISTS ( SELECT 1
+   FROM "public"."users"
+  WHERE (("users"."id" = "auth"."uid"()) AND ("users"."entreprise_id" = "user_details"."entreprise_id") AND ("users"."role" = ANY (ARRAY['ADMIN'::"public"."user_role", 'HR'::"public"."user_role"]))))));
 
 
 
@@ -1839,11 +2459,19 @@ CREATE POLICY "Admins can view their entreprise" ON "public"."entreprises" FOR S
 
 
 
-CREATE POLICY "Admins manage all entreprises" ON "public"."entreprises" USING ("public"."is_admin"());
-
-
-
 CREATE POLICY "Employees read own record" ON "public"."employees" FOR SELECT USING (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Employees visible to same company" ON "public"."employees" FOR SELECT TO "authenticated" USING (("entreprise_id" = "public"."get_my_entreprise_id"()));
+
+
+
+CREATE POLICY "HR can read own profile" ON "public"."hr_profiles" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "HR can update own profile" ON "public"."hr_profiles" FOR UPDATE USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -1852,6 +2480,48 @@ CREATE POLICY "Manager reads team employees" ON "public"."employees" FOR SELECT 
 
 
 CREATE POLICY "Same entreprise reads departments" ON "public"."departments" FOR SELECT USING (("entreprise_id" = "public"."auth_user_entreprise"()));
+
+
+
+CREATE POLICY "System and Admins can insert QR codes" ON "public"."daily_qr_codes" FOR INSERT WITH CHECK (true);
+
+
+
+CREATE POLICY "Users can delete own notifications" ON "public"."notifications" FOR DELETE USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can insert own details" ON "public"."user_details" FOR INSERT TO "authenticated" WITH CHECK (("id_user" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can read own details" ON "public"."user_details" FOR SELECT TO "authenticated" USING (("id_user" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can read own notifications" ON "public"."notifications" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can read same company" ON "public"."users" FOR SELECT TO "authenticated" USING (("entreprise_id" = "public"."get_my_entreprise_id"()));
+
+
+
+CREATE POLICY "Users can read their company's QR codes" ON "public"."daily_qr_codes" FOR SELECT USING (("entreprise_id" IN ( SELECT "users"."entreprise_id"
+   FROM "public"."users"
+  WHERE ("users"."id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "Users can update own details" ON "public"."user_details" FOR UPDATE TO "authenticated" USING (("id_user" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can update own notifications" ON "public"."notifications" FOR UPDATE USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can update their own details" ON "public"."user_details" FOR UPDATE USING (("id_user" = "auth"."uid"()));
 
 
 
@@ -1868,6 +2538,35 @@ CREATE POLICY "Users see their own entreprise" ON "public"."entreprises" FOR SEL
 
 
 CREATE POLICY "Users update own profile" ON "public"."users" FOR UPDATE USING (("id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "View same company user details" ON "public"."user_details" FOR SELECT USING (("entreprise_id" = "public"."get_my_entreprise_id"()));
+
+
+
+ALTER TABLE "public"."admin_notes" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "admin_notes_author_write" ON "public"."admin_notes" USING ("public"."is_admin_or_hr"()) WITH CHECK ("public"."is_admin_or_hr"());
+
+
+
+CREATE POLICY "admin_notes_delete" ON "public"."admin_notes" FOR DELETE USING (("author_user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "admin_notes_insert" ON "public"."admin_notes" FOR INSERT WITH CHECK (("author_user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "admin_notes_select" ON "public"."admin_notes" FOR SELECT USING ((("author_user_id" = "auth"."uid"()) OR ("assigned_to" = "auth"."uid"()) OR ("entreprise_id" = ( SELECT "users"."entreprise_id"
+   FROM "public"."users"
+  WHERE ("users"."id" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "admin_notes_update" ON "public"."admin_notes" FOR UPDATE USING (("author_user_id" = "auth"."uid"())) WITH CHECK (("author_user_id" = "auth"."uid"()));
 
 
 
@@ -1898,10 +2597,33 @@ CREATE POLICY "audit_logs_user_select" ON "public"."audit_logs" FOR SELECT USING
 
 
 
+CREATE POLICY "authenticated_read_departments" ON "public"."departments" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "authenticated_read_employees" ON "public"."employees" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "authenticated_read_entreprises" ON "public"."entreprises" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "authenticated_read_payrolls" ON "public"."payrolls" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "authenticated_read_users" ON "public"."users" FOR SELECT TO "authenticated" USING (true);
+
+
+
 ALTER TABLE "public"."cache_metadata" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."candidates" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."daily_qr_codes" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."departments" ENABLE ROW LEVEL SECURITY;
@@ -1966,9 +2688,29 @@ ALTER TABLE "public"."presences" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."projects" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "projects_employee_select" ON "public"."projects" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."tasks"
-  WHERE (("tasks"."project_id" = "projects"."id") AND ("tasks"."assigned_to" = "auth"."uid"())))));
+CREATE POLICY "projects_hr_admin_select" ON "public"."projects" FOR SELECT USING ((("entreprise_id" = "public"."auth_user_entreprise"()) AND "public"."is_admin_or_hr"()));
+
+
+
+CREATE POLICY "projects_insert_policy" ON "public"."projects" FOR INSERT WITH CHECK (("entreprise_id" IN ( SELECT "users"."entreprise_id"
+   FROM "public"."users"
+  WHERE (("users"."id" = "auth"."uid"()) AND (("users"."role" = 'ADMIN'::"public"."user_role") OR ("users"."role" = 'admin'::"public"."user_role") OR ("users"."role" = 'HR'::"public"."user_role"))))));
+
+
+
+CREATE POLICY "projects_manager_update" ON "public"."projects" FOR UPDATE USING ((("public"."is_manager"() AND (("team_manager_assigned" = "auth"."uid"()) OR ("entreprise_id" = "public"."auth_user_entreprise"()))) OR ("public"."is_hr"() AND ("entreprise_id" = "public"."auth_user_entreprise"())))) WITH CHECK ((("public"."is_manager"() AND (("team_manager_assigned" = "auth"."uid"()) OR ("entreprise_id" = "public"."auth_user_entreprise"()))) OR ("public"."is_hr"() AND ("entreprise_id" = "public"."auth_user_entreprise"()))));
+
+
+
+CREATE POLICY "projects_select_policy" ON "public"."projects" FOR SELECT USING (("entreprise_id" IN ( SELECT "users"."entreprise_id"
+   FROM "public"."users"
+  WHERE ("users"."id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "projects_update_policy" ON "public"."projects" FOR UPDATE USING (("entreprise_id" IN ( SELECT "users"."entreprise_id"
+   FROM "public"."users"
+  WHERE (("users"."id" = "auth"."uid"()) AND (("users"."role" = 'ADMIN'::"public"."user_role") OR ("users"."role" = 'admin'::"public"."user_role") OR ("users"."role" = 'HR'::"public"."user_role"))))));
 
 
 
@@ -1999,6 +2741,14 @@ ALTER TABLE "public"."system_settings" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."tasks" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "tasks_admin_hr_select_all" ON "public"."tasks" FOR SELECT USING (("public"."is_admin_or_hr"() AND (("project_id" IS NULL) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."users" "u"
+  WHERE (("u"."id" = "tasks"."created_by") AND ("u"."entreprise_id" = "public"."auth_user_entreprise"())))))));
+
+
+
 CREATE POLICY "tasks_employee_select" ON "public"."tasks" FOR SELECT USING (("assigned_to" = "auth"."uid"()));
 
 
@@ -2007,11 +2757,94 @@ CREATE POLICY "tasks_employee_update_status" ON "public"."tasks" FOR UPDATE USIN
 
 
 
+CREATE POLICY "tasks_hr_admin_select" ON "public"."tasks" FOR SELECT USING (("public"."is_admin_or_hr"() AND ((EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."users" "u"
+  WHERE ((("u"."id" = "tasks"."assigned_to") OR ("u"."id" = "tasks"."created_by")) AND ("u"."entreprise_id" = "public"."auth_user_entreprise"())))))));
+
+
+
+CREATE POLICY "tasks_manager_all_reports" ON "public"."tasks" USING (("public"."is_manager"() AND (EXISTS ( SELECT 1
+   FROM "public"."user_details" "ud"
+  WHERE (("ud"."id_user" = "tasks"."assigned_to") AND ("ud"."reports_to" = "auth"."uid"())))))) WITH CHECK (("public"."is_manager"() AND (EXISTS ( SELECT 1
+   FROM "public"."user_details" "ud"
+  WHERE (("ud"."id_user" = "tasks"."assigned_to") AND ("ud"."reports_to" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "tasks_manager_basic_select" ON "public"."tasks" FOR SELECT USING (("public"."is_manager"() AND ((EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."user_details" "ud"
+  WHERE (("ud"."id_user" = "tasks"."assigned_to") AND ("ud"."reports_to" = "auth"."uid"())))) OR ("created_by" = "auth"."uid"()) OR ("assigned_to" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "tasks_manager_delete" ON "public"."tasks" FOR DELETE USING (("public"."is_manager"() AND (("project_id" IS NULL) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))))));
+
+
+
+CREATE POLICY "tasks_manager_insert" ON "public"."tasks" FOR INSERT WITH CHECK (("public"."is_manager"() AND (("project_id" IS NULL) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))))));
+
+
+
+CREATE POLICY "tasks_manager_insert_all" ON "public"."tasks" FOR INSERT WITH CHECK (("public"."is_manager"() AND (("entreprise_id" = "public"."auth_user_entreprise"()) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))))));
+
+
+
+CREATE POLICY "tasks_manager_select" ON "public"."tasks" FOR SELECT USING (("public"."is_manager"() AND (("project_id" IS NULL) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."user_details" "ud"
+  WHERE (("ud"."id_user" = "tasks"."assigned_to") AND ("ud"."reports_to" = "auth"."uid"())))))));
+
+
+
+CREATE POLICY "tasks_manager_select_all" ON "public"."tasks" FOR SELECT USING ((("public"."is_manager"() AND (("entreprise_id" = "public"."auth_user_entreprise"()) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))))) OR ("auth"."uid"() = "assigned_to") OR "public"."is_admin_or_hr"()));
+
+
+
+CREATE POLICY "tasks_manager_select_team" ON "public"."tasks" FOR SELECT USING (("public"."is_manager"() AND (("project_id" IS NULL) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."user_details" "ud"
+  WHERE (("ud"."id_user" = "tasks"."assigned_to") AND ("ud"."reports_to" = "auth"."uid"())))))));
+
+
+
+CREATE POLICY "tasks_manager_update" ON "public"."tasks" FOR UPDATE USING (("public"."is_manager"() AND (("project_id" IS NULL) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"()))))))) WITH CHECK (("public"."is_manager"() AND (("project_id" IS NULL) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))))));
+
+
+
+CREATE POLICY "tasks_manager_update_all" ON "public"."tasks" FOR UPDATE USING ((("public"."is_manager"() AND (("entreprise_id" = "public"."auth_user_entreprise"()) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))))) OR ("auth"."uid"() = "assigned_to"))) WITH CHECK ((("public"."is_manager"() AND (("entreprise_id" = "public"."auth_user_entreprise"()) OR (EXISTS ( SELECT 1
+   FROM "public"."projects" "p"
+  WHERE (("p"."id" = "tasks"."project_id") AND ("p"."entreprise_id" = "public"."auth_user_entreprise"())))))) OR ("auth"."uid"() = "assigned_to")));
+
+
+
 ALTER TABLE "public"."team_manager_profiles" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "uploads_self_insert" ON "public"."file_uploads" FOR INSERT WITH CHECK (("uploaded_by" = "auth"."uid"()));
 
+
+
+ALTER TABLE "public"."user_details" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."user_preferences" ENABLE ROW LEVEL SECURITY;
@@ -2040,10 +2873,34 @@ ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
 
 
 
+
+
+
 GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2215,9 +3072,75 @@ GRANT ALL ON FUNCTION "public"."auth_user_role"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."clock_in_out"("p_entreprise_id" "uuid", "p_scanned_token" "text", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."clock_in_out"("p_entreprise_id" "uuid", "p_scanned_token" "text", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."clock_in_out"("p_entreprise_id" "uuid", "p_scanned_token" "text", "p_user_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_employee"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_hr_profile"("p_user_id" "uuid", "p_name" "text", "p_email" "text", "p_phone" "text", "p_password" "text", "p_entreprise_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_hr_profile"("p_user_id" "uuid", "p_name" "text", "p_email" "text", "p_phone" "text", "p_password" "text", "p_entreprise_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_hr_profile"("p_user_id" "uuid", "p_name" "text", "p_email" "text", "p_phone" "text", "p_password" "text", "p_entreprise_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_avatar" "text", "p_password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_team_manager"("p_user_id" "uuid", "p_entreprise_id" "uuid", "p_full_name" "text", "p_email" "text", "p_avatar" "text", "p_password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."generate_daily_qr_codes"() TO "anon";
+GRANT ALL ON FUNCTION "public"."generate_daily_qr_codes"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."generate_daily_qr_codes"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_my_entreprise_id"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_my_entreprise_id"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_my_entreprise_id"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_pending_task_count"("p_entreprise_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_pending_task_count"("p_entreprise_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_pending_task_count"("p_entreprise_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_project_progress"("p_entreprise_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_project_progress"("p_entreprise_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_project_progress"("p_entreprise_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."insert_user_details"("p_user_id" "uuid", "p_cnss" "text", "p_rib" "text", "p_phone" "text", "p_department" "text", "p_join_date" "date") TO "anon";
+GRANT ALL ON FUNCTION "public"."insert_user_details"("p_user_id" "uuid", "p_cnss" "text", "p_rib" "text", "p_phone" "text", "p_department" "text", "p_join_date" "date") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."insert_user_details"("p_user_id" "uuid", "p_cnss" "text", "p_rib" "text", "p_phone" "text", "p_department" "text", "p_join_date" "date") TO "service_role";
 
 
 
@@ -2269,9 +3192,27 @@ GRANT ALL ON FUNCTION "public"."provision_enterprise_admin"("p_auth_user_id" "uu
 
 
 
+GRANT ALL ON FUNCTION "public"."rpc_complete_manager_profile"("p_user_id" "uuid", "p_salary_base" numeric, "p_location" "text", "p_cnss" "text", "p_rib" "text", "p_join_date" "date", "p_department" "text", "p_phone" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."rpc_complete_manager_profile"("p_user_id" "uuid", "p_salary_base" numeric, "p_location" "text", "p_cnss" "text", "p_rib" "text", "p_join_date" "date", "p_department" "text", "p_phone" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."rpc_complete_manager_profile"("p_user_id" "uuid", "p_salary_base" numeric, "p_location" "text", "p_cnss" "text", "p_rib" "text", "p_join_date" "date", "p_department" "text", "p_phone" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."same_entreprise_employee"("emp_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."same_entreprise_employee"("emp_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."same_entreprise_employee"("emp_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_hr_password"("p_user_id" "uuid", "p_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_hr_password"("p_user_id" "uuid", "p_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_hr_password"("p_user_id" "uuid", "p_password" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_profile_password"("p_user_id" "uuid", "p_role" "text", "p_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_profile_password"("p_user_id" "uuid", "p_role" "text", "p_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_profile_password"("p_user_id" "uuid", "p_role" "text", "p_password" "text") TO "service_role";
 
 
 
@@ -2281,6 +3222,27 @@ GRANT ALL ON FUNCTION "public"."update_updated_at"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_user_details_updated_at_column"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_user_details_updated_at_column"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_user_details_updated_at_column"() TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."users" TO "anon";
+GRANT ALL ON TABLE "public"."users" TO "authenticated";
+GRANT ALL ON TABLE "public"."users" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."verify_login"("p_email" "text", "p_password" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."verify_login"("p_email" "text", "p_password" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."verify_login"("p_email" "text", "p_password" "text") TO "service_role";
 
 
 
@@ -2293,6 +3255,21 @@ GRANT ALL ON FUNCTION "public"."update_updated_at"() TO "service_role";
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+GRANT ALL ON TABLE "public"."admin_notes" TO "anon";
+GRANT ALL ON TABLE "public"."admin_notes" TO "authenticated";
+GRANT ALL ON TABLE "public"."admin_notes" TO "service_role";
 
 
 
@@ -2335,6 +3312,12 @@ GRANT ALL ON TABLE "public"."cache_metadata" TO "service_role";
 GRANT ALL ON TABLE "public"."candidates" TO "anon";
 GRANT ALL ON TABLE "public"."candidates" TO "authenticated";
 GRANT ALL ON TABLE "public"."candidates" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."daily_qr_codes" TO "anon";
+GRANT ALL ON TABLE "public"."daily_qr_codes" TO "authenticated";
+GRANT ALL ON TABLE "public"."daily_qr_codes" TO "service_role";
 
 
 
@@ -2458,15 +3441,15 @@ GRANT ALL ON TABLE "public"."team_manager_profiles" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."user_details" TO "anon";
+GRANT ALL ON TABLE "public"."user_details" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_details" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."user_preferences" TO "anon";
 GRANT ALL ON TABLE "public"."user_preferences" TO "authenticated";
 GRANT ALL ON TABLE "public"."user_preferences" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."users" TO "anon";
-GRANT ALL ON TABLE "public"."users" TO "authenticated";
-GRANT ALL ON TABLE "public"."users" TO "service_role";
 
 
 
