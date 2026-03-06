@@ -50,9 +50,9 @@ export const ROLES = [
     label: 'Employee',
     shortLabel: 'Employee',
     description: 'Task execution, requests, and personal dashboard',
-    color: 'from-[#83bf6e] to-[#a8d99a]',
-    textColor: 'text-[#83bf6e]',
-    bgColor: 'bg-[#83bf6e]/10',
+    color: 'from-[#ff9a55] to-[#ffbe7b]',
+    textColor: 'text-[#ff9a55]',
+    bgColor: 'bg-[#ff9a55]/10',
     companyId: 1, // Acme Corp
   },
 ];

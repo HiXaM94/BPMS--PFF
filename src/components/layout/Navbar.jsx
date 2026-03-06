@@ -48,9 +48,9 @@ export default function Navbar() {
       className={`sticky top-0 z-30 flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8
                   transition-all duration-300 ease-in-out
                   ${scrolled
-                    ? 'mx-3 mt-3 rounded-2xl bg-surface-primary/80 backdrop-blur-xl shadow-md border border-border-secondary/50'
-                    : 'lg:rounded-t-[20px] bg-surface-secondary/95 backdrop-blur-xl'
-                  }`}
+          ? 'mx-3 mt-3 rounded-2xl bg-surface-primary/80 backdrop-blur-xl shadow-md border border-border-secondary/50'
+          : 'lg:rounded-t-[20px] bg-surface-secondary/95 backdrop-blur-xl'
+        }`}
     >
       {/* Left */}
       <div className="flex items-center gap-3">
@@ -66,12 +66,8 @@ export default function Navbar() {
       {/* Right */}
       <div className="flex items-center gap-1.5">
         {/* Role switching restricted to privileged admin roles only */}
-        {(currentRole.id === 'super_admin' || currentRole.id === 'company_admin') && (
-          <>
-            <RoleSwitcher />
-            <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1" />
-          </>
-        )}
+        <RoleSwitcher />
+        <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1" />
         <button className="flex items-center justify-center w-9 h-9 rounded-xl
                            hover:bg-surface-tertiary transition-colors duration-200 cursor-pointer group"
           aria-label="Search">

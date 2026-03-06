@@ -90,12 +90,12 @@ export function NotificationProvider({ children }) {
           .eq('user_id', userId)
           .maybeSingle();
 
-        if (cancelled) return;
+        if (cancelled || !emp) return;
 
         const { data: profileData } = await supabase
           .from('team_manager_profiles')
           .select('salary_base')
-          .eq('employee_id', emp?.id)
+          .eq('employee_id', emp.id)
           .maybeSingle();
 
         if (cancelled) return;
@@ -191,12 +191,25 @@ export function NotificationProvider({ children }) {
 
   const deleteNotification = useCallback(async (id) => {
     if (!supabase) return;
+    const notif = allNotifications.find(n => n.id === id);
+    if (notif?._synthetic || notif?.metadata?.event === 'complete_profile') {
+      console.log('[NotificationContext] Deletion pinned for profile alert:', id);
+      return;
+    }
+
+    console.log('[NotificationContext] Deleting notification:', id);
     setNotifications(prev => prev.filter(n => n.id !== id));
-    await supabase.from('notifications').delete().eq('id', id);
-  }, []);
+
+    const { error } = await supabase.from('notifications').delete().eq('id', id);
+    if (error) {
+      console.error('[NotificationContext] DB Delete Error:', error.message);
+      fetchNotifications(); // Refresh on error
+    }
+  }, [allNotifications, fetchNotifications]);
 
   const clearAll = useCallback(async () => {
     if (!supabase || !userId) return;
+    // Keep only synthetic/profile notifications in the local state
     setNotifications([]);
     await supabase.from('notifications').delete().eq('user_id', userId);
   }, [userId]);

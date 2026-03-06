@@ -3,7 +3,7 @@ import { LogIn, ScanLine, X, Camera, CheckCircle2, AlertTriangle } from 'lucide-
 import { BrowserQRCodeReader } from '@zxing/browser';
 import { validateScanToken } from './qrcode/qrCodeService';
 
-export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, onClockIn, onStartLunch }) {
+export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, companyId, onClockIn, onStartLunch }) {
     const [showScanner, setShowScanner] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [scanComplete, setScanComplete] = useState(false);
@@ -27,7 +27,7 @@ export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, 
                         console.log("QR Code Scanned:", scannedText);
 
                         // Validate the scanned token against today's daily token
-                        const validation = await validateScanToken(scannedText, 'demo');
+                        const validation = await validateScanToken(scannedText, companyId);
 
                         if (validation.valid) {
                             setScanning(false);
@@ -129,10 +129,10 @@ export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, 
                             </div>
                         </div>
                         <button
-                            onClick={onStartLunch}
+                            onClick={handleStartScan}
                             className="w-full py-3 bg-white text-brand-600 font-extrabold rounded-xl shadow-md hover:scale-[1.02] active:scale-[0.98] transition-transform"
                         >
-                            Start Lunch Break
+                            Clock Out
                         </button>
                     </>
                 ) : (
@@ -216,7 +216,9 @@ export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, 
                                             </svg>
                                         </div>
                                         <span className="text-white font-bold text-lg drop-shadow-md">QR Recognized!</span>
-                                        <span className="text-white/80 font-medium text-sm drop-shadow-md mt-1">Clocking you in...</span>
+                                        <span className="text-white/80 font-medium text-sm drop-shadow-md mt-1">
+                                            {isClockedIn ? 'Clocking you out...' : 'Clocking you in...'}
+                                        </span>
                                     </div>
                                 )}
                             </div>
