@@ -108,7 +108,7 @@ export default function Navbar() {
               <p className="text-xs text-text-tertiary truncate">{profile?.email || ''}</p>
             </div>
             <div className="py-1">
-              <button onClick={() => { navigate('/profile'); setUserMenuOpen(false); }}
+              <button onClick={() => { navigate('/profile?openSelf=true'); setUserMenuOpen(false); }}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary
                            hover:bg-surface-secondary hover:text-text-primary transition-colors cursor-pointer">
                 <User size={15} /> {t('navbar.myProfile')}

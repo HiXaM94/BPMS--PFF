@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import PageHeader from '../../components/ui/PageHeader';
@@ -59,6 +60,8 @@ export default function CompleteProfile() {
   const userId = session?.user?.id;
   const isEmployee = targetRole === 'EMPLOYEE';
   const isManager = targetRole === 'TEAM_MANAGER';
+  const isHR = targetRole === 'HR';
+  const isIndividualContributor = isEmployee || isHR;
   const fields = isManager ? MANAGER_FIELDS : EMPLOYEE_FIELDS;
   const formComplete = fields.every(({ field }) => String(form[field] ?? '').trim().length > 0);
 
@@ -81,7 +84,7 @@ export default function CompleteProfile() {
               .maybeSingle(),
             supabase
               .from('user_details')
-              .select('cnss, rib, join_date, department, phone')
+              .select('cnss, rib, join_date, department, phone, adresse')
               .eq('id_user', userId)
               .maybeSingle(),
           ]);
@@ -94,12 +97,8 @@ export default function CompleteProfile() {
             hire_date: employee?.hire_date ? employee.hire_date.slice(0, 10) : prev.hire_date,
             salary_base: employee?.salary_base ? String(employee.salary_base) : prev.salary_base,
             phone: employee?.phone || details?.phone || prev.phone,
-            location: employee?.location || prev.location,
-            rib: employee?.rib || details?.rib || prev.rib,
-            bio: employee?.bio || prev.bio,
-            cnss: details?.cnss || prev.cnss,
-            join_date: details?.join_date ? details.join_date.slice(0, 10) : prev.join_date,
             department: details?.department || prev.department,
+            location: employee?.location || details?.adresse || prev.location,
           }));
         }
 
@@ -107,7 +106,7 @@ export default function CompleteProfile() {
           const [{ data: details }, { data: managerProfile }, { data: employee }] = await Promise.all([
             supabase
               .from('user_details')
-              .select('cnss, rib, join_date, department, phone')
+              .select('cnss, rib, join_date, department, phone, adresse')
               .eq('id_user', userId)
               .maybeSingle(),
             supabase
@@ -126,12 +125,9 @@ export default function CompleteProfile() {
           setForm(prev => ({
             ...prev,
             salary_base: managerProfile?.salary_base ? String(managerProfile.salary_base) : prev.salary_base,
-            location: managerProfile?.location || prev.location,
-            cnss: details?.cnss || prev.cnss,
-            rib: details?.rib || prev.rib,
-            join_date: details?.join_date ? details.join_date.slice(0, 10) : prev.join_date,
             department: details?.department || prev.department,
             phone: details?.phone || prev.phone,
+            location: managerProfile?.location || details?.adresse || prev.location,
           }));
         }
       } finally {
@@ -154,7 +150,7 @@ export default function CompleteProfile() {
     setError('');
     setLoading(true);
     try {
-      if (isEmployee) {
+      if (isIndividualContributor) {
         const employeePayload = {
           employee_code: form.employee_code || null,
           hire_date: form.hire_date || new Date().toISOString().split('T')[0],
@@ -168,11 +164,10 @@ export default function CompleteProfile() {
 
         const { error: employeeError } = employeeId
           ? await supabase.from('employees').update(employeePayload).eq('id', employeeId)
-          : await supabase.from('employees').insert({
-            ...employeePayload,
-            user_id: userId,
-            entreprise_id: profile?.entreprise_id,
-          });
+          : (isEmployee
+            ? await supabase.from('employees').insert({ ...employeePayload, user_id: userId, entreprise_id: profile?.entreprise_id })
+            : { error: null } // HR does not necessarily need a row in employees table if they have hr_profiles
+          );
         if (employeeError) throw employeeError;
 
         const { error: detailError } = await supabase
@@ -184,6 +179,7 @@ export default function CompleteProfile() {
             join_date: form.join_date || null,
             department: form.department || null,
             phone: form.phone || null,
+            adresse: form.location || null,
             entreprise_id: profile?.entreprise_id || null,
           }, { onConflict: 'id_user' });
         if (detailError) throw detailError;
@@ -203,6 +199,9 @@ export default function CompleteProfile() {
         });
         if (managerError) throw managerError;
       }
+
+      // Invalidate users cache to show new adresse/phone in lists
+      cacheService.invalidatePattern('^users:');
 
       dismissProfileNotification();
       setSuccess(true);

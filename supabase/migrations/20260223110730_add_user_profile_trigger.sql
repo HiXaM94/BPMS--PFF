@@ -15,6 +15,14 @@ BEGIN
     'active'::user_status,
     UPPER(LEFT(COALESCE(NEW.raw_user_meta_data->>'name', NEW.email), 2))
   );
+
+  -- Also initialize user_details row
+  INSERT INTO public.user_details (id_user, entreprise_id)
+  VALUES (
+    NEW.id,
+    '11111111-0001-0001-0001-000000000001' -- Default to TechCorp
+  ) ON CONFLICT (id_user) DO NOTHING;
+
   RETURN NEW;
 EXCEPTION
   WHEN OTHERS THEN
