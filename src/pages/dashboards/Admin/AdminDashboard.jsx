@@ -17,8 +17,11 @@ import {
     FileText,
     Calendar,
     Clock,
-    Shield
+    Shield,
+    AlertCircle,
+    Check
 } from 'lucide-react';
+
 import StatCard from '../../../components/ui/StatCard';
 import DataTable from '../../../components/ui/DataTable';
 import StatusBadge from '../../../components/ui/StatusBadge';
@@ -125,11 +128,15 @@ export default function AdminDashboard() {
     const navigate = useNavigate();
     const [cards, setCards] = useState(assetCards);
     const [latestAttendance, setLatestAttendance] = useState([]);
+    const [attendancePage, setAttendancePage] = useState(1);
+    const itemsPerPage = 6;
     const [recentDocuments, setRecentDocuments] = useState([]);
     const [roleDistribution, setRoleDistribution] = useState([]);
     const [totalUsers, setTotalUsers] = useState('0');
+    const [totalUsersTrend, setTotalUsersTrend] = useState(0);
+    const [totalActivity, setTotalActivity] = useState(0);
     const [systemLogs, setSystemLogs] = useState([]);
-    const [timeRange, setTimeRange] = useState('1Y');
+    const [timeRange, setTimeRange] = useState('7D');
     const [chartData, setChartData] = useState([]);
     const [statsLoading, setStatsLoading] = useState(true);
     const [favorites, setFavorites] = useState(() => {
@@ -238,19 +245,22 @@ export default function AdminDashboard() {
     ];
 
     // ── Fetch Dashboard Stats from RPC ──
-    const fetchDashboardStats = useCallback(async () => {
+    const fetchDashboardStats = useCallback(async (days = 7) => {
         if (!profile?.entreprise_id || !isSupabaseReady) return;
 
         setStatsLoading(true);
         try {
             const { data, error } = await supabase.rpc('get_admin_dashboard_stats', {
-                p_entreprise_id: profile.entreprise_id
+                p_entreprise_id: profile.entreprise_id,
+                p_chart_days: days
             });
 
             if (error) throw error;
 
             if (data) {
                 setTotalUsers(data.total_users?.toLocaleString() || '0');
+                setTotalUsersTrend(data.user_trend_pct || 0);
+                setTotalActivity(data.period_activity_count || 0);
                 setGlobalLeave([
                     { status: 'pending', count: data.leave_pending },
                     { status: 'approved', count: data.leave_approved }
@@ -296,8 +306,9 @@ export default function AdminDashboard() {
     }, [profile?.entreprise_id]);
 
     useEffect(() => {
-        fetchDashboardStats();
-    }, [fetchDashboardStats]);
+        const daysMap = { '1D': 1, '7D': 7, '15D': 15, '30D': 30 };
+        fetchDashboardStats(daysMap[timeRange] || 7);
+    }, [fetchDashboardStats, timeRange]);
 
     const fetchProjectsOverview = useCallback(async () => {
         if (!profile?.entreprise_id) return;
@@ -377,9 +388,8 @@ export default function AdminDashboard() {
 
     useEffect(() => {
         if (!isSupabaseReady) return;
-        fetchDashboardStats();
         fetchProjectsOverview();
-    }, [fetchDashboardStats, fetchProjectsOverview]);
+    }, [fetchProjectsOverview]);
 
     return (
         <div className="space-y-6">
@@ -422,24 +432,29 @@ export default function AdminDashboard() {
 
             {/* Top Row: Portfolio card + Asset cards */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Portfolio-style summary card */}
-                <div className="lg:col-span-5 bg-surface-primary rounded-2xl border border-border-secondary p-6
-                        animate-fade-in">
-                    <h2 className="text-sm font-semibold text-text-secondary mb-1">System Usage</h2>
-                    <div className="flex items-baseline gap-3 mb-1">
-                        <span className="text-3xl font-bold text-text-primary tracking-tight">{totalUsers}</span>
-                        <span className="text-xs font-medium text-text-tertiary">total users</span>
+                <div className="lg:col-span-5 bg-surface-primary rounded-2xl border border-border-secondary p-8
+                        animate-fade-in shadow-sm">
+                    <h2 className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-4">System Activity</h2>
+                    <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-4xl font-bold tracking-tight text-text-primary">
+                            {totalActivity}
+                        </span>
+                        <span className="text-xs font-medium text-text-tertiary uppercase tracking-wider">
+                            Check-ins ({timeRange})
+                        </span>
                     </div>
                     <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#eafaf0] dark:bg-emerald-500/10 mb-4">
-                        <ArrowUpRight size={12} className="text-[#83bf6e]" />
-                        <span className="text-xs font-semibold text-[#83bf6e]">+12.4%</span>
+                        <ArrowUpRight size={12} className={totalUsersTrend >= 0 ? "text-[#83bf6e]" : "text-red-500"} />
+                        <span className={`text-xs font-semibold ${totalUsersTrend >= 0 ? "text-[#83bf6e]" : "text-red-500"}`}>
+                            {totalUsersTrend >= 0 ? '+' : ''}{totalUsersTrend}%
+                        </span>
                     </div>
 
                     {/* Mini chart */}
                     <div className="mt-2">
                         <MiniChart
                             data={chartData}
-                            label="Monthly active users"
+                            label="Daily Activity (Attendance)"
                             height={80}
                             colorFrom="#2a85ff"
                             colorTo="#6cb4ff"
@@ -448,10 +463,10 @@ export default function AdminDashboard() {
 
                     {/* Time range tabs */}
                     <div className="flex items-center gap-1 mt-4">
-                        {['3M', '6M', '1Y', 'YTD', 'ALL'].map((tab) => (
+                        {['1D', '7D', '15D', '30D'].map((tab) => (
                             <button
                                 key={tab}
-                                onClick={() => { setTimeRange(tab); fetchChartData(tab); }}
+                                onClick={() => setTimeRange(tab)}
                                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer
                   ${tab === timeRange
                                         ? 'bg-text-primary text-text-inverse'
@@ -506,13 +521,13 @@ export default function AdminDashboard() {
                                 <div className="flex items-center gap-4">
                                     <div className="flex-1">
                                         <span className="text-xl font-bold text-text-primary block">
-                                            {globalLeave.filter(r => r.status === 'pending').length}
+                                            {globalLeave.find(r => r.status === 'pending')?.count ?? 0}
                                         </span>
                                         <span className="text-[10px] text-text-tertiary uppercase font-bold">Pending</span>
                                     </div>
                                     <div className="flex-1">
                                         <span className="text-xl font-bold text-text-primary block">
-                                            {globalLeave.filter(r => r.status === 'approved').length}
+                                            {globalLeave.find(r => r.status === 'approved')?.count ?? 0}
                                         </span>
                                         <span className="text-[10px] text-text-tertiary uppercase font-bold">Approved</span>
                                     </div>
@@ -623,11 +638,52 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     </div>
-                    <DataTable
-                        columns={getAttendanceColumns()}
-                        data={latestAttendance}
-                        emptyMessage={statsLoading ? "Loading attendance..." : "No attendance recorded for today"}
-                    />
+                    <div className="flex flex-col">
+                        <div className="overflow-hidden">
+                            <DataTable
+                                columns={getAttendanceColumns()}
+                                data={latestAttendance.slice((attendancePage - 1) * itemsPerPage, attendancePage * itemsPerPage)}
+                                emptyMessage={statsLoading ? "Loading attendance..." : "No attendance recorded for today"}
+                            />
+                        </div>
+
+                        {latestAttendance.length > itemsPerPage && (
+                            <div className="px-5 py-4 border-t border-border-secondary flex items-center justify-between bg-surface-secondary/50">
+                                <span className="text-xs font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
+                                    Page {attendancePage} / {Math.ceil(latestAttendance.length / itemsPerPage)}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setAttendancePage(p => Math.max(1, p - 1));
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
+                                        disabled={attendancePage === 1}
+                                        className="inline-flex items-center gap-1 px-4 py-2 rounded-xl border border-border-secondary bg-surface-primary text-xs font-bold uppercase transition-all hover:bg-surface-tertiary hover:border-brand-500/30 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95"
+                                    >
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                        Prev
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setAttendancePage(p => Math.min(Math.ceil(latestAttendance.length / itemsPerPage), p + 1));
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
+                                        disabled={attendancePage >= Math.ceil(latestAttendance.length / itemsPerPage)}
+                                        className="inline-flex items-center gap-1 px-4 py-2 rounded-xl border border-border-secondary bg-surface-primary text-xs font-bold uppercase transition-all hover:bg-surface-tertiary hover:border-brand-500/30 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95"
+                                    >
+                                        Next
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Department Distribution / Subscription Card */}
@@ -653,8 +709,8 @@ export default function AdminDashboard() {
                                         <div className="h-1.5 w-full bg-surface-secondary rounded-full overflow-hidden">
                                             <div
                                                 className={`h-full rounded-full transition-all duration-1000 ${r.role === 'ADMIN' ? 'bg-orange-500' :
-                                                        r.role === 'HR' ? 'bg-brand-500' :
-                                                            r.role === 'TEAM_MANAGER' ? 'bg-purple-500' : 'bg-emerald-500'
+                                                    r.role === 'HR' ? 'bg-brand-500' :
+                                                        r.role === 'TEAM_MANAGER' ? 'bg-purple-500' : 'bg-emerald-500'
                                                     }`}
                                                 style={{ width: `${Math.min(100, (r.count / (Math.max(1, parseInt(totalUsers.replace(',', ''))))) * 100)}%` }}
                                             />

@@ -845,7 +845,7 @@ export default function EmployeeProfile() {
             <div className="flex items-start justify-between mb-4">
               <div className={`flex items-center justify-center w-12 h-12 rounded-xl
                                bg-gradient-to-br ${avatarColors[idx % avatarColors.length]}
-                               ${isDark ? 'text-white' : 'text-black'} font-bold text-sm shadow-md
+                               text-white font-bold text-sm shadow-md
                                group-hover:scale-110 transition-transform duration-300`}>
                 {emp.avatar}
               </div>
@@ -1040,10 +1040,13 @@ export default function EmployeeProfile() {
               </div>
             )}
 
-            {/* About */}
-            <div className="bg-surface-secondary rounded-xl p-4 border border-border-secondary">
-              <p className="text-sm text-text-secondary leading-relaxed">{selectedEmployee.bio}</p>
-            </div>
+            {/* About / Bio */}
+            {selectedEmployee.bio && selectedEmployee.bio.trim() && (
+              <div className="bg-surface-secondary rounded-xl p-4 border border-border-secondary">
+                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">About</p>
+                <p className="text-sm text-text-secondary leading-relaxed">{selectedEmployee.bio}</p>
+              </div>
+            )}
 
             {/* Two-column info */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5

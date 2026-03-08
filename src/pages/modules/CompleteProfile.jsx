@@ -76,16 +76,21 @@ export default function CompleteProfile() {
       setInitialLoading(true);
       try {
         if (isEmployee) {
-          const [{ data: employee }, { data: details }] = await Promise.all([
+          const [{ data: employee }, { data: details }, { data: userBio }] = await Promise.all([
             supabase
               .from('employees')
-              .select('id, employee_code, hire_date, salary_base, phone, location, rib, bio')
+              .select('id, employee_code, hire_date, salary_base, phone, location, rib')
               .eq('user_id', userId)
               .maybeSingle(),
             supabase
               .from('user_details')
               .select('cnss, rib, join_date, department, phone, adresse')
               .eq('id_user', userId)
+              .maybeSingle(),
+            supabase
+              .from('users')
+              .select('bio')
+              .eq('id', userId)
               .maybeSingle(),
           ]);
 
@@ -99,6 +104,7 @@ export default function CompleteProfile() {
             phone: employee?.phone || details?.phone || prev.phone,
             department: details?.department || prev.department,
             location: employee?.location || details?.adresse || prev.location,
+            bio: userBio?.bio || prev.bio,
           }));
         }
 
@@ -150,6 +156,29 @@ export default function CompleteProfile() {
     setError('');
     setLoading(true);
     try {
+      if (form.department) {
+        const deptName = form.department.trim();
+        if (deptName && profile?.entreprise_id) {
+          try {
+            const { data: existingDept } = await supabase
+              .from('departments')
+              .select('id')
+              .eq('entreprise_id', profile.entreprise_id)
+              .ilike('name', deptName)
+              .maybeSingle();
+
+            if (!existingDept) {
+              await supabase.from('departments').insert({
+                entreprise_id: profile.entreprise_id,
+                name: deptName
+              });
+            }
+          } catch (deptErr) {
+            console.error('Error inserting department:', deptErr);
+          }
+        }
+      }
+
       if (isIndividualContributor) {
         const employeePayload = {
           employee_code: form.employee_code || null,
@@ -158,7 +187,6 @@ export default function CompleteProfile() {
           phone: form.phone || null,
           location: form.location || null,
           rib: form.rib || null,
-          bio: form.bio || null,
           position: 'Employee',
         };
 
@@ -183,6 +211,11 @@ export default function CompleteProfile() {
             entreprise_id: profile?.entreprise_id || null,
           }, { onConflict: 'id_user' });
         if (detailError) throw detailError;
+
+        if (form.bio !== undefined) {
+          const { error: bioError } = await supabase.from('users').update({ bio: form.bio || null }).eq('id', userId);
+          if (bioError) throw bioError;
+        }
       }
 
       if (isManager) {
