@@ -40,39 +40,39 @@ export default function HRManagerDocuments() {
             // Stats
             const { data: allDocs } = await supabase
                 .from('documents')
-                .select('status, doc_type')
+                .select('status, type')
                 .eq('entreprise_id', profile.entreprise_id);
 
             if (allDocs) {
                 const pending = allDocs.filter(d => d.status === 'submitted' || d.status === 'pending').length;
                 const approved = allDocs.filter(d => d.status === 'approved').length;
                 const rejected = allDocs.filter(d => d.status === 'rejected').length;
-                const generated = allDocs.filter(d => d.doc_type === 'salary_certificate').length;
+                const generated = allDocs.filter(d => d.type === 'salary_certificate').length;
                 setDocStats({ overdue: rejected, pending, complete: approved, total: allDocs.length, generated });
             }
 
             // Onboarding submissions (submitted docs grouped by user)
             const { data: onboardDocs } = await supabase
                 .from('documents')
-                .select('*, users!documents_user_id_fkey(id, name, email, department)')
+                .select('*, users!documents_employee_id_fkey(id, name, email, department)')
                 .eq('entreprise_id', profile.entreprise_id)
-                .eq('doc_type', 'onboarding')
+                .eq('type', 'onboarding')
                 .in('status', ['submitted', 'approved', 'rejected'])
                 .order('created_at', { ascending: false });
 
             if (onboardDocs) {
-                // Group by user_id
+                // Group by employee_id
                 const grouped = {};
                 onboardDocs.forEach(doc => {
-                    if (!grouped[doc.user_id]) {
-                        grouped[doc.user_id] = {
-                            userId: doc.user_id,
-                            userName: doc.users?.name || doc.users?.email || 'Unknown',
+                    if (!grouped[doc.employee_id]) {
+                        grouped[doc.employee_id] = {
+                            employeeId: doc.employee_id,
+                            employeeName: doc.users?.name || doc.users?.email || 'Unknown',
                             department: doc.users?.department || '—',
                             docs: [],
                         };
                     }
-                    grouped[doc.user_id].docs.push(doc);
+                    grouped[doc.employee_id].docs.push(doc);
                 });
                 setOnboardingSubmissions(Object.values(grouped));
             }
@@ -80,9 +80,9 @@ export default function HRManagerDocuments() {
             // Official requests
             const { data: officialDocs } = await supabase
                 .from('documents')
-                .select('*, users!documents_user_id_fkey(id, name, email)')
+                .select('*, users!documents_employee_id_fkey(id, name, email)')
                 .eq('entreprise_id', profile.entreprise_id)
-                .eq('doc_type', 'official_request')
+                .eq('type', 'official_request')
                 .order('created_at', { ascending: false });
 
             if (officialDocs) setOfficialRequests(officialDocs);

@@ -77,8 +77,8 @@ export default function EmployeeDocuments() {
                 const { data: onboardingDocs } = await supabase
                     .from('documents')
                     .select('*')
-                    .eq('user_id', profile.id)
-                    .eq('doc_type', 'onboarding')
+                    .eq('employee_id', profile.id)
+                    .eq('type', 'onboarding')
                     .order('created_at', { ascending: false });
 
                 if (onboardingDocs?.length) {
@@ -101,8 +101,8 @@ export default function EmployeeDocuments() {
                 const { data: requests } = await supabase
                     .from('documents')
                     .select('*')
-                    .eq('user_id', profile.id)
-                    .in('doc_type', ['official_request', 'salary_certificate'])
+                    .eq('employee_id', profile.id)
+                    .in('type', ['official_request', 'salary_certificate'])
                     .order('created_at', { ascending: false });
                 if (requests) setRequestHistory(requests);
             } catch (err) {
@@ -117,9 +117,34 @@ export default function EmployeeDocuments() {
         const rec = docRecords[docKey];
         if (!rec?.file_url) { flash('File not found', 'error'); return; }
         try {
-            const { data } = await supabase.storage.from('documents').getPublicUrl(rec.file_url);
-            setPreviewFile({ url: data.publicUrl, name: rec.fileName });
-        } catch { flash('Failed to load preview', 'error'); }
+            // Fix old paths that have duplicate documents/ prefix
+            const cleanPath = rec.file_url.replace(/^documents\//, '');
+            console.log('Preview path:', cleanPath);
+            
+            // Try public URL first
+            const { data } = await supabase.storage.from('documents').getPublicUrl(cleanPath);
+            console.log('Public URL:', data.publicUrl);
+            
+            // If public URL fails, try signed URL
+            const { data: signedData, error: signedError } = await supabase.storage
+                .from('documents')
+                .createSignedUrl(cleanPath, 60); // 60 seconds expiry
+            
+            if (signedError) {
+                console.log('Signed URL error:', signedError);
+                throw signedError;
+            }
+            
+            console.log('Signed URL:', signedData.signedUrl);
+            // Clear preview first to force refresh
+            setPreviewFile(null);
+            setTimeout(() => {
+                setPreviewFile({ url: signedData.signedUrl, name: rec.fileName });
+            }, 100);
+        } catch (error) {
+            console.error('Preview error:', error);
+            flash('Failed to load preview: ' + error.message, 'error');
+        }
     }, [docRecords]);
 
     // ── Delete / remove uploaded doc ──
@@ -131,7 +156,10 @@ export default function EmployeeDocuments() {
             return;
         }
         try {
-            if (rec?.file_url) await supabase.storage.from('documents').remove([rec.file_url]);
+            if (rec?.file_url) {
+                const cleanPath = rec.file_url.replace(/^documents\//, '');
+                await supabase.storage.from('documents').remove([cleanPath]);
+            }
             if (rec?.id) await supabase.from('documents').delete().eq('id', rec.id);
             setDocRecords(prev => { const n = { ...prev }; delete n[docKey]; return n; });
             flash(`${docKey} removed`);
@@ -166,21 +194,23 @@ export default function EmployeeDocuments() {
             // If replacing a rejected doc, delete old file first
             const existing = docRecords[docKey];
             if (existing?.file_url) {
-                await supabase.storage.from('documents').remove([existing.file_url]);
+                const cleanPath = existing.file_url.replace(/^documents\//, '');
+                await supabase.storage.from('documents').remove([cleanPath]);
                 if (existing.id) await supabase.from('documents').delete().eq('id', existing.id);
             }
 
-            const path = `documents/${profile.id}/${docKey}_${Date.now()}_${file.name}`;
+            const path = `${profile.id}/${docKey}_${Date.now()}_${file.name}`;
             const { error: upErr } = await supabase.storage.from('documents').upload(path, file);
             if (upErr) throw upErr;
 
             const { data: rec } = await supabase.from('documents').insert({
-                user_id: profile.id,
+                employee_id: profile.id,
                 entreprise_id: profile.entreprise_id || null,
                 title: docKey,
                 file_url: path,
-                doc_type: 'onboarding',
+                type: 'onboarding',
                 status: 'pending',
+                uploaded_by: profile.id,
             }).select().single();
 
             clearInterval(progressInterval);
@@ -221,8 +251,8 @@ export default function EmployeeDocuments() {
             const { error } = await supabase
                 .from('documents')
                 .update({ status: 'submitted' })
-                .eq('user_id', profile.id)
-                .eq('doc_type', 'onboarding')
+                .eq('employee_id', profile.id)
+                .eq('type', 'onboarding')
                 .eq('status', 'pending');
             if (error) {
                 flash('Error submitting: ' + error.message, 'error');
@@ -338,12 +368,13 @@ export default function EmployeeDocuments() {
             // Record in DB + notify
             if (isSupabaseReady && profile?.id) {
                 const { data: rec } = await supabase.from('documents').insert({
-                    user_id: profile.id,
+                    employee_id: profile.id,
                     entreprise_id: profile.entreprise_id || null,
                     title: `Salary Certificate (${periodLabel})`,
-                    doc_type: 'salary_certificate',
+                    type: 'salary_certificate',
                     status: 'approved',
                     notes: certPurpose || null,
+                    uploaded_by: profile.id,
                 }).select().single();
                 if (rec) setRequestHistory(prev => [rec, ...prev]);
                 cacheService.invalidatePattern('^doc');
@@ -363,7 +394,7 @@ export default function EmployeeDocuments() {
         if (!isSupabaseReady || !profile?.id) {
             setTimeout(() => {
                 setReqLoading(false);
-                setRequestHistory(prev => [{ id: Date.now(), title: reqDocType, doc_type: 'official_request', status: 'pending', urgency: reqUrgency, notes: reqNotes, created_at: new Date().toISOString() }, ...prev]);
+                setRequestHistory(prev => [{ id: Date.now(), title: reqDocType, type: 'official_request', status: 'pending', urgency: reqUrgency, notes: reqNotes, created_at: new Date().toISOString() }, ...prev]);
                 flash('Document request submitted to HR!');
                 setReqNotes('');
             }, 800);
@@ -371,13 +402,14 @@ export default function EmployeeDocuments() {
         }
         try {
             const { data: rec } = await supabase.from('documents').insert({
-                user_id: profile.id,
+                employee_id: profile.id,
                 entreprise_id: profile.entreprise_id || null,
                 title: reqDocType,
-                doc_type: 'official_request',
+                type: 'official_request',
                 status: 'pending',
                 notes: reqNotes,
                 urgency: reqUrgency,
+                uploaded_by: profile.id,
             }).select().single();
             if (rec) setRequestHistory(prev => [rec, ...prev]);
             flash('Document request submitted to HR!');
