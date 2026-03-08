@@ -111,7 +111,7 @@ export default function NotificationDropdown() {
                   key={notif.id}
                   className={`relative flex gap-3 px-4 py-3.5 cursor-pointer group
                              transition-all duration-200 animate-fade-in
-                             ${!notif.is_read ? 'bg-brand-500/3 hover:bg-brand-500/6' : 'hover:bg-surface-secondary/50'}`}
+                             ${!notif.is_read ? 'bg-surface-secondary hover:bg-surface-tertiary' : 'hover:bg-surface-secondary/50'}`}
                   style={{ animationDelay: `${i * 40}ms` }}
                   onClick={() => {
                     markAsRead(notif.id);

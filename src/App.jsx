@@ -8,10 +8,13 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import router from './router';
 import ProfileDataModal from './components/ui/ProfileDataModal';
+import PasswordChangeModal from './components/ui/PasswordChangeModal';
+import { useDefaultPasswordCheck } from './hooks/useDefaultPasswordCheck';
 
 function AppInner() {
   const { profile } = useAuth();
   const [showProfileForm, setShowProfileForm] = useState(false);
+  const { showPasswordModal, hidePasswordModal } = useDefaultPasswordCheck();
 
   useEffect(() => {
     const handler = () => setShowProfileForm(true);
@@ -24,9 +27,14 @@ function AppInner() {
       <NotificationProvider>
         <SidebarProvider>
           <RouterProvider router={router} />
-          <ProfileDataModal 
-            isOpen={showProfileForm} 
-            onClose={() => setShowProfileForm(false)} 
+          <ProfileDataModal
+            isOpen={showProfileForm}
+            onClose={() => setShowProfileForm(false)}
+          />
+          <PasswordChangeModal
+            isOpen={showPasswordModal}
+            onClose={hidePasswordModal}
+            role={profile?.role || 'EMPLOYEE'}
           />
         </SidebarProvider>
       </NotificationProvider>

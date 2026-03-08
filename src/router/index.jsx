@@ -30,6 +30,7 @@ import RealAnalyticsRouter from '../pages/modules/RealAnalyticsRouter';
 import QRKiosk from '../pages/modules/attendance/qrcode/QRKiosk';
 import Notifications from '../pages/modules/Notifications';
 import CompleteProfile from '../pages/modules/CompleteProfile';
+import Tickets from '../pages/modules/Tickets';
 
 const router = createBrowserRouter([
   // ── Public auth routes ──
@@ -44,6 +45,7 @@ const router = createBrowserRouter([
     element: <AuthGuard><MainLayout /></AuthGuard>,
     children: [
       { index: true, element: <Dashboard /> },
+      { path: 'tickets', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'admin']}><Tickets /></RoleGuard> },
 
       // HR & People
       { path: 'enterprise', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><EnterpriseManagement /></RoleGuard> },

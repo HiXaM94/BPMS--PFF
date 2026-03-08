@@ -18,6 +18,7 @@ import { employeeData } from '../../../data/mockData';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
 import { cacheService } from '../../../services/CacheService';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useDefaultPasswordCheck } from '../../../hooks/useDefaultPasswordCheck';
 
 const statIcons = [ListChecks, CheckCircle2, Clock, TrendingUp];
 const statColors = [
@@ -91,23 +92,12 @@ export default function EmployeeDashboard() {
     const [activity, setActivity] = useState(employeeData.recentActivity);
     const [weeklyActivity, setWeeklyActivity] = useState(employeeData.weeklyActivity);
     const [showPasswordReset, setShowPasswordReset] = useState(false);
+    const { showPasswordModal: showDefaultPassModal, hidePasswordModal } = useDefaultPasswordCheck();
 
     useEffect(() => {
         if (!isSupabaseReady || !profile?.id) return;
 
-        // Check if password needs to be changed for EMPLOYEE role
-        if (profile?.role === 'EMPLOYEE' || profile?.role === 'EMPLOYEE_HR') {
-            supabase
-                .from('employees')
-                .select('password_changed')
-                .eq('user_id', profile.id)
-                .maybeSingle()
-                .then(({ data }) => {
-                    if (data && data.password_changed !== true) {
-                        setShowPasswordReset(true);
-                    }
-                });
-        }
+        // Password check is now handled by useDefaultPasswordCheck hook
 
         // Fetch employee's tasks
         cacheService.getOrSet(`emp:tasks:${profile.id}`, async () => {
@@ -174,12 +164,6 @@ export default function EmployeeDashboard() {
 
     return (
         <div className="space-y-6">
-            {/* Shared Password Reset Modal for Employee */}
-            <PasswordChangeModal
-                isOpen={showPasswordReset}
-                onClose={handleModalClose}
-                role="EMPLOYEE"
-            />
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>

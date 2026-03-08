@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(p_entreprise_id UUID)
+CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(p_entreprise_id UUID, p_chart_days INT DEFAULT 14)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -6,9 +6,17 @@ SET search_path = public
 AS $$
 DECLARE
     result JSONB;
+    v_total_users INT;
+    v_new_users_week INT;
 BEGIN
+    -- Basic counts
+    SELECT count(id) INTO v_total_users FROM public.users WHERE entreprise_id = p_entreprise_id;
+    SELECT count(id) INTO v_new_users_week FROM public.users 
+    WHERE entreprise_id = p_entreprise_id AND created_at >= NOW() - interval '7 days';
+
     SELECT jsonb_build_object(
-        'total_users', (SELECT count(u.id) FROM public.users u WHERE u.entreprise_id = p_entreprise_id),
+        'total_users', v_total_users,
+        'user_trend_pct', ROUND(CASE WHEN v_total_users > 0 THEN (v_new_users_week * 100.0 / v_total_users) ELSE 0 END, 1),
         'total_employees', (SELECT count(u.id) FROM public.users u WHERE u.entreprise_id = p_entreprise_id AND u.role = 'EMPLOYEE'::user_role),
         'attendance_today', (
             SELECT count(p.id) 
@@ -34,24 +42,35 @@ BEGIN
             WHERE e.entreprise_id = p_entreprise_id AND v.status = 'approved'::leave_status
         ),
         'chart_data', (
-            SELECT jsonb_agg(month_stats)
+            -- Dynamic attendance activity chart
+            SELECT jsonb_agg(day_stats)
             FROM (
                 SELECT 
-                    to_char(m, 'Mon YY') as label,
+                    to_char(d, CASE WHEN p_chart_days <= 1 THEN 'HH24:00' ELSE 'DD Mon' END) as label,
                     (
-                        SELECT count(u.id) 
-                        FROM public.users u 
-                        WHERE u.entreprise_id = p_entreprise_id 
-                        AND u.created_at <= (m + interval '1 month' - interval '1 second')
+                        SELECT count(p.id) 
+                        FROM public.presences p
+                        JOIN public.employees e ON e.id = p.employee_id
+                        WHERE e.entreprise_id = p_entreprise_id 
+                        AND p.date = d::date
                     ) as value
                 FROM (
+                    -- Time range of activity
                     SELECT generate_series(
-                        date_trunc('month', NOW() - interval '5 months'),
-                        date_trunc('month', NOW()),
-                        interval '1 month'
-                    ) as m
-                ) months
-            ) month_stats
+                        CURRENT_DATE - (p_chart_days - 1) * interval '1 day',
+                        CURRENT_DATE,
+                        interval '1 day'
+                    )::date as d
+                ) days
+            ) day_stats
+        ),
+        'period_activity_count', (
+            SELECT count(p.id) 
+            FROM public.presences p
+            JOIN public.employees e ON e.id = p.employee_id
+            WHERE e.entreprise_id = p_entreprise_id 
+            AND p.date >= CURRENT_DATE - (p_chart_days - 1) * interval '1 day'
+            AND p.date <= CURRENT_DATE
         ),
         'latest_attendance', (
             SELECT jsonb_agg(presence_data)
@@ -68,7 +87,7 @@ BEGIN
                 JOIN public.users u ON u.id = e.user_id
                 WHERE e.entreprise_id = p_entreprise_id
                 ORDER BY p.date DESC, p.check_in_time DESC
-                LIMIT 10
+                LIMIT 48
             ) presence_data
         ),
         'recent_documents', (
