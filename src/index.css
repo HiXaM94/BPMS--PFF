@@ -123,6 +123,19 @@
   color: #1a1d1f !important;
 }
 
+/* Clean up notification list overrides — ensure high contrast in dark mode unread rows */
+.dark .notification-item-unread,
+.dark .notification-item-unread *,
+.dark .notification-message,
+.dark .notification-type-label,
+.dark .notification-time {
+  color: var(--color-text-primary) !important;
+}
+
+.dark .notification-item-unread .notification-icon-container * {
+  stroke: currentColor !important;
+}
+
 /* ===== BASE STYLES ===== */
 @layer base {
   html {

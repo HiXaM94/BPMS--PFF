@@ -24,7 +24,10 @@ export function AuthProvider({ children }) {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('*')
+          .select(`
+            *,
+            entreprise:entreprises(id, name, logo_url, status)
+          `)
           .eq('id', userId)
           .maybeSingle(); // Use maybeSingle to prevent 406 Not Acceptable on 0 rows
 
@@ -38,20 +41,11 @@ export function AuthProvider({ children }) {
 
         if (data) {
           // Extra safety check in case the RPC check was bypassed
-          if (data.status === 'suspended') {
-            console.warn('User account is suspended. Blocking session.');
+          if (data.status === 'suspended' || data.entreprise?.status === 'suspended') {
+            console.warn('Account or Organization is suspended. Blocking session.');
             cacheService.clear();
             supabase.auth.signOut().catch(() => { });
             return { _suspended: true };
-          }
-          if (data.entreprise_id) {
-            const { data: ent } = await supabase.from('entreprises').select('status').eq('id', data.entreprise_id).single();
-            if (ent?.status === 'suspended') {
-              console.warn('Organization is suspended. Blocking session.');
-              cacheService.clear();
-              supabase.auth.signOut().catch(() => { });
-              return { _suspended: true };
-            }
           }
           userProfile = data;
           break; // Found in users
@@ -93,6 +87,13 @@ export function AuthProvider({ children }) {
       return { id: userId, role: 'EMPLOYEE', status: 'active', _rls_blocked: true };
     }
 
+    // 5. If STILL null and we are not in the middle of a signup/suppression,
+    // then the user is likely deleted from the database. Sign them out.
+    if (!suppressAuthChange.current) {
+      console.error(`[AuthContext] Profile for ${userId} not found after retries. Signing out.`);
+      supabase.auth.signOut().catch(() => { });
+    }
+
     return null;
   }, []);
 
@@ -130,7 +131,7 @@ export function AuthProvider({ children }) {
         // Fire-and-forget: do NOT await fetchProfile here.
         // Awaiting inside onAuthStateChange blocks Supabase's auth state machine
         // and prevents updateUser() / signInWithPassword() from resolving.
-        fetchProfile(s.user.id, s.user.email).then(p => { if (p) setProfile(p); });
+        fetchProfile(s.user.id, s.user.email).then(p => { setProfile(p); });
       } else {
         setProfile(null);
       }
@@ -260,8 +261,17 @@ export function AuthProvider({ children }) {
     if (error) throw error;
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    if (!session?.user?.id) return;
+    // Clear cache for this specific user to ensure fresh fetch
+    cacheService.delete(`user:${session.user.id}`);
+    const p = await fetchProfile(session.user.id, session.user.email);
+    setProfile(p);
+    return p;
+  }, [session, fetchProfile]);
+
   return (
-    <AuthContext.Provider value={{ session, profile, loading, signIn, signUp, signUpSilently, signOut, signInWithGoogle, resetPassword }}>
+    <AuthContext.Provider value={{ session, profile, loading, signIn, signUp, signUpSilently, signOut, signInWithGoogle, resetPassword, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -23,10 +23,14 @@ export function ThemeProvider({ children }) {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   }, []);
 
+  const setThemeValue = useCallback((value) => {
+    if (value === 'dark' || value === 'light') setTheme(value);
+  }, []);
+
   const isDark = theme === 'dark';
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, isDark }}>
+    <ThemeContext.Provider value={{ theme, setTheme: setThemeValue, toggleTheme, isDark }}>
       {children}
     </ThemeContext.Provider>
   );

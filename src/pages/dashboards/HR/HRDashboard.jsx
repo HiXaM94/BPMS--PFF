@@ -141,6 +141,7 @@ export default function HRDashboard() {
 
     const handleModalClose = () => {
         setShowPasswordReset(false);
+        hidePasswordModal();
     };
 
 

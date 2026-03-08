@@ -41,10 +41,10 @@ export default function ProfileImageUpload({ currentImageUrl, userId, onUploadSu
 
     try {
       const result = await fileUploadService.uploadProfileImage(file, userId);
-      
+
       if (result.success) {
         setSuccess(true);
-        
+
         // Log audit trail
         await auditService.log(
           'PROFILE_IMAGE_UPDATE',
@@ -103,6 +103,7 @@ export default function ProfileImageUpload({ currentImageUrl, userId, onUploadSu
 
         {/* Upload Button */}
         <button
+          type="button"
           onClick={triggerFileInput}
           disabled={uploading}
           className="absolute bottom-0 right-0 p-2.5 bg-white border-2 border-gray-200 rounded-full shadow-lg hover:bg-brand-50 hover:border-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

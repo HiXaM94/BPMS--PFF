@@ -37,7 +37,13 @@ export function NotificationProvider({ children }) {
     let cancelled = false;
 
     const checkReminder = async () => {
-      // General account completion check for all roles
+      // 0. If user already completed onboarding, never show any reminder again
+      if (profile.onboarding_completed) {
+        setProfileReminder(null);
+        return;
+      }
+
+      // 1. General account completion check for all roles
       if (!profile.name || !profile.email) {
         setProfileReminder({
           id: 'complete_profile_basic',
@@ -101,7 +107,7 @@ export function NotificationProvider({ children }) {
         if (cancelled) return;
 
         const isMissingUserDetails = !userDetails || !userDetails.cnss || !userDetails.rib;
-        const isMissingManagerProfile = !profileData || !profileData.salary_base;
+        const isMissingManagerProfile = !profileData || (profileData.salary_base === null || profileData.salary_base === undefined);
 
         if (isMissingUserDetails || isMissingManagerProfile) {
           setProfileReminder({
@@ -179,9 +185,22 @@ export function NotificationProvider({ children }) {
   }, [syntheticNotification]);
 
   // Called by profile form after successful save — removes the notification immediately
-  const dismissProfileNotification = useCallback(() => {
+  const dismissProfileNotification = useCallback(async () => {
     setProfileReminder(null);
-  }, []);
+    if (!supabase || !userId) return;
+
+    // Also mark any real notifications in DB about profile completion as read
+    setNotifications(prev => prev.map(n =>
+      n.metadata?.event === 'complete_profile' ? { ...n, is_read: true } : n
+    ));
+
+    await supabase.from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false);
+    // Note: We don't filter by metadata here because Postgres filter for JSONB is slow/complex, 
+    // marking all unread as read is safer for this 'completion' step.
+  }, [userId]);
 
   const markAllAsRead = useCallback(async () => {
     if (!supabase || !userId) return;

@@ -14,11 +14,20 @@ import { useAuth } from '../contexts/AuthContext';
  *  - hidePasswordModal: () => void — call to dismiss the modal
  */
 export function useDefaultPasswordCheck() {
-    const { profile, session } = useAuth();
+    const { profile, session, loading } = useAuth();
     const [showPasswordModal, setShowPasswordModal] = useState(false);
 
     useEffect(() => {
-        if (!isSupabaseReady || !session?.user?.id) return;
+        if (!isSupabaseReady || loading || !session?.user?.id) return;
+
+        // Exempt Super Admins from the default password check
+        if (profile?.role === 'SUPER_ADMIN') {
+            setShowPasswordModal(false);
+            return;
+        }
+
+        // If no profile found for non-super-admins, don't show modal yet
+        if (!profile) return;
 
         supabase
             .from('users')
@@ -35,7 +44,7 @@ export function useDefaultPasswordCheck() {
                     setShowPasswordModal(true);
                 }
             });
-    }, [session?.user?.id]);
+    }, [session?.user?.id, profile, loading]);
 
     const hidePasswordModal = () => setShowPasswordModal(false);
 

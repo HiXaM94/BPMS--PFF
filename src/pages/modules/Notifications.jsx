@@ -11,10 +11,10 @@ import Modal from '../../components/ui/Modal';
 /* ── Type styling (matches NotificationDropdown) ── */
 function typeStyle(type) {
   switch (type) {
-    case 'success': return { Icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10', label: 'Success' };
-    case 'warning': return { Icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10', label: 'Warning' };
-    case 'error': return { Icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-500/10', label: 'Error' };
-    default: return { Icon: Info, color: 'text-brand-500', bg: 'bg-brand-500/10', label: 'Info' };
+    case 'success': return { Icon: CheckCircle2, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10', label: 'Success' };
+    case 'warning': return { Icon: AlertCircle, color: 'text-amber-600 dark:text-white', bg: 'bg-amber-500/10 dark:bg-[#956e00]', label: 'Warning' };
+    case 'error': return { Icon: AlertCircle, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10', label: 'Error' };
+    default: return { Icon: Info, color: 'text-brand-600 dark:text-brand-400', bg: 'bg-brand-500/10', label: 'Info' };
   }
 }
 
@@ -100,23 +100,25 @@ export default function Notifications() {
           <p className="text-sm text-text-secondary mt-1">Stay updated with your latest activity and alerts</p>
         </div>
 
-        {/* Action buttons */}
+        {/* Action buttons — refined for both modes */}
         <div className="flex items-center gap-2">
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold
-                         bg-brand-500/10 text-brand-600 dark:text-brand-200 dark:bg-brand-500/20 hover:bg-brand-500/20
-                         transition-all duration-200 cursor-pointer">
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold
+                         bg-brand-500/10 text-brand-600 dark:bg-white dark:text-gray-900 
+                         hover:bg-brand-500/20 dark:hover:bg-gray-100
+                         transition-all duration-200 cursor-pointer border border-transparent dark:border-gray-200">
               <CheckCheck size={14} /> Mark all read
             </button>
           )}
           {notifications.length > 0 && (
             <button
               onClick={() => setShowClearAll(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold
-                         bg-red-500/10 text-red-600 dark:text-red-400 dark:bg-red-500/20 hover:bg-red-500/20
-                         transition-all duration-200 cursor-pointer">
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold
+                         bg-red-500/10 text-red-600 dark:bg-white dark:text-red-600 
+                         hover:bg-red-500/20 dark:hover:bg-red-50
+                         transition-all duration-200 cursor-pointer border border-transparent dark:border-gray-200">
               <Trash2 size={14} /> Clear all
             </button>
           )}
@@ -179,7 +181,7 @@ export default function Notifications() {
                 className={`relative flex items-start gap-4 px-5 py-4 group cursor-pointer
                            transition-all duration-200 animate-fade-in
                            ${i !== 0 ? 'border-t border-border-secondary' : ''}
-                           ${!notif.is_read ? 'bg-brand-500/[0.03]' : 'hover:bg-surface-secondary/50'}`}
+                           ${!notif.is_read ? 'bg-brand-500/[0.03] notification-item-unread' : 'hover:bg-surface-secondary/50'}`}
                 style={{ animationDelay: `${i * 30}ms` }}
                 onClick={() => {
                   markAsRead(notif.id);
@@ -192,7 +194,7 @@ export default function Notifications() {
                 )}
 
                 {/* Icon */}
-                <div className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 mt-0.5
+                <div className={`notification-icon-container flex items-center justify-center w-10 h-10 rounded-xl shrink-0 mt-0.5
                                 ${bg} transition-transform duration-200 group-hover:scale-105`}>
                   <Icon size={18} className={color} />
                 </div>
@@ -200,16 +202,16 @@ export default function Notifications() {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-3">
-                    <p className={`text-sm leading-relaxed
+                    <p className={`notification-message text-sm leading-relaxed
                       ${!notif.is_read ? 'font-semibold text-text-primary' : 'font-medium text-text-secondary'}`}>
                       {notif.message}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${bg} ${color}`}>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className={`notification-type-label inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${bg} ${color}`}>
                       <Icon size={10} /> {label}
                     </span>
-                    <span className="text-[11px] text-text-tertiary">
+                    <span className="notification-time text-[11px] text-text-tertiary dark:text-white">
                       {timeAgo(notif.created_at)}
                     </span>
                   </div>

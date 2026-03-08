@@ -22,7 +22,9 @@ import DocumentRequest from '../pages/modules/DocumentRequest';
 import Payroll from '../pages/modules/Payroll';
 import Recruitment from '../pages/modules/Recruitment';
 import HRWorkflow from '../pages/modules/HRWorkflow';
+import AIRecruitmentAssistant from '../pages/modules/HR/AIRecruitmentAssistant';
 import Settings from '../pages/Settings';
+import MySettings from '../pages/MySettings';
 import Permissions from '../pages/Permissions';
 import AIAssistant from '../pages/AIAssistant';
 import Analytics from '../pages/modules/Analytics';
@@ -65,11 +67,13 @@ const router = createBrowserRouter([
       { path: 'subscriptions', element: <RoleGuard allowedRoles={['super_admin']}><Analytics /></RoleGuard> },
       { path: 'analytics', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><RealAnalyticsRouter /></RoleGuard> },
       { path: 'ai-assistant', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><AIAssistant /></RoleGuard> },
+      { path: 'ai-recruitment', element: <RoleGuard allowedRoles={['company_admin', 'hr']}><AIRecruitmentAssistant /></RoleGuard> },
       { path: 'notifications', element: <Notifications /> },
 
       // System
       { path: 'permissions', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><Permissions /></RoleGuard> },
       { path: 'settings', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Settings /></RoleGuard> },
+      { path: 'my-settings', element: <RoleGuard allowedRoles={['manager', 'employee']}><MySettings /></RoleGuard> },
       { path: 'complete-profile', element: <RoleGuard allowedRoles={['employee', 'manager', 'team_manager']}><CompleteProfile /></RoleGuard> },
 
       { path: '*', element: <PlaceholderPage title="Page Not Found" /> },

@@ -18,10 +18,10 @@ const DOC_TYPES = [
 ];
 
 const STATUS_MAP = {
-    pending:   { label: 'Uploaded',  color: 'text-brand-500',               bg: 'bg-brand-500/10',   icon: Clock },
-    submitted: { label: 'Submitted', color: 'text-blue-500',                bg: 'bg-blue-500/10',    icon: Send },
-    approved:  { label: 'Verified',  color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
-    rejected:  { label: 'Rejected',  color: 'text-red-600 dark:text-red-400',         bg: 'bg-red-500/10',     icon: XCircle },
+    pending: { label: 'Uploaded', color: 'text-brand-500', bg: 'bg-brand-500/10', icon: Clock },
+    submitted: { label: 'Submitted', color: 'text-blue-500', bg: 'bg-blue-500/10', icon: Send },
+    approved: { label: 'Verified', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
+    rejected: { label: 'Rejected', color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10', icon: XCircle },
 };
 
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
@@ -176,11 +176,12 @@ export default function EmployeeDocuments() {
 
             const { data: rec } = await supabase.from('documents').insert({
                 user_id: profile.id,
-                entreprise_id: profile.entreprise_id || null,
+                entreprise_id: profile.entreprise_id || profile.entreprise?.id,
                 title: docKey,
                 file_url: path,
                 doc_type: 'onboarding',
                 status: 'pending',
+                uploaded_by: profile.id
             }).select().single();
 
             clearInterval(progressInterval);
@@ -220,7 +221,10 @@ export default function EmployeeDocuments() {
         if (isSupabaseReady && profile?.id) {
             const { error } = await supabase
                 .from('documents')
-                .update({ status: 'submitted' })
+                .update({
+                    status: 'submitted',
+                    entreprise_id: profile.entreprise_id || profile.entreprise?.id
+                })
                 .eq('user_id', profile.id)
                 .eq('doc_type', 'onboarding')
                 .eq('status', 'pending');
@@ -414,308 +418,304 @@ export default function EmployeeDocuments() {
         if (!rec) return <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Required</span>;
         const s = STATUS_MAP[rec.status] || STATUS_MAP.pending;
         const Icon = s.icon;
-        return <span className={`text-[10px] font-semibold ${s.color} ${s.bg} px-2 py-0.5 rounded flex items-center gap-1`}><Icon size={10}/>{s.label}</span>;
+        return <span className={`text-[10px] font-semibold ${s.color} ${s.bg} px-2 py-0.5 rounded flex items-center gap-1`}><Icon size={10} />{s.label}</span>;
     };
 
     return (
         <>
-        <div className="space-y-6 animate-fade-in">
+            <div className="space-y-6 animate-fade-in">
 
-            {toast.msg && (
-                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-fade-in ${
-                    toast.type === 'error'
-                        ? 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400'
-                        : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                }`}>
-                    {toast.type === 'error' ? <XCircle size={16}/> : <CheckCircle2 size={16}/>} {toast.msg}
-                </div>
-            )}
-
-            <div className="flex justify-between items-center mb-6 block sm:flex">
-                <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
-                    My Documents
-                </h2>
-                <div className="flex gap-2 bg-surface-secondary p-1 rounded-xl mt-4 sm:mt-0">
-                    <button
-                        onClick={() => setActiveTab('requests')}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${activeTab === 'requests' ? 'bg-surface-primary text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-                    >
-                        Action Required {(pendingOnboarding > 0 || hasRejected) && !allSubmittedOrVerified && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingOnboarding + (hasRejected ? 1 : 0)}</span>}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('official')}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'official' ? 'bg-surface-primary text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-                    >
-                        Official Documents
-                    </button>
-                </div>
-            </div>
-
-            {activeTab === 'requests' && (
-                <div className="animate-fade-in space-y-6">
-
-                    {!allSubmittedOrVerified && (
-                        <div className={`p-4 rounded-xl flex items-start gap-4 mb-6 ${hasRejected ? 'bg-red-500/10 border border-red-500/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
-                            <AlertCircle size={20} className={`mt-0.5 shrink-0 ${hasRejected ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
-                            <div>
-                                <h3 className={`font-bold mb-1 ${hasRejected ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                                    {hasRejected ? 'Action Required — Documents Rejected' : 'Complete Your Onboarding'}
-                                </h3>
-                                <p className={`text-sm ${hasRejected ? 'text-red-700/80 dark:text-red-300/80' : 'text-amber-700/80 dark:text-amber-300/80'}`}>
-                                    {hasRejected
-                                        ? 'Some documents were rejected by HR. Please re-upload the flagged documents and resubmit.'
-                                        : <>Welcome {profile?.name?.split(' ')[0] || profile?.email?.split('@')[0] || 'there'}! HR has requested {DOC_TYPES.length} documents to complete your onboarding process. Please upload them before <strong>March 25, 2026</strong>.</>
-                                    }
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden">
-                        <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-surface-secondary/50">
-                            <div>
-                                <h3 className="text-base font-bold text-text-primary">Onboarding Documents</h3>
-                                <p className="text-xs text-text-secondary mt-1">Status: <span className="text-brand-500 font-semibold">{
-                                    allSubmittedOrVerified ? (Object.values(docRecords).every(r => r.status === 'approved') ? 'All Verified' : 'Submitted — Under Review')
-                                    : `Pending (${uploadedCount}/${DOC_TYPES.length} uploaded)`
-                                }</span></p>
-                            </div>
-                            {!allSubmittedOrVerified && <span className="text-xs font-semibold bg-surface-primary px-3 py-1.5 rounded-lg border border-border-secondary">Due in 6 days</span>}
-                        </div>
-
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                {DOC_TYPES.map(doc => {
-                                    const rec = docRecords[doc.key];
-                                    const isRejected = rec?.status === 'rejected';
-                                    const isUploaded = !!rec;
-                                    const canModify = !rec || rec.status === 'pending' || rec.status === 'rejected';
-                                    return (
-                                        <div key={doc.key} className={`border rounded-xl p-4 bg-surface-secondary relative group transition-colors ${
-                                            isRejected ? 'border-red-500/40 bg-red-500/5' :
-                                            isUploaded ? 'border-emerald-500/40' : 'border-border-secondary hover:border-brand-500'
-                                        }`}>
-                                            <div className="flex justify-between items-start mb-3">
-                                                <span className="font-semibold text-text-primary text-sm flex items-center gap-2">
-                                                    <FileText size={16} className={isRejected ? 'text-red-500' : isUploaded ? 'text-emerald-500' : 'text-brand-500'} /> {doc.label}
-                                                </span>
-                                                {renderDocStatus(doc.key)}
-                                            </div>
-
-                                            {/* Rejection reason */}
-                                            {isRejected && rec.notes && (
-                                                <div className="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-600 dark:text-red-400 flex items-start gap-1.5">
-                                                    <XCircle size={12} className="shrink-0 mt-0.5" /> {rec.notes}
-                                                </div>
-                                            )}
-
-                                            {isUploaded && !isRejected ? (
-                                                <div className="space-y-2">
-                                                    <div className="w-full py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg text-emerald-600 dark:text-emerald-400 text-sm font-medium flex items-center justify-center gap-2">
-                                                        <CheckCircle2 size={16} /> {rec.fileName}
-                                                    </div>
-                                                    {canModify && (
-                                                        <div className="flex gap-2">
-                                                            <button onClick={() => handlePreview(doc.key)} className="flex-1 py-1.5 bg-surface-primary border border-border-secondary rounded-lg text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors flex items-center justify-center gap-1">
-                                                                <Eye size={12} /> Preview
-                                                            </button>
-                                                            <button onClick={() => handleDelete(doc.key)} className="flex-1 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1">
-                                                                <Trash2 size={12} /> Remove
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    {/* Upload progress bar */}
-                                                    {uploading[doc.key] && (
-                                                        <div className="w-full bg-surface-primary rounded-full h-1.5 mb-1">
-                                                            <div className="bg-brand-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress[doc.key] || 0}%` }} />
-                                                        </div>
-                                                    )}
-                                                    <label className="w-full py-2 bg-surface-primary border border-border-secondary border-dashed rounded-lg text-text-secondary hover:text-brand-500 hover:bg-brand-500/5 transition-colors text-sm font-medium flex items-center justify-center gap-2 cursor-pointer">
-                                                        {uploading[doc.key]
-                                                            ? <><Loader2 size={16} className="animate-spin"/> Uploading ({uploadProgress[doc.key] || 0}%)...</>
-                                                            : isRejected
-                                                                ? <><RefreshCw size={16} /> Re-upload Document</>
-                                                                : <><UploadCloud size={16} /> Upload Formats: PDF, JPG</>
-                                                        }
-                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(doc.key, e)} className="hidden" disabled={uploading[doc.key]} />
-                                                    </label>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <div className="flex justify-end pt-4 border-t border-border-secondary">
-                                <button
-                                    onClick={handleSubmitAll}
-                                    disabled={!canSubmit || submitting}
-                                    className={`px-6 py-2.5 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-2 ${
-                                        canSubmit && !submitting
-                                            ? 'bg-brand-500 text-white hover:bg-brand-600 cursor-pointer'
-                                            : 'bg-brand-500 text-white opacity-50 cursor-not-allowed'
-                                    }`}>
-                                    {submitting ? <><Loader2 size={16} className="animate-spin" /> Submitting...</>
-                                        : allSubmittedOrVerified ? <><CheckCircle2 size={16} /> Documents Submitted</>
-                                        : 'Submit All Documents'}
-                                </button>
-                            </div>
-                        </div>
+                {toast.msg && (
+                    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-fade-in ${toast.type === 'error'
+                            ? 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400'
+                            : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                        }`}>
+                        {toast.type === 'error' ? <XCircle size={16} /> : <CheckCircle2 size={16} />} {toast.msg}
                     </div>
+                )}
 
-                </div>
-            )}
-
-            {activeTab === 'official' && (
-                <div className="animate-fade-in space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                    {/* Instant Salary Certificate */}
-                    <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden h-fit">
-                        <div className="p-5 border-b border-border-secondary bg-emerald-500/5">
-                            <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-                                <FileCheck size={18} className="text-emerald-500" /> Instant Salary Certificate
-                            </h3>
-                            <p className="text-xs text-text-secondary mt-1">Generated dynamically from payroll data.</p>
-                        </div>
-                        <div className="p-6 space-y-4 text-sm">
-                            <div>
-                                <label className="block text-xs font-semibold text-text-secondary mb-2">Select Period:</label>
-                                <select value={certPeriod} onChange={e => setCertPeriod(e.target.value)} className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20">
-                                    <option value="latest">Latest Month (March 2026)</option>
-                                    <option value="3months">Last 3 Months (Jan–Mar 2026)</option>
-                                    <option value="ytd">Year-to-Date (2026)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-text-secondary mb-2">Purpose (Optional):</label>
-                                <input type="text" value={certPurpose} onChange={e => setCertPurpose(e.target.value)} placeholder="e.g. Bank Loan Application" className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
-                            </div>
-
-                            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs p-3 rounded-xl flex items-start gap-2">
-                                <CheckCircle2 size={16} className="shrink-0" /> No HR approval required. Your verified document will download instantly as an official watermarked PDF.
-                            </div>
-
-                            <button onClick={handleGeneratePDF} disabled={genLoading} className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
-                                {genLoading ? <><Loader2 size={18} className="animate-spin"/> Generating...</> : <><Download size={18} /> Generate PDF</>}
-                            </button>
-                        </div>
+                <div className="flex justify-between items-center mb-6 block sm:flex">
+                    <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+                        My Documents
+                    </h2>
+                    <div className="flex gap-2 bg-surface-secondary p-1 rounded-xl mt-4 sm:mt-0">
+                        <button
+                            onClick={() => setActiveTab('requests')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${activeTab === 'requests' ? 'bg-surface-primary text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                        >
+                            Action Required {(pendingOnboarding > 0 || hasRejected) && !allSubmittedOrVerified && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingOnboarding + (hasRejected ? 1 : 0)}</span>}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('official')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'official' ? 'bg-surface-primary text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                        >
+                            Official Documents
+                        </button>
                     </div>
+                </div>
 
-                    {/* Official Document Request */}
-                    <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden h-fit">
-                        <div className="p-5 border-b border-border-secondary">
-                            <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-                                <Send size={18} className="text-brand-500" /> Request Official Document
-                            </h3>
-                        </div>
-                        <div className="p-6 space-y-4 text-sm">
-                            <div>
-                                <label className="block text-xs font-semibold text-text-secondary mb-2">Document Type:</label>
-                                <select value={reqDocType} onChange={e => setReqDocType(e.target.value)} className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20">
-                                    <option>Employment Verification Letter</option>
-                                    <option>Work Experience Certificate</option>
-                                    <option>Reference Letter</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-text-secondary mb-2">Urgency:</label>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={() => setReqUrgency('standard')} className={`flex-1 py-1.5 rounded-lg font-medium text-xs border transition-colors ${reqUrgency === 'standard' ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-secondary text-text-secondary border-border-secondary hover:bg-surface-primary'}`}>Standard (3-5 days)</button>
-                                    <button type="button" onClick={() => setReqUrgency('urgent')} className={`flex-1 py-1.5 rounded-lg font-medium text-xs border transition-colors ${reqUrgency === 'urgent' ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-secondary text-text-secondary border-border-secondary hover:bg-surface-primary'}`}>Urgent (24h)</button>
+                {activeTab === 'requests' && (
+                    <div className="animate-fade-in space-y-6">
+
+                        {!allSubmittedOrVerified && (
+                            <div className={`p-4 rounded-xl flex items-start gap-4 mb-6 ${hasRejected ? 'bg-red-500/10 border border-red-500/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
+                                <AlertCircle size={20} className={`mt-0.5 shrink-0 ${hasRejected ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
+                                <div>
+                                    <h3 className={`font-bold mb-1 ${hasRejected ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                                        {hasRejected ? 'Action Required — Documents Rejected' : 'Complete Your Onboarding'}
+                                    </h3>
+                                    <p className={`text-sm ${hasRejected ? 'text-red-700/80 dark:text-red-300/80' : 'text-amber-700/80 dark:text-amber-300/80'}`}>
+                                        {hasRejected
+                                            ? 'Some documents were rejected by HR. Please re-upload the flagged documents and resubmit.'
+                                            : <>Welcome {profile?.name?.split(' ')[0] || profile?.email?.split('@')[0] || 'there'}! HR has requested {DOC_TYPES.length} documents to complete your onboarding process. Please upload them before <strong>March 25, 2026</strong>.</>
+                                        }
+                                    </p>
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-text-secondary mb-2">Notes to HR:</label>
-                                <textarea rows="3" value={reqNotes} onChange={e => setReqNotes(e.target.value)} placeholder="Additional details..." className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 resize-none"></textarea>
+                        )}
+
+                        <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden">
+                            <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-surface-secondary/50">
+                                <div>
+                                    <h3 className="text-base font-bold text-text-primary">Onboarding Documents</h3>
+                                    <p className="text-xs text-text-secondary mt-1">Status: <span className="text-brand-500 font-semibold">{
+                                        allSubmittedOrVerified ? (Object.values(docRecords).every(r => r.status === 'approved') ? 'All Verified' : 'Submitted — Under Review')
+                                            : `Pending (${uploadedCount}/${DOC_TYPES.length} uploaded)`
+                                    }</span></p>
+                                </div>
+                                {!allSubmittedOrVerified && <span className="text-xs font-semibold bg-surface-primary px-3 py-1.5 rounded-lg border border-border-secondary">Due in 6 days</span>}
                             </div>
 
-                            <div className="pt-2">
-                                <button onClick={handleSubmitRequest} disabled={reqLoading} className="w-full py-2.5 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                                    {reqLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : 'Submit Request to HR'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                            <div className="p-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                    {DOC_TYPES.map(doc => {
+                                        const rec = docRecords[doc.key];
+                                        const isRejected = rec?.status === 'rejected';
+                                        const isUploaded = !!rec;
+                                        const canModify = !rec || rec.status === 'pending' || rec.status === 'rejected';
+                                        return (
+                                            <div key={doc.key} className={`border rounded-xl p-4 bg-surface-secondary relative group transition-colors ${isRejected ? 'border-red-500/40 bg-red-500/5' :
+                                                    isUploaded ? 'border-emerald-500/40' : 'border-border-secondary hover:border-brand-500'
+                                                }`}>
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <span className="font-semibold text-text-primary text-sm flex items-center gap-2">
+                                                        <FileText size={16} className={isRejected ? 'text-red-500' : isUploaded ? 'text-emerald-500' : 'text-brand-500'} /> {doc.label}
+                                                    </span>
+                                                    {renderDocStatus(doc.key)}
+                                                </div>
 
-                </div>
+                                                {/* Rejection reason */}
+                                                {isRejected && rec.notes && (
+                                                    <div className="mb-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-600 dark:text-red-400 flex items-start gap-1.5">
+                                                        <XCircle size={12} className="shrink-0 mt-0.5" /> {rec.notes}
+                                                    </div>
+                                                )}
 
-                {/* Request History */}
-                {requestHistory.length > 0 && (
-                    <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden">
-                        <div className="p-5 border-b border-border-secondary flex items-center gap-2">
-                            <History size={18} className="text-text-tertiary" />
-                            <h3 className="text-base font-bold text-text-primary">Request History</h3>
-                        </div>
-                        <div className="divide-y divide-border-secondary">
-                            {requestHistory.map(req => {
-                                const statusVariant = { pending: 'warning', in_review: 'brand', approved: 'success', rejected: 'danger', completed: 'success', submitted: 'brand' };
-                                return (
-                                    <div key={req.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-surface-secondary/50 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                                req.doc_type === 'salary_certificate' ? 'bg-emerald-500/10' : 'bg-brand-500/10'
+                                                {isUploaded && !isRejected ? (
+                                                    <div className="space-y-2">
+                                                        <div className="w-full py-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg text-emerald-600 dark:text-emerald-400 text-sm font-medium flex items-center justify-center gap-2">
+                                                            <CheckCircle2 size={16} /> {rec.fileName}
+                                                        </div>
+                                                        {canModify && (
+                                                            <div className="flex gap-2">
+                                                                <button onClick={() => handlePreview(doc.key)} className="flex-1 py-1.5 bg-surface-primary border border-border-secondary rounded-lg text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors flex items-center justify-center gap-1">
+                                                                    <Eye size={12} /> Preview
+                                                                </button>
+                                                                <button onClick={() => handleDelete(doc.key)} className="flex-1 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-colors flex items-center justify-center gap-1">
+                                                                    <Trash2 size={12} /> Remove
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {/* Upload progress bar */}
+                                                        {uploading[doc.key] && (
+                                                            <div className="w-full bg-surface-primary rounded-full h-1.5 mb-1">
+                                                                <div className="bg-brand-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress[doc.key] || 0}%` }} />
+                                                            </div>
+                                                        )}
+                                                        <label className="w-full py-2 bg-surface-primary border border-border-secondary border-dashed rounded-lg text-text-secondary hover:text-brand-500 hover:bg-brand-500/5 transition-colors text-sm font-medium flex items-center justify-center gap-2 cursor-pointer">
+                                                            {uploading[doc.key]
+                                                                ? <><Loader2 size={16} className="animate-spin" /> Uploading ({uploadProgress[doc.key] || 0}%)...</>
+                                                                : isRejected
+                                                                    ? <><RefreshCw size={16} /> Re-upload Document</>
+                                                                    : <><UploadCloud size={16} /> Upload Formats: PDF, JPG</>
+                                                            }
+                                                            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(doc.key, e)} className="hidden" disabled={uploading[doc.key]} />
+                                                        </label>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="flex justify-end pt-4 border-t border-border-secondary">
+                                    <button
+                                        onClick={handleSubmitAll}
+                                        disabled={!canSubmit || submitting}
+                                        className={`px-6 py-2.5 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-2 ${canSubmit && !submitting
+                                                ? 'bg-brand-500 text-white hover:bg-brand-600 cursor-pointer'
+                                                : 'bg-brand-500 text-white opacity-50 cursor-not-allowed'
                                             }`}>
-                                                {req.doc_type === 'salary_certificate'
-                                                    ? <FileCheck size={14} className="text-emerald-500" />
-                                                    : <Send size={14} className="text-brand-500" />}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-text-primary">{req.title}</p>
-                                                <p className="text-[11px] text-text-tertiary">
-                                                    {req.created_at ? new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                                                    {req.urgency === 'urgent' && <span className="ml-2 text-amber-600 dark:text-amber-400 font-semibold">Urgent</span>}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <StatusBadge variant={statusVariant[req.status] || 'neutral'} dot size="sm">{req.status}</StatusBadge>
-                                    </div>
-                                );
-                            })}
+                                        {submitting ? <><Loader2 size={16} className="animate-spin" /> Submitting...</>
+                                            : allSubmittedOrVerified ? <><CheckCircle2 size={16} /> Documents Submitted</>
+                                                : 'Submit All Documents'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
+
+                    </div>
+                )}
+
+                {activeTab === 'official' && (
+                    <div className="animate-fade-in space-y-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                            {/* Instant Salary Certificate */}
+                            <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden h-fit">
+                                <div className="p-5 border-b border-border-secondary bg-emerald-500/5">
+                                    <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                                        <FileCheck size={18} className="text-emerald-500" /> Instant Salary Certificate
+                                    </h3>
+                                    <p className="text-xs text-text-secondary mt-1">Generated dynamically from payroll data.</p>
+                                </div>
+                                <div className="p-6 space-y-4 text-sm">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-text-secondary mb-2">Select Period:</label>
+                                        <select value={certPeriod} onChange={e => setCertPeriod(e.target.value)} className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                                            <option value="latest">Latest Month (March 2026)</option>
+                                            <option value="3months">Last 3 Months (Jan–Mar 2026)</option>
+                                            <option value="ytd">Year-to-Date (2026)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-text-secondary mb-2">Purpose (Optional):</label>
+                                        <input type="text" value={certPurpose} onChange={e => setCertPurpose(e.target.value)} placeholder="e.g. Bank Loan Application" className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                                    </div>
+
+                                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs p-3 rounded-xl flex items-start gap-2">
+                                        <CheckCircle2 size={16} className="shrink-0" /> No HR approval required. Your verified document will download instantly as an official watermarked PDF.
+                                    </div>
+
+                                    <button onClick={handleGeneratePDF} disabled={genLoading} className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors shadow-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
+                                        {genLoading ? <><Loader2 size={18} className="animate-spin" /> Generating...</> : <><Download size={18} /> Generate PDF</>}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Official Document Request */}
+                            <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden h-fit">
+                                <div className="p-5 border-b border-border-secondary">
+                                    <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                                        <Send size={18} className="text-brand-500" /> Request Official Document
+                                    </h3>
+                                </div>
+                                <div className="p-6 space-y-4 text-sm">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-text-secondary mb-2">Document Type:</label>
+                                        <select value={reqDocType} onChange={e => setReqDocType(e.target.value)} className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                                            <option>Employment Verification Letter</option>
+                                            <option>Work Experience Certificate</option>
+                                            <option>Reference Letter</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-text-secondary mb-2">Urgency:</label>
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={() => setReqUrgency('standard')} className={`flex-1 py-1.5 rounded-lg font-medium text-xs border transition-colors ${reqUrgency === 'standard' ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-secondary text-text-secondary border-border-secondary hover:bg-surface-primary'}`}>Standard (3-5 days)</button>
+                                            <button type="button" onClick={() => setReqUrgency('urgent')} className={`flex-1 py-1.5 rounded-lg font-medium text-xs border transition-colors ${reqUrgency === 'urgent' ? 'bg-brand-500 text-white border-brand-500' : 'bg-surface-secondary text-text-secondary border-border-secondary hover:bg-surface-primary'}`}>Urgent (24h)</button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-text-secondary mb-2">Notes to HR:</label>
+                                        <textarea rows="3" value={reqNotes} onChange={e => setReqNotes(e.target.value)} placeholder="Additional details..." className="w-full bg-surface-secondary border border-border-secondary rounded-xl p-3 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500/20 resize-none"></textarea>
+                                    </div>
+
+                                    <div className="pt-2">
+                                        <button onClick={handleSubmitRequest} disabled={reqLoading} className="w-full py-2.5 bg-surface-primary border border-border-secondary text-text-primary rounded-xl font-medium hover:bg-surface-secondary transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                            {reqLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : 'Submit Request to HR'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {/* Request History */}
+                        {requestHistory.length > 0 && (
+                            <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden">
+                                <div className="p-5 border-b border-border-secondary flex items-center gap-2">
+                                    <History size={18} className="text-text-tertiary" />
+                                    <h3 className="text-base font-bold text-text-primary">Request History</h3>
+                                </div>
+                                <div className="divide-y divide-border-secondary">
+                                    {requestHistory.map(req => {
+                                        const statusVariant = { pending: 'warning', in_review: 'brand', approved: 'success', rejected: 'danger', completed: 'success', submitted: 'brand' };
+                                        return (
+                                            <div key={req.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-surface-secondary/50 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${req.doc_type === 'salary_certificate' ? 'bg-emerald-500/10' : 'bg-brand-500/10'
+                                                        }`}>
+                                                        {req.doc_type === 'salary_certificate'
+                                                            ? <FileCheck size={14} className="text-emerald-500" />
+                                                            : <Send size={14} className="text-brand-500" />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-text-primary">{req.title}</p>
+                                                        <p className="text-[11px] text-text-tertiary">
+                                                            {req.created_at ? new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                            {req.urgency === 'urgent' && <span className="ml-2 text-amber-600 dark:text-amber-400 font-semibold">Urgent</span>}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <StatusBadge variant={statusVariant[req.status] || 'neutral'} dot size="sm">{req.status}</StatusBadge>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                     </div>
                 )}
 
             </div>
-            )}
 
-        </div>
-
-        {/* File Preview Modal */}
-        {previewFile && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-surface-primary rounded-2xl border border-border-secondary max-w-4xl w-full max-h-[90vh] overflow-hidden">
-                    <div className="p-4 border-b border-border-secondary flex items-center justify-between">
-                        <h3 className="font-semibold text-text-primary flex items-center gap-2">
-                            <File size={18} className="text-brand-500" />
-                            {previewFile.name}
-                        </h3>
-                        <button onClick={() => setPreviewFile(null)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors">
-                            <X size={18} className="text-text-tertiary" />
-                        </button>
-                    </div>
-                    <div className="p-4 overflow-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
-                        {previewFile.url.match(/\.(pdf)$/i) ? (
-                            <iframe src={previewFile.url} className="w-full h-[600px] border border-border-secondary rounded-lg" title="Document Preview" />
-                        ) : (
-                            <img src={previewFile.url} alt="Document Preview" className="max-w-full h-auto mx-auto rounded-lg border border-border-secondary" />
-                        )}
-                    </div>
-                    <div className="p-4 border-t border-border-secondary flex justify-end gap-2">
-                        <a href={previewFile.url} download={previewFile.name} target="_blank" rel="noopener noreferrer"
-                            className="px-4 py-2 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition-colors flex items-center gap-2">
-                            <Download size={16} /> Download
-                        </a>
-                        <button onClick={() => setPreviewFile(null)} className="px-4 py-2 bg-surface-primary border border-border-secondary text-text-primary rounded-lg font-medium hover:bg-surface-secondary transition-colors">
-                            Close
-                        </button>
+            {/* File Preview Modal */}
+            {previewFile && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-surface-primary rounded-2xl border border-border-secondary max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                        <div className="p-4 border-b border-border-secondary flex items-center justify-between">
+                            <h3 className="font-semibold text-text-primary flex items-center gap-2">
+                                <File size={18} className="text-brand-500" />
+                                {previewFile.name}
+                            </h3>
+                            <button onClick={() => setPreviewFile(null)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors">
+                                <X size={18} className="text-text-tertiary" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+                            {previewFile.url.match(/\.(pdf)$/i) ? (
+                                <iframe src={previewFile.url} className="w-full h-[600px] border border-border-secondary rounded-lg" title="Document Preview" />
+                            ) : (
+                                <img src={previewFile.url} alt="Document Preview" className="max-w-full h-auto mx-auto rounded-lg border border-border-secondary" />
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-border-secondary flex justify-end gap-2">
+                            <a href={previewFile.url} download={previewFile.name} target="_blank" rel="noopener noreferrer"
+                                className="px-4 py-2 bg-brand-500 text-white rounded-lg font-medium hover:bg-brand-600 transition-colors flex items-center gap-2">
+                                <Download size={16} /> Download
+                            </a>
+                            <button onClick={() => setPreviewFile(null)} className="px-4 py-2 bg-surface-primary border border-border-secondary text-text-primary rounded-lg font-medium hover:bg-surface-secondary transition-colors">
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        )}
+            )}
         </>
     );
 }
