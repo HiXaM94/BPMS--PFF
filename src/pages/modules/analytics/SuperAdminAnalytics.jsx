@@ -1,73 +1,92 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     BarChart3, CreditCard, Calendar, Activity,
-    ChevronLeft, ChevronRight, Building2
+    ChevronLeft, ChevronRight, Building2, Loader2, AlertCircle
 } from 'lucide-react';
 import PageHeader from '../../../components/ui/PageHeader';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
-
-// Mock generator for 45 companies to demonstrate pagination
-const generateMockSubscriptions = () => {
-    const plans = ['Starter', 'Business', 'Enterprise'];
-    const statuses = ['active', 'active', 'active', 'trial', 'past_due', 'canceled'];
-    const companies = [];
-
-    const today = new Date();
-
-    for (let i = 1; i <= 45; i++) {
-        const startOffset = Math.floor(Math.random() * 365); // up to a year ago
-        const duration = [30, 90, 365][Math.floor(Math.random() * 3)]; // 1mo, 3mo, 1yr
-
-        const startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - startOffset);
-
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + duration);
-
-        const plan = plans[Math.floor(Math.random() * plans.length)];
-        let status = statuses[Math.floor(Math.random() * statuses.length)];
-
-        // adjust status based on date
-        if (endDate < today && status === 'active') {
-            status = 'past_due';
-        }
-
-        companies.push({
-            id: i,
-            name: `Company ${i} ${['LLC', 'Inc', 'Group', 'Solutions', 'Global'][Math.floor(Math.random() * 5)]}`,
-            plan,
-            startDate: startDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-            endDate: endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-            status,
-            // For random value
-            mrr: plan === 'Starter' ? 99 : plan === 'Business' ? 299 : 999
-        });
-    }
-
-    // Sort by end date by default (closest first)
-    return companies.sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
-};
-
-const mockData = generateMockSubscriptions();
+import { landingSupabase } from '../../../services/landingSupabase';
 
 export default function SuperAdminAnalytics() {
+    const navigate = useNavigate();
     const [currentPage, setCurrentPage] = useState(1);
+    const [mockData, setMockData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const itemsPerPage = 10;
 
-    const totalPages = Math.ceil(mockData.length / itemsPerPage);
+    useEffect(() => {
+        const fetchSubscriptions = async () => {
+            try {
+                // Fetching from secure RPC to bypass RLS 401 Unauthorized errors
+                const { data, error: fetchError } = await landingSupabase.rpc('get_dashboard_subscriptions', {
+                    admin_token: 'bpms_admin_secret_2026'
+                });
+
+                if (fetchError) {
+                    throw fetchError;
+                }
+
+                // Map subscriptions data using the mapped flat return structure of the RPC
+                const mapped = (data || []).map(row => ({
+                    id: row.id,
+                    name: row.company_name || 'Unknown Company',
+                    plan: row.plan_name || 'Unknown Plan',
+                    startDate: new Date(row.start_date || row.created_at).toLocaleDateString(),
+                    endDate: row.end_date ? new Date(row.end_date).toLocaleDateString() : 'N/A',
+                    status: row.status || 'active',
+                    mrr: row.price || 0
+                }));
+                setMockData(mapped);
+            } catch (err) {
+                console.error("Error fetching landing page data:", err);
+                setError(err.message || 'Failed to connect to landing page database.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSubscriptions();
+    }, []);
+
+    const totalPages = Math.ceil(mockData.length / itemsPerPage) || 1;
 
     const currentData = useMemo(() => {
         const start = (currentPage - 1) * itemsPerPage;
         return mockData.slice(start, start + itemsPerPage);
-    }, [currentPage]);
+    }, [currentPage, mockData]);
 
-    // Derived stats
-    const activeCount = mockData.filter(c => c.status === 'active' || c.status === 'trial').length;
-    const totalMRR = mockData.filter(c => c.status === 'active').reduce((acc, curr) => acc + curr.mrr, 0);
+    // Derived stats from REAL data
+    const activeCount = mockData.filter(c => c.status && c.status.toLowerCase() === 'active').length;
+    const totalMRR = mockData.filter(c => c.status && c.status.toLowerCase() === 'active').reduce((acc, curr) => acc + (parseFloat(curr.mrr) || 0), 0);
+
+    // Calculate real average subscription duration in months
+    const avgDuration = useMemo(() => {
+        const activeSubs = mockData.filter(c => c.status && c.status.toLowerCase() === 'active');
+        if (activeSubs.length === 0) return 0;
+
+        let totalMonths = 0;
+        let validSubs = 0;
+
+        activeSubs.forEach(sub => {
+            if (sub.startDate && sub.endDate && sub.endDate !== 'N/A') {
+                const start = new Date(sub.startDate);
+                const end = new Date(sub.endDate);
+                const diffTime = Math.abs(end - start);
+                const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30));
+                totalMonths += diffMonths;
+                validSubs++;
+            }
+        });
+
+        return validSubs > 0 ? (totalMonths / validSubs).toFixed(1) : 0;
+    }, [mockData]);
 
     const getStatusVariant = (status) => {
-        switch (status) {
+        if (!status) return 'neutral';
+        switch (status.toLowerCase()) {
             case 'active': return 'success';
             case 'trial': return 'warning';
             case 'past_due': return 'danger';
@@ -77,6 +96,7 @@ export default function SuperAdminAnalytics() {
     };
 
     const getPlanVariant = (plan) => {
+        if (!plan) return 'neutral';
         switch (plan) {
             case 'Enterprise': return 'brand';
             case 'Business': return 'info';
@@ -106,28 +126,28 @@ export default function SuperAdminAnalytics() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                     title="Total Subscriptions"
-                    value={mockData.length.toString()}
+                    value={loading ? '-' : mockData.length.toString()}
                     icon={Building2}
                     iconColor="bg-gradient-to-br from-brand-500 to-brand-600"
                     delay={0}
                 />
                 <StatCard
-                    title="Active & Trial"
-                    value={activeCount.toString()}
+                    title="Active Subscriptions"
+                    value={loading ? '-' : activeCount.toString()}
                     icon={Activity}
                     iconColor="bg-gradient-to-br from-emerald-500 to-teal-600"
                     delay={80}
                 />
                 <StatCard
                     title="Est. Monthly Revenue"
-                    value={`$${totalMRR.toLocaleString()}`}
+                    value={loading ? '-' : `${totalMRR.toLocaleString()} DH`}
                     icon={CreditCard}
                     iconColor="bg-gradient-to-br from-amber-500 to-orange-500"
                     delay={160}
                 />
                 <StatCard
                     title="Avg. Subscription"
-                    value="4.2 Months"
+                    value={loading ? '-' : `${avgDuration} Months`}
                     icon={Calendar}
                     iconColor="bg-gradient-to-br from-sky-500 to-cyan-500"
                     delay={240}
@@ -151,27 +171,62 @@ export default function SuperAdminAnalytics() {
                                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Plan Type</th>
                                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Start Date</th>
                                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">End Date</th>
+                                <th className="px-5 py-3.5 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Price (DH)</th>
                                 <th className="px-5 py-3.5 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-secondary">
-                            {currentData.map((company, i) => (
-                                <tr key={company.id} className="hover:bg-surface-secondary/40 transition-colors duration-150">
-                                    <td className="px-5 py-3.5">
-                                        <span className="font-semibold text-text-primary block">{company.name}</span>
-                                    </td>
-                                    <td className="px-5 py-3.5">
-                                        <StatusBadge variant={getPlanVariant(company.plan)} size="sm">{company.plan}</StatusBadge>
-                                    </td>
-                                    <td className="px-5 py-3.5 text-text-secondary">{company.startDate}</td>
-                                    <td className="px-5 py-3.5 text-text-secondary font-medium">{company.endDate}</td>
-                                    <td className="px-5 py-3.5">
-                                        <StatusBadge variant={getStatusVariant(company.status)} dot size="sm">
-                                            {company.status.replace('_', ' ')}
-                                        </StatusBadge>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="5" className="px-5 py-8 text-center text-text-secondary">
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <Loader2 className="animate-spin text-brand-500" size={24} />
+                                            <span>Fetching live subscriptions...</span>
+                                        </div>
                                     </td>
                                 </tr>
-                            ))}
+                            ) : error ? (
+                                <tr>
+                                    <td colSpan="5" className="px-5 py-8 text-center text-danger-500">
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <AlertCircle size={24} />
+                                            <span>{error}</span>
+                                            <span className="text-xs text-text-tertiary">Please verify the landing page table name and structure.</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : currentData.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="px-5 py-8 text-center text-text-secondary">
+                                        No active subscriptions found.
+                                    </td>
+                                </tr>
+                            ) : (
+                                currentData.map((company, i) => (
+                                    <tr
+                                        key={company.id}
+                                        onClick={() => navigate('/enterprise', { state: { openCompanyDetails: company.name } })}
+                                        className="hover:bg-surface-secondary/60 transition-colors duration-150 cursor-pointer"
+                                    >
+                                        <td className="px-5 py-3.5">
+                                            <span className="font-semibold text-text-primary block">{company.name}</span>
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <StatusBadge variant={getPlanVariant(company.plan)} size="sm">{company.plan || 'N/A'}</StatusBadge>
+                                        </td>
+                                        <td className="px-5 py-3.5 text-text-secondary">{company.startDate}</td>
+                                        <td className="px-5 py-3.5 text-text-secondary font-medium">{company.endDate}</td>
+                                        <td className="px-5 py-3.5 text-text-primary font-semibold">
+                                            {company.mrr ? company.mrr.toLocaleString() : '0'} DH
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <StatusBadge variant={getStatusVariant(company.status)} dot size="sm">
+                                                {String(company.status).replace('_', ' ')}
+                                            </StatusBadge>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>

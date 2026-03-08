@@ -20,9 +20,9 @@ const bus = new EventTarget();
 
 class CacheService {
   constructor() {
-    this.store   = new Map();          // key → { value, expiresAt, timerId }
-    this.hits    = 0;
-    this.misses  = 0;
+    this.store = new Map();          // key → { value, expiresAt, timerId }
+    this.hits = 0;
+    this.misses = 0;
     this.defaultTTL = 300;             // 5 min
   }
 
@@ -34,7 +34,7 @@ class CacheService {
     if (existing?.timerId) clearTimeout(existing.timerId);
 
     const expiresAt = Date.now() + ttlSeconds * 1000;
-    const timerId   = setTimeout(() => this.delete(key), ttlSeconds * 1000);
+    const timerId = setTimeout(() => this.delete(key), ttlSeconds * 1000);
 
     this.store.set(key, { value, expiresAt, timerId });
     return true;
@@ -70,7 +70,7 @@ class CacheService {
       if (entry.timerId) clearTimeout(entry.timerId);
     }
     this.store.clear();
-    this.hits   = 0;
+    this.hits = 0;
     this.misses = 0;
   }
 
@@ -101,7 +101,7 @@ class CacheService {
    * Example: invalidatePattern('^hr:') wipes all hr:* keys.
    */
   invalidatePattern(pattern) {
-    const re  = new RegExp(pattern);
+    const re = new RegExp(pattern);
     let count = 0;
     for (const key of [...this.store.keys()]) {
       if (re.test(key)) { this.delete(key); count++; }
@@ -122,10 +122,10 @@ class CacheService {
   getStats() {
     const total = this.hits + this.misses;
     return {
-      entries : this.store.size,
-      hits    : this.hits,
-      misses  : this.misses,
-      hitRate : total === 0 ? 0 : +(this.hits / total).toFixed(3),
+      entries: this.store.size,
+      hits: this.hits,
+      misses: this.misses,
+      hitRate: total === 0 ? 0 : +(this.hits / total).toFixed(3),
     };
   }
 
@@ -135,16 +135,26 @@ class CacheService {
    * Pre-populate frequently-used queries right after authentication.
    * Call this once from AuthContext after profile is fetched.
    */
-  async warmUp(userId, entrepriseId) {
+  async warmUp(userId, entrepriseId, role = null) {
     if (!supabase || !userId) return;
 
     // These fire in parallel – each failure is independent
     const jobs = [];
 
-    jobs.push(
-      supabase.from('users').select('*').eq('id', userId).single()
-        .then(({ data }) => { if (data) this.set(`user:${userId}`, data, 600); })
-    );
+    if (role === 'SUPER_ADMIN') {
+      jobs.push(
+        supabase.from('owners').select('*').eq('id', userId).maybeSingle()
+          .then(({ data }) => {
+            if (data) this.set(`user:${userId}`, { ...data, role: 'SUPER_ADMIN', status: 'active' }, 600);
+          }).catch(console.warn)
+      );
+    } else {
+      jobs.push(
+        supabase.from('users').select('*').eq('id', userId).maybeSingle()
+          .then(({ data }) => { if (data) this.set(`user:${userId}`, data, 600); })
+          .catch(console.warn)
+      );
+    }
 
     if (entrepriseId) {
       jobs.push(

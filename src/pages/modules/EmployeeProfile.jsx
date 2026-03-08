@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   User, Users, Mail, Phone, MapPin, Calendar, Briefcase, Award,
   Edit, Building2, Clock, Star, GraduationCap, FileText, ShieldAlert,
@@ -13,6 +14,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../services/supabase';
 import { cacheService } from '../../services/CacheService';
+import { useTheme } from '../../contexts/ThemeContext';
 
 /**
  * All mock employees — each has the card fields (name, email, phone, cnss, rib, department)
@@ -253,7 +255,7 @@ function InfoItem({ icon: Icon, label, value }) {
 }
 
 // Inline profile image upload for employee's own profile
-function AvatarUpload({ initials, colorClass, imageUrl, onImageChange }) {
+function AvatarUpload({ initials, colorClass, imageUrl, onImageChange, isDark }) {
   const [preview, setPreview] = useState(imageUrl || null);
   const [uploading, setUploading] = useState(false);
 
@@ -271,18 +273,18 @@ function AvatarUpload({ initials, colorClass, imageUrl, onImageChange }) {
   };
 
   return (
-    <div className="relative inline-block">
-      <div className={`flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br ${colorClass} text-white text-2xl font-bold shadow-lg shrink-0 overflow-hidden`}>
+    <div className="relative inline-block group">
+      <div className={`flex items-center justify-center w-20 h-20 rounded-full bg-neutral-100 dark:bg-neutral-800 border-2 border-white dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 text-2xl font-bold shadow-md shrink-0 overflow-hidden transition-all duration-300`}>
         {preview ? (
           <img src={preview} alt="Profile" className="w-full h-full object-cover" />
         ) : (
           initials
         )}
       </div>
-      <label className="absolute -bottom-1 -right-1 p-1.5 bg-white border-2 border-gray-200 rounded-full shadow-md hover:bg-brand-50 hover:border-brand-500 transition-colors cursor-pointer">
+      <label className="absolute bottom-0 right-0 p-2 bg-brand-500 rounded-full shadow-lg border-2 border-white dark:border-neutral-900 cursor-pointer hover:bg-brand-600 hover:scale-110 transition-all duration-200">
         {uploading
-          ? <Loader2 size={14} className="text-brand-600 animate-spin" />
-          : <Camera size={14} className="text-gray-600" />}
+          ? <Loader2 size={14} className="text-white animate-spin" />
+          : <Camera size={14} className="text-white" />}
         <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
       </label>
     </div>
@@ -524,12 +526,24 @@ export default function EmployeeProfile() {
   const { currentRole } = useRole();
   const { t } = useLanguage();
   const { profile: authProfile } = useAuth();
+  const { isDark } = useTheme();
   const [search, setSearch] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [deptFilter, setDeptFilter] = useState('all');
   const [avatarImages, setAvatarImages] = useState({});
   const [employees, setEmployees] = useState(isSupabaseReady ? [] : allEmployees);
   const [showAssignmentTool, setShowAssignmentTool] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState(false);
+
+  const editInputTone = isDark
+    ? 'text-white placeholder:text-white/80'
+    : 'text-black placeholder:text-neutral-600';
+  const editLabelTone = isDark ? 'text-white' : 'text-black';
+  const avatarTextTone = isDark ? 'text-white' : 'text-black';
 
   const isEmployee = currentRole.id === 'employee';
 
@@ -550,46 +564,61 @@ export default function EmployeeProfile() {
 
       const validUsers = usersData || [];
 
-      // Fetch employee details for those users
-      let empMap = {};
+      // Fetch employee details and user_details for those users
+      let detailMap = {};
+      let employeeRecordMap = {};
       if (validUsers.length > 0) {
         const userIds = validUsers.map(u => u.id);
-        const { data: empData, error: empError } = await supabase
-          .from('user_details')
-          .select('*')
-          .in('id_user', userIds);
+        const [detailsRes, employeesRes] = await Promise.all([
+          supabase
+            .from('user_details')
+            .select('*')
+            .in('id_user', userIds),
+          supabase
+            .from('employees')
+            .select('id, user_id, phone, location, cnss, rib, bio, position, status, hire_date, employee_code')
+            .in('user_id', userIds),
+        ]);
 
-        if (!empError && empData) {
-          empData.forEach(e => {
-            if (e.id_user) empMap[e.id_user] = e;
+        if (!detailsRes.error && detailsRes.data) {
+          detailsRes.data.forEach(e => {
+            if (e.id_user) detailMap[e.id_user] = e;
+          });
+        }
+
+        if (!employeesRes.error && employeesRes.data) {
+          employeesRes.data.forEach(e => {
+            if (e.user_id) employeeRecordMap[e.user_id] = e;
           });
         }
       }
 
       setEmployees(validUsers.map((u, idx) => {
-        const e = empMap[u.id] || {};
+        const userDetails = detailMap[u.id] || {};
+        const employeeRecord = employeeRecordMap[u.id] || {};
         const name = u.name || u.email?.split('@')[0] || `User ${idx + 1}`;
         return {
           id: u.id,
           name,
           email: u.email || '-',
-          phone: e?.phone || '-',
-          cnss: e?.cnss || '-',
-          rib: e?.rib || '-',
-          department: e?.department || '-',
-          title: e?.position || (u.role === 'HR' ? 'HR Manager' : u.role === 'TEAM_MANAGER' ? 'Team Manager' : 'Employee'),
-          location: e?.location || 'Morocco',
+          phone: employeeRecord.phone || userDetails?.phone || '-',
+          cnss: employeeRecord.cnss || userDetails?.cnss || '-',
+          rib: employeeRecord.rib || userDetails?.rib || '-',
+          department: userDetails?.department || '-',
+          title: employeeRecord.position || userDetails?.position || (u.role === 'HR' ? 'HR Manager' : u.role === 'TEAM_MANAGER' ? 'Team Manager' : 'Employee'),
+          location: employeeRecord.location || userDetails?.adresse || 'Morocco',
           manager: '-',
-          reports_to: e?.reports_to,
-          joinDate: e?.join_date ? new Date(e.join_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
-          employeeId: `EMP-${u.id?.toString().slice(0, 8)}`,
-          status: u.status || 'active',
+          reports_to: userDetails?.reports_to,
+          joinDate: userDetails?.join_date ? new Date(userDetails.join_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
+          employeeId: employeeRecord.employee_code || `EMP-${u.id?.toString().slice(0, 8)}`,
+          status: employeeRecord.status || u.status || 'active',
           avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-          bio: e?.bio || '',
+          bio: employeeRecord.bio || userDetails?.bio || u.bio || '',
           skills: [],
           certifications: [],
           user_id: u.id,
           role: u.role,
+          employeeRecordId: employeeRecord.id || null,
         };
       }));
     } catch (err) {
@@ -600,6 +629,43 @@ export default function EmployeeProfile() {
   useEffect(() => {
     fetchProfiles();
   }, [fetchProfiles]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const openSelf = searchParams.get('openSelf');
+    if (openSelf === 'true' && employees.length > 0 && authProfile?.id) {
+      const self = employees.find(e => e.id === authProfile.id);
+      if (self) {
+        setSelectedEmployee(self);
+        // Clear param after opening
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('openSelf');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [searchParams, employees, authProfile?.id, setSearchParams]);
+
+  useEffect(() => {
+    if (!selectedEmployee) {
+      setEditForm(null);
+      setIsEditing(false);
+      setEditError('');
+      setEditSuccess(false);
+      return;
+    }
+    setEditForm({
+      email: selectedEmployee.email || '',
+      phone: selectedEmployee.phone === '-' ? '' : (selectedEmployee.phone || ''),
+      location: selectedEmployee.location === '-' ? '' : (selectedEmployee.location || ''),
+      cnss: selectedEmployee.cnss === '-' ? '' : (selectedEmployee.cnss || ''),
+      rib: selectedEmployee.rib === '-' ? '' : (selectedEmployee.rib || ''),
+      bio: selectedEmployee.bio || '',
+    });
+    setIsEditing(false);
+    setEditError('');
+    setEditSuccess(false);
+  }, [selectedEmployee]);
 
 
   const isManager = currentRole.id === 'manager' || currentRole.id?.toLowerCase() === 'team_manager';
@@ -627,6 +693,88 @@ export default function EmployeeProfile() {
     if (b.id === authProfile?.id) return 1;
     return 0;
   });
+
+  const roleId = typeof currentRole?.id === 'string'
+    ? currentRole.id.toLowerCase()
+    : currentRole?.id || '';
+  const canManageOrgProfiles = ['company_admin', 'hr', 'manager', 'team_manager'].includes(roleId);
+  const canEditSelected = selectedEmployee && (selectedEmployee.user_id === authProfile?.id || canManageOrgProfiles);
+
+  const handleEditChange = (field) => (event) => {
+    const value = event.target.value;
+    setEditForm(prev => ({ ...(prev || {}), [field]: value }));
+  };
+
+  const handleSaveProfile = async () => {
+    if (!isSupabaseReady || !selectedEmployee || !editForm) return;
+    setSavingProfile(true);
+    setEditError('');
+    setEditSuccess(false);
+    try {
+      const userId = selectedEmployee.user_id;
+      const employeePayload = {
+        phone: editForm.phone || null,
+        location: editForm.location || null,
+        cnss: editForm.cnss || null,
+        rib: editForm.rib || null,
+        bio: editForm.bio || null,
+      };
+
+      if (selectedEmployee.employeeRecordId) {
+        const { error: empError } = await supabase
+          .from('employees')
+          .update(employeePayload)
+          .eq('id', selectedEmployee.employeeRecordId);
+        if (empError) throw empError;
+      } else {
+        const insertPayload = {
+          ...employeePayload,
+          user_id: userId,
+          entreprise_id: authProfile?.entreprise_id || null,
+          position: selectedEmployee.title || 'Employee',
+        };
+        const { error: insertError, data: inserted } = await supabase
+          .from('employees')
+          .insert(insertPayload)
+          .select('id')
+          .single();
+        if (insertError) throw insertError;
+        selectedEmployee.employeeRecordId = inserted?.id || selectedEmployee.employeeRecordId;
+      }
+
+      const emailValue = editForm.email?.trim();
+      if (emailValue && emailValue !== selectedEmployee.email) {
+        const { error: emailError } = await supabase
+          .from('users')
+          .update({ email: emailValue })
+          .eq('id', userId);
+        if (emailError) throw emailError;
+      }
+
+      const updatedValues = {
+        phone: editForm.phone || '-',
+        location: editForm.location || '-',
+        cnss: editForm.cnss || '-',
+        rib: editForm.rib || '-',
+        bio: editForm.bio || '',
+        email: emailValue || selectedEmployee.email,
+      };
+
+      setEmployees(prev => prev.map(emp => (
+        emp.id === selectedEmployee.id
+          ? { ...emp, ...updatedValues }
+          : emp
+      )));
+
+      setSelectedEmployee(prev => (prev ? { ...prev, ...updatedValues } : prev));
+      setEditSuccess(true);
+      setIsEditing(false);
+    } catch (err) {
+      setEditError(err?.message || 'Failed to update profile.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -697,7 +845,7 @@ export default function EmployeeProfile() {
             <div className="flex items-start justify-between mb-4">
               <div className={`flex items-center justify-center w-12 h-12 rounded-xl
                                bg-gradient-to-br ${avatarColors[idx % avatarColors.length]}
-                               text-white font-bold text-sm shadow-md
+                               ${isDark ? 'text-white' : 'text-black'} font-bold text-sm shadow-md
                                group-hover:scale-110 transition-transform duration-300`}>
                 {emp.avatar}
               </div>
@@ -742,7 +890,7 @@ export default function EmployeeProfile() {
               </div>
               <div className="flex items-center gap-2 text-text-secondary">
                 <Landmark size={12} className="text-text-tertiary shrink-0" />
-                <span className="truncate">RIB: {emp.rib.slice(0, 16)}…</span>
+                <span className="truncate">RIB: {emp.rib && emp.rib !== '-' ? `${emp.rib.slice(0, 16)}…` : '-'}</span>
               </div>
             </div>
           </div>
@@ -772,11 +920,12 @@ export default function EmployeeProfile() {
                   colorClass={avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
                   imageUrl={avatarImages[selectedEmployee.id]}
                   onImageChange={(url) => setAvatarImages(prev => ({ ...prev, [selectedEmployee.id]: url }))}
+                  isDark={isDark}
                 />
               ) : (
-                <div className={`flex items-center justify-center w-16 h-16 rounded-2xl
-                                 bg-gradient-to-br ${avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
-                                 text-white text-xl font-bold shadow-lg shrink-0 overflow-hidden`}>
+                <div className="flex items-center justify-center w-16 h-16 rounded-full
+                                 bg-neutral-100 dark:bg-neutral-800 border-2 border-white dark:border-neutral-700
+                                 text-neutral-600 dark:text-neutral-300 text-xl font-bold shadow-md shrink-0 overflow-hidden">
                   {avatarImages[selectedEmployee.id]
                     ? <img src={avatarImages[selectedEmployee.id]} alt="" className="w-full h-full object-cover" />
                     : selectedEmployee.avatar}
@@ -796,6 +945,100 @@ export default function EmployeeProfile() {
                 </div>
               </div>
             </div>
+
+            {canEditSelected && (
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  onClick={() => { setIsEditing(prev => !prev); setEditError(''); setEditSuccess(false); }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border-secondary text-sm font-semibold text-text-primary hover:border-brand-400 hover:text-brand-600 transition-colors"
+                >
+                  {isEditing ? <X size={14} /> : <Edit size={14} />}
+                  {isEditing ? t('common.cancel') || 'Cancel' : 'Update Profile'}
+                </button>
+                {isEditing && (
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 text-white text-sm font-semibold hover:bg-brand-400 disabled:opacity-60"
+                  >
+                    {savingProfile ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    {savingProfile ? 'Saving…' : 'Save Changes'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {editError && (
+              <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-2 text-sm text-danger-600">
+                {editError}
+              </div>
+            )}
+
+            {editSuccess && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+                Profile updated successfully.
+              </div>
+            )}
+
+            {isEditing && editForm && (
+              <div className="bg-surface-secondary rounded-2xl border border-dashed border-border-secondary p-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className={`text-xs font-semibold uppercase tracking-wide space-y-1 ${editLabelTone}`}>
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={editForm.email}
+                      onChange={handleEditChange('email')}
+                      className={`w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm ${editInputTone}`}
+                    />
+                  </label>
+                  <label className={`text-xs font-semibold uppercase tracking-wide space-y-1 ${editLabelTone}`}>
+                    <span>Phone</span>
+                    <input
+                      type="text"
+                      value={editForm.phone}
+                      onChange={handleEditChange('phone')}
+                      className={`w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm ${editInputTone}`}
+                    />
+                  </label>
+                  <label className={`text-xs font-semibold uppercase tracking-wide space-y-1 ${editLabelTone}`}>
+                    <span>Location</span>
+                    <input
+                      type="text"
+                      value={editForm.location}
+                      onChange={handleEditChange('location')}
+                      className={`w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm ${editInputTone}`}
+                    />
+                  </label>
+                  <label className={`text-xs font-semibold uppercase tracking-wide space-y-1 ${editLabelTone}`}>
+                    <span>CNSS</span>
+                    <input
+                      type="text"
+                      value={editForm.cnss}
+                      onChange={handleEditChange('cnss')}
+                      className={`w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm ${editInputTone}`}
+                    />
+                  </label>
+                  <label className={`text-xs font-semibold uppercase tracking-wide space-y-1 ${editLabelTone}`}>
+                    <span>RIB</span>
+                    <input
+                      type="text"
+                      value={editForm.rib}
+                      onChange={handleEditChange('rib')}
+                      className={`w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm ${editInputTone}`}
+                    />
+                  </label>
+                </div>
+                <label className={`text-xs font-semibold uppercase tracking-wide space-y-1 block ${editLabelTone}`}>
+                  <span>Bio / Notes</span>
+                  <textarea
+                    value={editForm.bio}
+                    onChange={handleEditChange('bio')}
+                    className={`w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm min-h-[100px] ${editInputTone}`}
+                  ></textarea>
+                </label>
+              </div>
+            )}
 
             {/* About */}
             <div className="bg-surface-secondary rounded-xl p-4 border border-border-secondary">
