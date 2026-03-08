@@ -6,11 +6,13 @@ import {
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
+import { calculateCriticalOverlap } from './vacationUtils';
 
 export default function TeamVacationView({ requests }) {
     // Filter for team members who are currently on leave or scheduled soon
     const onLeaveNow = requests.filter(r => r.status === 'approved' && new Date(r.startDate) <= new Date());
     const upcomingAbsences = requests.filter(r => r.status === 'approved' && new Date(r.startDate) > new Date());
+    const criticalOverlap = calculateCriticalOverlap(requests);
 
     return (
         <div className="space-y-6">
@@ -74,14 +76,23 @@ export default function TeamVacationView({ requests }) {
                 <div className="space-y-6">
                     <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5">
                         <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
-                            <AlertTriangle size={16} className="text-amber-500" />
+                            <AlertTriangle size={16} className={criticalOverlap >= 2 ? "text-red-500" : "text-amber-500"} />
                             Capacity Alerts
                         </h3>
                         <div className="space-y-3">
-                            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700">
-                                <p className="text-xs font-semibold">Next Week: Low Capacity</p>
-                                <p className="text-[10px] opacity-80 mt-1">3 team members will be absent during the sprint review.</p>
-                            </div>
+                            {criticalOverlap > 0 ? (
+                                <div className={`p-3 rounded-lg border ${criticalOverlap >= 2 ? 'bg-red-500/10 border-red-500/20 text-red-700' : 'bg-amber-500/10 border-amber-500/20 text-amber-700'}`}>
+                                    <p className="text-xs font-semibold">{criticalOverlap >= 2 ? 'Critical Overlap Detected' : 'Upcoming Absences'}</p>
+                                    <p className="text-[10px] opacity-80 mt-1">
+                                        {criticalOverlap} team member{criticalOverlap > 1 ? 's' : ''} will be absent simultaneously in the coming period.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700">
+                                    <p className="text-xs font-semibold">Optimal Capacity</p>
+                                    <p className="text-[10px] opacity-80 mt-1">No major overlapping absences detected for the team.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

@@ -84,10 +84,10 @@ export default function EmployeeVacationView({
     ];
 
     const balanceCards = [
-        { label: 'Annual Leave', ...leaveBalance.annual, color: 'bg-brand-500', badgeColor: 'bg-brand-500 text-white' },
-        { label: 'Sick Leave', ...leaveBalance.sick, color: 'bg-red-500', badgeColor: 'bg-red-500 text-white' },
-        { label: 'Remote Work', ...leaveBalance.remote, color: 'bg-blue-500', badgeColor: 'bg-blue-500 text-white' },
-        { label: 'Unpaid Leave', ...leaveBalance.unpaid, color: 'bg-slate-500', badgeColor: 'bg-slate-400 text-white dark:bg-slate-600' }
+        { label: 'Annual Leave', ...(leaveBalance?.annual || { total: 0, used: 0, remaining: 0 }), color: 'bg-brand-500', badgeColor: 'bg-brand-500 text-white' },
+        { label: 'Sick Leave', ...(leaveBalance?.sick || { total: 0, used: 0, remaining: 0 }), color: 'bg-red-500', badgeColor: 'bg-red-500 text-white' },
+        { label: 'Remote Work', ...(leaveBalance?.remote_work || { total: 0, used: 0, remaining: 0 }), color: 'bg-blue-500', badgeColor: 'bg-blue-500 text-white' },
+        { label: 'Unpaid Leave', ...(leaveBalance?.unpaid || { total: 0, used: 0, remaining: 0 }), color: 'bg-slate-500', badgeColor: 'bg-slate-400 text-white dark:bg-slate-600' }
     ];
 
     const statusTabs = [

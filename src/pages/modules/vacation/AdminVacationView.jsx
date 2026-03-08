@@ -10,14 +10,9 @@ import StatusBadge from '../../../components/ui/StatusBadge';
 import { adminData } from '../../../data/mockData';
 import DataTable from '../../../components/ui/DataTable';
 import PageHeader from '../../../components/ui/PageHeader';
+import { calculateCriticalOverlap } from './vacationUtils';
 
 // --- MOCK DATA SPECIFIC TO VACATION MANAGEMENT ---
-const MOCK_ON_VACATION = [
-    { id: 1, name: 'Alice Cooper', role: 'Employee', team: 'Engineering Alpha', start: '2026-02-25', end: '2026-03-05', status: 'Active' },
-    { id: 2, name: 'Michael Scott', role: 'Team Manager', team: 'Engineering Alpha', start: '2026-02-28', end: '2026-03-02', status: 'Active' },
-    { id: 3, name: 'John Doe', role: 'Employee', team: 'Marketing Core', start: '2026-02-20', end: '2026-02-28', status: 'Returning Tomorrow' },
-];
-
 const MOCK_VACATION_BALANCES = [
     { id: 1, name: 'Alice Cooper', role: 'Employee', team: 'Engineering Alpha', consumed: 12 },
     { id: 2, name: 'Michael Scott', role: 'Team Manager', team: 'Engineering Alpha', consumed: 5 },
@@ -26,8 +21,16 @@ const MOCK_VACATION_BALANCES = [
     { id: 5, name: 'Charlie Davis', role: 'Employee', team: 'Sales Pro', consumed: 22 },
 ];
 
-export default function AdminVacationView() {
+export default function AdminVacationView({ requests = [] }) {
     const [activeTab, setActiveTab] = useState('overview');
+    const [exportToast, setExportToast] = useState('');
+
+    const handleExport = () => {
+        setExportToast('Generating PDF Report... Download starting soon.');
+        setTimeout(() => setExportToast(''), 4000);
+        // Simulated PDF Export
+        // window.print();
+    };
 
     const [policies, setPolicies] = useState({
         annualDays: 22,
@@ -37,7 +40,15 @@ export default function AdminVacationView() {
         requireReason: true
     });
 
-    const [globalRequests] = useState(adminData.globalLeaveRequests || []);
+    const onVacationNow = requests.map(r => ({
+        id: r.id,
+        name: r.employeeName,
+        role: r.position || 'Employee',
+        team: 'Enterprise',
+        start: r.startDate,
+        end: r.endDate,
+        status: (r.status === 'approved' && new Date(r.startDate) <= new Date() && new Date(r.endDate) >= new Date()) ? 'Active' : 'Upcoming'
+    })).filter(r => r.status === 'Active' || new Date(r.start) > new Date());
 
     const leaveColumns = [
         {
@@ -154,7 +165,8 @@ export default function AdminVacationView() {
         }
     ];
 
-    const pendingCount = globalRequests.filter(r => r.status === 'pending').length;
+    const pendingCount = requests.filter(r => r.status === 'pending').length;
+    const criticalOverlap = calculateCriticalOverlap(requests);
 
     const tabs = [
         { id: 'overview', label: 'Overview & Activity', icon: Sun },
@@ -164,6 +176,11 @@ export default function AdminVacationView() {
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
+            {exportToast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 mb-4 animate-slide-up shadow-sm">
+                    <CheckCircle2 size={16} /> {exportToast}
+                </div>
+            )}
             <PageHeader
                 title="Admin Vacation Management"
                 description="Monitor vacation status, track annual consumption, and manage global leave policies."
@@ -193,10 +210,10 @@ export default function AdminVacationView() {
                 <div className="space-y-6 animate-fade-in">
                     {/* Global Stats Overview */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <StatCard title="Currently on Vacation" value={MOCK_ON_VACATION.length.toString()} icon={Sun} iconColor="bg-amber-500" />
+                        <StatCard title="Currently on Vacation" value={onVacationNow.length.toString()} icon={Sun} iconColor="bg-amber-500" />
                         <StatCard title="Pending Approvals" value={pendingCount.toString()} icon={Clock} iconColor="bg-brand-500" subtitle="Across all orgs" />
                         <StatCard title="Global Attendance" value="96.4%" icon={PieChart} iconColor="bg-emerald-500" />
-                        <StatCard title="System Alerts" value="2" icon={AlertCircle} iconColor="bg-rose-500" />
+                        <StatCard title="System Alerts" value={criticalOverlap.toString()} icon={AlertCircle} iconColor={criticalOverlap >= 2 ? "bg-rose-500" : "bg-emerald-500"} subtitle={criticalOverlap >= 2 ? "Overlap detected" : "All systems normal"} />
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -207,10 +224,10 @@ export default function AdminVacationView() {
                                     <Sun size={18} className="text-amber-500" />
                                     <h3 className="text-sm font-bold text-text-primary uppercase tracking-tight">Currently On Vacation</h3>
                                 </div>
-                                <StatusBadge variant="warning" size="sm">{MOCK_ON_VACATION.length} personnel</StatusBadge>
+                                <StatusBadge variant="warning" size="sm">{onVacationNow.length} personnel</StatusBadge>
                             </div>
                             <div className="flex-1 overflow-x-auto">
-                                <DataTable columns={onVacationColumns} data={MOCK_ON_VACATION} />
+                                <DataTable columns={onVacationColumns} data={onVacationNow} />
                             </div>
                         </div>
 
@@ -222,13 +239,13 @@ export default function AdminVacationView() {
                                     <h3 className="text-sm font-bold text-text-primary uppercase tracking-tight">Recent Leave Activity</h3>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary border border-border-secondary rounded-lg text-[10px] font-bold uppercase text-text-secondary hover:border-brand-500/30 transition-all cursor-pointer">
+                                    <button onClick={handleExport} className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary border border-border-secondary rounded-lg text-[10px] font-bold uppercase text-text-secondary hover:border-brand-500/30 transition-all cursor-pointer">
                                         <Download size={14} /> Export
                                     </button>
                                 </div>
                             </div>
                             <div className="flex-1 overflow-x-auto">
-                                <DataTable columns={leaveColumns} data={globalRequests.slice(0, 5)} />
+                                <DataTable columns={leaveColumns} data={requests.slice(0, 5)} />
                             </div>
                         </div>
                     </div>
