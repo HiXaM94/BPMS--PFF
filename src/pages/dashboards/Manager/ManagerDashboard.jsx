@@ -24,6 +24,7 @@ import { managerData } from '../../../data/mockData';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
 import { cacheService } from '../../../services/CacheService';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useDefaultPasswordCheck } from '../../../hooks/useDefaultPasswordCheck';
 
 const statIcons = [Users, ListChecks, ClipboardCheck, TrendingUp];
 const statColors = [
@@ -217,6 +218,7 @@ export default function ManagerDashboard() {
     const [selectedProject, setSelectedProject] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [showPasswordReset, setShowPasswordReset] = useState(false);
+    const { showPasswordModal: showDefaultPassModal, hidePasswordModal } = useDefaultPasswordCheck();
 
     const handleProjectClick = (project) => {
         setSelectedProject(project);
@@ -226,19 +228,7 @@ export default function ManagerDashboard() {
     useEffect(() => {
         if (!isSupabaseReady || !profile?.id) return;
 
-        // Check if password needs to be changed for TEAM_MANAGER role
-        if (profile?.role === 'TEAM_MANAGER') {
-            supabase
-                .from('team_manager_profiles')
-                .select('password_changed')
-                .eq('user_id', profile.id)
-                .maybeSingle()
-                .then(({ data }) => {
-                    if (data && data.password_changed !== true) {
-                        setShowPasswordReset(true);
-                    }
-                });
-        }
+        // Password check is now handled by useDefaultPasswordCheck hook
 
         // Fetch team stats
         cacheService.getOrSet('manager:stats', async () => {
@@ -289,12 +279,6 @@ export default function ManagerDashboard() {
 
     return (
         <div className="space-y-6">
-            {/* Shared Password Reset Modal for Manager */}
-            <PasswordChangeModal
-                isOpen={showPasswordReset}
-                onClose={handlePasswordModalClose}
-                role="TEAM_MANAGER"
-            />
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -338,7 +322,7 @@ export default function ManagerDashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {/* Projects Linked by Admin */}
                 <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm animate-fade-in" style={{ animationDelay: '450ms' }}>
-                    <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-brand-500/5">
+                    <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-surface-secondary/50">
                         <h2 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-tight">
                             <Briefcase size={16} className="text-brand-500" />
                             Projects Linked to Me
@@ -353,7 +337,7 @@ export default function ManagerDashboard() {
 
                 {/* Team Task Validation */}
                 <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm animate-fade-in" style={{ animationDelay: '550ms' }}>
-                    <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-amber-500/5">
+                    <div className="p-5 border-b border-border-secondary flex justify-between items-center bg-surface-secondary/50">
                         <h2 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-tight">
                             <Clock size={16} className="text-amber-500" />
                             Task Validation Request

@@ -15,6 +15,7 @@ import {
   Banknote,
   Briefcase,
   GitBranch,
+  MessageSquare,
 } from 'lucide-react';
 
 /**
@@ -26,6 +27,7 @@ export const navigationItems = [
     section: 'Overview',
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/', roles: ['all'] },
+      { id: 'tickets', label: 'Support Tickets', icon: MessageSquare, path: '/tickets', roles: ['super_admin', 'company_admin', 'admin'] },
       { id: 'subscriptions', label: 'Subscriptions', icon: Banknote, path: '/subscriptions', roles: ['super_admin'] },
     ],
   },
