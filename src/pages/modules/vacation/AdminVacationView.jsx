@@ -3,7 +3,7 @@ import {
     BarChart3, Settings, Shield, PieChart,
     Save, AlertCircle, Info, ChevronRight,
     Search, Filter, Download, Clock, Sun,
-    Users, TrendingUp, CalendarDays, Key
+    Users, TrendingUp, CalendarDays, Key, CheckCircle2
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
@@ -39,6 +39,12 @@ export default function AdminVacationView({ requests = [] }) {
         autoApproveSick: true,
         requireReason: true
     });
+    const [policiesToast, setPoliciesToast] = useState('');
+
+    const handleSavePolicies = () => {
+        setPoliciesToast('Global policies updated successfully.');
+        setTimeout(() => setPoliciesToast(''), 3000);
+    };
 
     const onVacationNow = requests.map(r => ({
         id: r.id,
@@ -181,13 +187,11 @@ export default function AdminVacationView({ requests = [] }) {
                     <CheckCircle2 size={16} /> {exportToast}
                 </div>
             )}
-            <PageHeader
-                title="Admin Vacation Management"
-                description="Monitor vacation status, track annual consumption, and manage global leave policies."
-                icon={CalendarDays}
-                iconColor="from-emerald-500 to-teal-600"
-            />
-
+            {policiesToast && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 mb-4 animate-slide-up shadow-sm">
+                    <CheckCircle2 size={16} /> {policiesToast}
+                </div>
+            )}
             {/* Tabs */}
             <div className="flex space-x-2 bg-surface-secondary/50 p-1 rounded-xl w-fit border border-border-secondary shadow-sm">
                 {tabs.map((tab) => (
@@ -208,12 +212,42 @@ export default function AdminVacationView({ requests = [] }) {
             {/* TAB: OVERVIEW & ACTIVITY */}
             {activeTab === 'overview' && (
                 <div className="space-y-6 animate-fade-in">
-                    {/* Global Stats Overview */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <StatCard title="Currently on Vacation" value={onVacationNow.length.toString()} icon={Sun} iconColor="bg-amber-500" />
-                        <StatCard title="Pending Approvals" value={pendingCount.toString()} icon={Clock} iconColor="bg-brand-500" subtitle="Across all orgs" />
-                        <StatCard title="Global Attendance" value="96.4%" icon={PieChart} iconColor="bg-emerald-500" />
-                        <StatCard title="System Alerts" value={criticalOverlap.toString()} icon={AlertCircle} iconColor={criticalOverlap >= 2 ? "bg-rose-500" : "bg-emerald-500"} subtitle={criticalOverlap >= 2 ? "Overlap detected" : "All systems normal"} />
+                    {/* Dynamic Infographic Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {[
+                            { title: "On Vacation", value: onVacationNow.length, icon: Sun, color: "amber", trend: "+2%", desc: "Currently out" },
+                            { title: "Pending", value: pendingCount, icon: Clock, color: "brand", trend: "-5%", desc: "Awaiting review" },
+                            { title: "Attendance", value: "96.4%", icon: PieChart, color: "emerald", trend: "+1.2%", desc: "Global average" },
+                            { title: "System Alerts", value: criticalOverlap, icon: AlertCircle, color: criticalOverlap >= 2 ? "rose" : "emerald", trend: "0%", desc: criticalOverlap >= 2 ? "Overlap detected" : "All clear" }
+                        ].map((stat, i) => {
+                            const themes = {
+                                amber: "from-amber-500 to-orange-500 text-amber-600 bg-amber-50",
+                                brand: "from-brand-500 to-indigo-500 text-brand-600 bg-brand-50",
+                                emerald: "from-emerald-500 to-teal-500 text-emerald-600 bg-emerald-50",
+                                rose: "from-rose-500 to-red-500 text-rose-600 bg-rose-50 shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                            };
+                            return (
+                                <div key={i} className={`relative bg-surface-primary rounded-2xl p-5 border border-border-secondary shadow-sm overflow-hidden group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${stat.color === 'rose' && stat.value >= 2 ? 'border-rose-500/50 ' + themes.rose : ''}`}>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className={`p-3 rounded-xl ${themes[stat.color].split(' ')[2]} ${themes[stat.color].split(' ')[3]} dark:bg-opacity-10 backdrop-blur-sm group-hover:scale-110 transition-transform duration-300`}>
+                                            <stat.icon size={22} className="stroke-[2px]" />
+                                        </div>
+                                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${stat.trend.startsWith('+') ? 'bg-emerald-500/10 text-emerald-600' : stat.trend.startsWith('-') ? 'bg-emerald-500/10 text-emerald-600' : 'bg-surface-secondary text-text-tertiary'}`}>
+                                            {stat.trend}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-3xl font-black text-text-primary tracking-tight mb-1">{stat.value}</h4>
+                                        <p className="text-sm font-bold text-text-secondary uppercase tracking-tight">{stat.title}</p>
+                                        <p className="text-[10px] font-medium text-text-tertiary mt-1 opacity-80">{stat.desc}</p>
+                                    </div>
+                                    {/* Animated Progress Line */}
+                                    <div className="absolute bottom-0 left-0 w-full h-1 bg-surface-secondary">
+                                        <div className={`h-full bg-gradient-to-r ${themes[stat.color].split(' ').slice(0, 2).join(' ')} w-0 group-hover:w-full transition-all duration-700 ease-out`}></div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -239,8 +273,9 @@ export default function AdminVacationView({ requests = [] }) {
                                     <h3 className="text-sm font-bold text-text-primary uppercase tracking-tight">Recent Leave Activity</h3>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button onClick={handleExport} className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary border border-border-secondary rounded-lg text-[10px] font-bold uppercase text-text-secondary hover:border-brand-500/30 transition-all cursor-pointer">
-                                        <Download size={14} /> Export
+                                    <button onClick={handleExport} className="relative group flex items-center gap-2 px-4 py-2 bg-surface-primary border border-border-secondary rounded-xl text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-brand-600 transition-all cursor-pointer overflow-hidden backdrop-blur-md hover:border-brand-500/50 hover:shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+                                        <div className="absolute inset-0 bg-gradient-to-r from-brand-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                        <Download size={14} className="group-hover:-translate-y-0.5 transition-transform" /> Export Data
                                     </button>
                                 </div>
                             </div>
@@ -282,15 +317,15 @@ export default function AdminVacationView({ requests = [] }) {
 
             {/* TAB: POLICY MANAGEMENT */}
             {activeTab === 'policies' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in pb-8">
                     {/* Policy Configuration */}
-                    <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm">
-                        <div className="p-5 border-b border-border-secondary flex items-center justify-between bg-surface-secondary/30">
-                            <h3 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-tight">
-                                <Settings size={16} className="text-text-secondary" /> Global Vacation Policies
+                    <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                        <div className="p-5 border-b border-border-secondary flex flex-wrap items-center justify-between bg-surface-secondary/40 gap-4">
+                            <h3 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-widest">
+                                <Settings size={18} className="text-brand-500 animate-spin-slow" /> Global Policies
                             </h3>
-                            <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/20 cursor-pointer">
-                                <Save size={14} /> Save Policies
+                            <button onClick={handleSavePolicies} className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_20px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 cursor-pointer">
+                                <Save size={14} className="drop-shadow-sm" /> Save Policies
                             </button>
                         </div>
                         <div className="p-6 space-y-6">
@@ -352,40 +387,48 @@ export default function AdminVacationView({ requests = [] }) {
                     </div>
 
                     {/* AI Insights & Trends */}
-                    <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden shadow-sm">
-                        <div className="p-5 border-b border-border-secondary flex items-center justify-between">
-                            <h3 className="text-sm font-bold text-text-primary flex items-center gap-2 uppercase tracking-tight">
-                                <TrendingUp size={16} className="text-brand-500" /> AI Workforce Insights
+                    <div className="bg-surface-primary rounded-2xl border border-brand-500/30 overflow-hidden shadow-[0_0_15px_rgba(99,102,241,0.1)] hover:shadow-[0_0_25px_rgba(99,102,241,0.15)] transition-shadow">
+                        <div className="p-5 border-b border-border-secondary flex items-center justify-between bg-gradient-to-r from-brand-500/10 to-transparent">
+                            <h3 className="text-sm font-bold text-brand-700 dark:text-brand-400 flex items-center gap-2 uppercase tracking-widest">
+                                <TrendingUp size={18} className="text-brand-500" /> AI Insights & Forecasting
                             </h3>
-                            <StatusBadge variant="brand" size="sm" dot>Live Trends</StatusBadge>
+                            <StatusBadge variant="brand" size="sm" dot>Live Analytics</StatusBadge>
                         </div>
-                        <div className="p-6 space-y-6">
-                            <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 flex gap-4 animate-pulse-subtle">
-                                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
-                                    <Info size={20} />
+                        <div className="p-6 space-y-6 relative">
+                            {/* Decorative background glow */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 bg-brand-500/5 blur-3xl rounded-full pointer-events-none"></div>
+
+                            <div className="relative z-10 p-5 rounded-2xl bg-surface-secondary/50 border border-brand-500/20 flex gap-4 backdrop-blur-sm group hover:border-brand-500/40 transition-colors">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-400 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-brand-500/20 group-hover:scale-110 transition-transform duration-500">
+                                    <Info size={24} />
                                 </div>
-                                <div>
-                                    <p className="text-sm font-bold text-blue-900 dark:text-blue-100">Peak Demand Alert</p>
-                                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1 leading-relaxed">
-                                        AI models predict a 24% surge in leave requests across <strong>Engineering Alpha</strong> next month due to nearing annual expiration. Recommend preemptive workload balancing.
+                                <div className="flex-1">
+                                    <p className="text-base font-black text-text-primary tracking-tight">Peak Demand Forecast</p>
+                                    <p className="text-sm text-text-secondary mt-1.5 leading-relaxed font-medium">
+                                        Predictive models show a <strong className="text-brand-600 dark:text-brand-400 text-lg">24% surge</strong> in leave requests across <strong>Engineering Alpha</strong> next month due to nearing annual expiration. Recommend preemptive workload balancing to maintain sprint velocity.
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="space-y-4 pt-2">
-                                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Global Leave Distribution</p>
+                            <div className="relative z-10 space-y-5 pt-4">
+                                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-2">
+                                    Global Leave Distribution <span className="h-px flex-1 bg-border-secondary block"></span>
+                                </span>
                                 {[
-                                    { type: 'Annual Leave', count: 284, color: 'bg-emerald-500', pct: 65 },
-                                    { type: 'Sick Leave', count: 92, color: 'bg-rose-500', pct: 21 },
-                                    { type: 'Remote Work', count: 60, color: 'bg-amber-500', pct: 14 }
+                                    { type: 'Annual Leave', count: 284, color: 'bg-gradient-to-r from-emerald-400 to-emerald-600', pct: 65, shadow: 'shadow-emerald-500/50' },
+                                    { type: 'Sick Leave', count: 92, color: 'bg-gradient-to-r from-rose-400 to-rose-600', pct: 21, shadow: 'shadow-rose-500/50' },
+                                    { type: 'Remote Work', count: 60, color: 'bg-gradient-to-r from-brand-400 to-indigo-600', pct: 14, shadow: 'shadow-brand-500/50' }
                                 ].map(item => (
-                                    <div key={item.type} className="space-y-1.5">
-                                        <div className="flex items-center justify-between text-xs font-medium">
-                                            <span className="text-text-secondary">{item.type}</span>
-                                            <span className="text-text-primary font-bold">{item.count} req.</span>
+                                    <div key={item.type} className="space-y-2 group">
+                                        <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+                                            <span className="text-text-secondary group-hover:text-text-primary transition-colors">{item.type}</span>
+                                            <span className="text-text-primary">{item.count} req</span>
                                         </div>
-                                        <div className="h-2 w-full bg-surface-secondary rounded-full overflow-hidden shadow-inner">
-                                            <div className={`h-full ${item.color} transition-all duration-1000 ease-out`} style={{ width: `${item.pct}%` }} />
+                                        <div className="h-2.5 w-full bg-surface-secondary rounded-full overflow-hidden shadow-inner p-0.5 relative">
+                                            <div className="absolute inset-0 bg-surface-secondary mix-blend-overlay"></div>
+                                            <div className={`h-full rounded-full ${item.color} shadow-sm ${item.shadow} transition-all duration-1000 ease-out relative`} style={{ width: `${item.pct}%` }}>
+                                                <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

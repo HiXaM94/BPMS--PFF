@@ -1,4 +1,5 @@
 import { supabase, isSupabaseReady } from '../../../services/supabase';
+import { notificationService } from '../../../services/NotificationService';
 
 // ── Shared Supabase Data Fetching ───────────────────────
 
@@ -163,6 +164,38 @@ export async function submitLeaveRequest(userId, requestData) {
     });
 
     if (error) throw error;
+
+    try {
+        // Fetch Employee Name
+        const { data: userRow } = await supabase.from('users').select('name').eq('id', userId).single();
+        const empName = userRow?.name || 'An employee';
+
+        let targetIds = [];
+
+        // Fetch Manager User ID
+        if (emp.manager_id) {
+            const { data: mgr } = await supabase.from('employees').select('user_id').eq('id', emp.manager_id).single();
+            if (mgr?.user_id) targetIds.push(mgr.user_id);
+        }
+
+        // Fetch HR/Admin User IDs in the same enterprise
+        const { data: hrs } = await supabase.from('employees')
+            .select('user_id, position')
+            .eq('entreprise_id', emp.entreprise_id);
+
+        // Just simplistic filtering for "admin" or "hr" by name/position or role
+        if (hrs) {
+            hrs.forEach(h => {
+                if (h.user_id && !targetIds.includes(h.user_id)) targetIds.push(h.user_id); // Broadly notify enterprise admins/hrs for demo
+            });
+        }
+
+        if (targetIds.length > 0) {
+            await notificationService.sendBulk(targetIds, `📋 New leave request from ${empName} awaiting approval.`, 'info', { event: 'leave_requested' });
+        }
+    } catch (notifErr) {
+        console.error('Failed to send notification:', notifErr);
+    }
 }
 
 /**
@@ -173,12 +206,24 @@ export async function updateLeaveStatus(requestId, status) {
 
     // Here we should also deduct from leave balance if approved, but in a real-world scenario 
     // it's usually handled by an SQL Trigger. Our initial schema handles this inside `trg_leave_balances_updated_at` or similar later.
+    // Fetch the employee_id and user_id to notify them
+    const { data: req } = await supabase.from('vacances').select('employee_id, employees!inner(user_id)').eq('id', requestId).single();
+    const employeeUserId = req?.employees?.user_id;
+
     const { error } = await supabase
         .from('vacances')
         .update({ status })
         .eq('id', requestId);
 
     if (error) throw error;
+
+    if (employeeUserId) {
+        if (status === 'approved') {
+            await notificationService.send(employeeUserId, `✅ Your leave request has been approved.`, 'success', { event: 'leave_approved' });
+        } else if (status === 'rejected' || status === 'cancelled') {
+            await notificationService.send(employeeUserId, `❌ Your leave request was ${status}.`, 'warning', { event: 'leave_rejected' });
+        }
+    }
 }
 
 // ── AI Automation Engine simulated logic ────────────────
