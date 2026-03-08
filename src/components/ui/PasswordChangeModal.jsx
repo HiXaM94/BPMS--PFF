@@ -83,7 +83,7 @@ export default function PasswordChangeModal({ isOpen, onClose, role }) {
             const { error: rpcError } = await supabase.rpc('update_profile_password', {
                 p_user_id: session.user.id,
                 p_role: role,
-                p_password: password,
+                p_new_password: password,
             });
 
             if (rpcError) {

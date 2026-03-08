@@ -40,6 +40,7 @@ export const navigationItems = [
       { id: 'profile', label: 'Employee Profile', icon: User, path: '/profile', roles: ['company_admin', 'hr', 'manager', 'employee'] },
       { id: 'attendance', label: 'Attendance', icon: Clock, path: '/attendance', roles: ['super_admin', 'company_admin', 'hr', 'manager', 'employee'] },
       { id: 'recruitment', label: 'Recruitment', icon: Briefcase, path: '/recruitment', roles: ['company_admin', 'hr'] },
+      { id: 'ai-recruitment', label: 'AI Recruitment Assistant', icon: Sparkles, path: '/ai-recruitment', roles: ['company_admin', 'hr'] },
     ],
   },
   {

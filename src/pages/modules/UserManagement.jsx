@@ -4,7 +4,7 @@ import {
   Users, UserPlus, Shield, Mail, Eye, Edit, Trash2,
   Search, Filter, UserCheck, UserX, UserCog,
   Phone, MapPin, Building2, Calendar, Briefcase,
-  Lock,
+  Lock, Loader2,
 } from 'lucide-react';
 
 import PageHeader from '../../components/ui/PageHeader';
@@ -82,11 +82,12 @@ function getColumns(onView, onEdit, onDelete, isSuperAdmin) {
         <div className="flex items-center gap-3">
 
           <div className={`flex items-center justify-center w-9 h-9 rounded-full
-
-                           bg-gradient-to-br ${avatarColors[row.role] || avatarColors.Employee} text-white text-xs font-bold shrink-0`}>
-
-            {row.avatar}
-
+                           bg-gradient-to-br ${avatarColors[row.role] || avatarColors.Employee} text-white text-xs font-bold shrink-0 overflow-hidden`}>
+            {row.profile_image_url ? (
+              <img src={row.profile_image_url} alt={val} className="w-full h-full object-cover" />
+            ) : (
+              row.avatar
+            )}
           </div>
 
           <div>
@@ -171,7 +172,7 @@ function getColumns(onView, onEdit, onDelete, isSuperAdmin) {
 
 
 
-const departments = ['Engineering', 'Marketing', 'Design', 'Human Resources', 'Finance', 'QA', 'Sales', 'Operations'];
+
 
 
 
@@ -191,7 +192,7 @@ export default function UserManagement() {
 
   const { currentRole } = useRole();
 
-  const { profile, signUpSilently } = useAuth();
+  const { profile, signUpSilently, signOut } = useAuth();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
 
@@ -208,6 +209,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState(isSuperAdmin ? superAdminUsers : defaultUsers);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [availableDepartments, setAvailableDepartments] = useState([]);
 
   // ── HR-specific modal state ──
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
@@ -281,13 +283,35 @@ export default function UserManagement() {
         status: u.status || 'active',
         lastLogin: u.last_login_at ? new Date(u.last_login_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never',
         avatar: u.avatar_initials || u.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??',
+        profile_image_url: u.profile_image_url,
       };
     }));
   }, [profile, isSuperAdmin]);
 
 
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  const fetchAvailableDepartments = useCallback(async () => {
+    if (!isSupabaseReady) return;
+    const { data, error } = await supabase
+      .from('user_details')
+      .select('department')
+      .not('department', 'is', null)
+      .neq('department', '');
+
+    if (error) {
+      console.error('Fetch departments error:', error.message);
+      return;
+    }
+
+    // Get unique and sorted departments
+    const uniqueDeps = [...new Set(data.map(d => d.department))].sort();
+    setAvailableDepartments(uniqueDeps);
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+    fetchAvailableDepartments();
+  }, [fetchUsers, fetchAvailableDepartments]);
 
 
 
@@ -428,21 +452,30 @@ export default function UserManagement() {
 
 
     if (isSupabaseReady) {
-
-      const { error } = await supabase.from('users').delete().eq('id', deleteTarget.id);
+      console.log('[UserManagement] Calling rpc_delete_user_entirely for:', deleteTarget.id);
+      const { data: success, error } = await supabase.rpc('rpc_delete_user_entirely', {
+        p_user_id: deleteTarget.id
+      });
 
       if (error) {
-
         showToast(`Error: ${error.message}`);
-
         fetchUsers();
-
+      } else if (!success) {
+        showToast(`Error: Backend deletion failed.`);
+        fetchUsers();
+      } else {
+        if (deleteTarget.id === profile?.id) {
+          showToast('Account deleted. Signing out...');
+          setTimeout(() => {
+            signOut();
+          }, 1500);
+        } else {
+          showToast(`User "${deleteTarget.name}" deleted definitively.`);
+        }
       }
 
       cacheService.invalidatePattern('^users:');
-
       cacheService.invalidatePattern('^admin:');
-
     }
 
     setDeleting(false);
@@ -590,63 +623,56 @@ export default function UserManagement() {
 
 
   const handleEditSave = async (e) => {
-
     e.preventDefault();
+    if (!isSupabaseReady || !editUser) return;
 
+    setIsCreating(true);
     const newAvatar = editForm.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
-    // Optimistic
-
-    setUsers(prev => prev.map(u =>
-
-      u.id === editUser.id
-
-        ? { ...u, name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department, status: editForm.status, avatar: newAvatar }
-
-        : u
-
-    ));
-
-    showToast(`User "${editForm.name}" updated successfully!`);
-
-    setEditUser(null);
-
-
-
-    if (isSupabaseReady) {
-
+    try {
       const dbRole = roleMapReverse[editForm.role] || 'EMPLOYEE';
 
-      const { error } = await supabase.from('users').update({
-
+      // 1. Update users table (Name, Email, Role, Status)
+      const { error: userError } = await supabase.from('users').update({
         name: editForm.name,
-
         email: editForm.email,
-
         role: dbRole,
-
         status: editForm.status,
-
         avatar_initials: newAvatar,
-
       }).eq('id', editUser.id);
 
-      if (error) {
+      if (userError) throw userError;
 
-        showToast(`Error: ${error.message}`);
+      // 2. Update/Upsert user_details table (Department)
+      const { error: detailsError } = await supabase
+        .from('user_details')
+        .upsert({
+          id_user: editUser.id,
+          department: editForm.department
+        }, { onConflict: 'id_user' });
 
-        fetchUsers(); // rollback
-
-        return;
-
+      if (detailsError) {
+        console.warn('[UserManagement] Could not update user_details:', detailsError.message);
       }
 
-      cacheService.invalidatePattern('^users:');
+      // 3. Update local state
+      setUsers(prev => prev.map(u =>
+        u.id === editUser.id
+          ? { ...u, name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department, status: editForm.status, avatar: newAvatar }
+          : u
+      ));
 
+      cacheService.invalidatePattern('^users:');
       cacheService.invalidatePattern('^admin:');
 
+      showToast(`User "${editForm.name}" updated successfully!`);
+      setEditUser(null);
+    } catch (err) {
+      console.error('[UserManagement] Edit failed:', err);
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setIsCreating(false);
     }
-
   };
 
 
@@ -902,7 +928,7 @@ export default function UserManagement() {
               onChange={e => handleInputChange('department', e.target.value)}
               className={inputClassName + ' cursor-pointer'}>
               <option value="" disabled>Select department</option>
-              {departments.map(d => <option key={d} value={d}>{d}</option>)}
+              {availableDepartments.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
 
@@ -1090,13 +1116,13 @@ export default function UserManagement() {
             <div className="flex items-start gap-4">
 
               <div className={`flex items-center justify-center w-14 h-14 rounded-2xl
-
                                bg-gradient-to-br ${avatarColors[viewUser.role] || avatarColors.Employee}
-
-                               text-white text-lg font-bold shadow-lg shrink-0`}>
-
-                {viewUser.avatar}
-
+                               text-white text-lg font-bold shadow-lg shrink-0 overflow-hidden`}>
+                {viewUser.profile_image_url ? (
+                  <img src={viewUser.profile_image_url} alt={viewUser.name} className="w-full h-full object-cover" />
+                ) : (
+                  viewUser.avatar
+                )}
               </div>
 
               <div className="flex-1 min-w-0">
@@ -1301,23 +1327,20 @@ export default function UserManagement() {
               </div>
 
               <div>
-
                 <label className={labelClassName}>Department</label>
-
                 <select
-
                   value={editForm.department}
-
                   onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))}
-
                   className={inputClassName + ' cursor-pointer'}
-
                 >
-
-                  {departments.map(d => <option key={d} value={d}>{d}</option>)}
-
+                  <option value="">Select Department</option>
+                  {availableDepartments.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
                 </select>
-
+                <p className="text-[10px] text-text-tertiary mt-1 italic">
+                  Data from user_details table
+                </p>
               </div>
 
             </div>
@@ -1373,22 +1396,24 @@ export default function UserManagement() {
               </button>
 
               <button
-
                 type="submit"
-
+                disabled={isCreating}
                 className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-
-                           bg-gradient-to-r from-brand-500 to-brand-600
-
-                           shadow-md hover:shadow-lg hover:-translate-y-0.5
-
-                           active:translate-y-0 transition-all duration-200 cursor-pointer"
-
+                         bg-gradient-to-r from-brand-500 to-brand-600
+                         shadow-md hover:shadow-lg hover:-translate-y-0.5
+                         active:translate-y-0 transition-all duration-200 cursor-pointer
+                         disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
-
-                Save Changes
-
+                {isCreating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </button>
+
 
             </div>
 

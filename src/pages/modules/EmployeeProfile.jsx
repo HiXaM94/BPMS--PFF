@@ -259,6 +259,10 @@ function AvatarUpload({ initials, colorClass, imageUrl, onImageChange, isDark })
   const [preview, setPreview] = useState(imageUrl || null);
   const [uploading, setUploading] = useState(false);
 
+  useEffect(() => {
+    setPreview(imageUrl || null);
+  }, [imageUrl]);
+
   const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -422,8 +426,12 @@ function TeamAssignmentTool({ employees, onClose, onSave, entrepriseId }) {
                 className="p-3 bg-surface-primary rounded-xl border border-border-secondary shadow-sm cursor-move hover:border-brand-500/50 hover:shadow-md transition-all group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-600 font-bold text-xs uppercase">
-                    {emp.avatar}
+                  <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-600 font-bold text-xs uppercase shrink-0 overflow-hidden">
+                    {emp.profile_image_url ? (
+                      <img src={emp.profile_image_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      emp.avatar
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-text-primary truncate">{emp.name}</p>
@@ -454,8 +462,12 @@ function TeamAssignmentTool({ employees, onClose, onSave, entrepriseId }) {
               >
                 <div className="p-4 border-b border-border-secondary bg-surface-primary/50 rounded-t-2xl sticky top-0 z-10 backdrop-blur-sm">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-bold text-xs">
-                      {manager.avatar}
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-bold text-xs shrink-0 overflow-hidden">
+                      {manager.profile_image_url ? (
+                        <img src={manager.profile_image_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        manager.avatar
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-bold text-text-primary truncate">{manager.name}</h4>
@@ -473,8 +485,12 @@ function TeamAssignmentTool({ employees, onClose, onSave, entrepriseId }) {
                       className="p-3 bg-surface-primary rounded-xl border border-border-secondary shadow-sm cursor-move hover:border-brand-500/50 hover:shadow-md transition-all group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-bold text-xs">
-                          {emp.avatar}
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-bold text-xs shrink-0 overflow-hidden">
+                          {emp.profile_image_url ? (
+                            <img src={emp.profile_image_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            emp.avatar
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold text-text-primary truncate">{emp.name}</p>
@@ -525,7 +541,7 @@ function TeamAssignmentTool({ employees, onClose, onSave, entrepriseId }) {
 export default function EmployeeProfile() {
   const { currentRole } = useRole();
   const { t } = useLanguage();
-  const { profile: authProfile } = useAuth();
+  const { profile: authProfile, refreshProfile } = useAuth();
   const { isDark } = useTheme();
   const [search, setSearch] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -619,6 +635,7 @@ export default function EmployeeProfile() {
           user_id: u.id,
           role: u.role,
           employeeRecordId: employeeRecord.id || null,
+          profile_image_url: u.profile_image_url || null,
         };
       }));
     } catch (err) {
@@ -661,6 +678,7 @@ export default function EmployeeProfile() {
       cnss: selectedEmployee.cnss === '-' ? '' : (selectedEmployee.cnss || ''),
       rib: selectedEmployee.rib === '-' ? '' : (selectedEmployee.rib || ''),
       bio: selectedEmployee.bio || '',
+      profile_image_url: selectedEmployee.profile_image_url || '',
     });
     setIsEditing(false);
     setEditError('');
@@ -712,6 +730,36 @@ export default function EmployeeProfile() {
     setEditSuccess(false);
     try {
       const userId = selectedEmployee.user_id;
+      let finalImageUrl = selectedEmployee.profile_image_url;
+
+      // 1. Handle Image Upload if changed
+      if (editForm.profile_image_url && editForm.profile_image_url.startsWith('data:')) {
+        const fileExt = editForm.profile_image_url.split(';')[0].split('/')[1] || 'png';
+        const fileName = `${userId}-${Date.now()}.${fileExt}`;
+        const filePath = `profiles/${fileName}`;
+
+        try {
+          // Convert base64 to File
+          const responseData = await fetch(editForm.profile_image_url);
+          const blob = await responseData.blob();
+
+          const { error: uploadError } = await supabase.storage
+            .from('flowly-files')
+            .upload(filePath, blob);
+
+          if (uploadError) throw new Error(`Storage error: ${uploadError.message}`);
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('flowly-files')
+            .getPublicUrl(filePath);
+
+          finalImageUrl = publicUrl;
+        } catch (uploadErr) {
+          console.error('[EmployeeProfile] Image upload failed:', uploadErr);
+          throw new Error(`Failed to upload image: ${uploadErr.message}`);
+        }
+      }
+
       const employeePayload = {
         phone: editForm.phone || null,
         location: editForm.location || null,
@@ -742,14 +790,17 @@ export default function EmployeeProfile() {
         selectedEmployee.employeeRecordId = inserted?.id || selectedEmployee.employeeRecordId;
       }
 
-      const emailValue = editForm.email?.trim();
-      if (emailValue && emailValue !== selectedEmployee.email) {
-        const { error: emailError } = await supabase
-          .from('users')
-          .update({ email: emailValue })
-          .eq('id', userId);
-        if (emailError) throw emailError;
-      }
+      // 2. Update users table (Email and Profile Image)
+      const userUpdates = {
+        email: editForm.email?.trim() || selectedEmployee.email,
+        profile_image_url: finalImageUrl
+      };
+
+      const { error: userError } = await supabase
+        .from('users')
+        .update(userUpdates)
+        .eq('id', userId);
+      if (userError) throw userError;
 
       const updatedValues = {
         phone: editForm.phone || '-',
@@ -757,9 +808,11 @@ export default function EmployeeProfile() {
         cnss: editForm.cnss || '-',
         rib: editForm.rib || '-',
         bio: editForm.bio || '',
-        email: emailValue || selectedEmployee.email,
+        email: userUpdates.email,
+        profile_image_url: finalImageUrl
       };
 
+      // Update local state
       setEmployees(prev => prev.map(emp => (
         emp.id === selectedEmployee.id
           ? { ...emp, ...updatedValues }
@@ -767,6 +820,10 @@ export default function EmployeeProfile() {
       )));
 
       setSelectedEmployee(prev => (prev ? { ...prev, ...updatedValues } : prev));
+      if (userId === authProfile?.id && refreshProfile) {
+        await refreshProfile();
+      }
+
       setEditSuccess(true);
       setIsEditing(false);
     } catch (err) {
@@ -843,11 +900,14 @@ export default function EmployeeProfile() {
           >
             {/* Avatar + Status */}
             <div className="flex items-start justify-between mb-4">
-              <div className={`flex items-center justify-center w-12 h-12 rounded-xl
-                               bg-gradient-to-br ${avatarColors[idx % avatarColors.length]}
-                               text-white font-bold text-sm shadow-md
-                               group-hover:scale-110 transition-transform duration-300`}>
-                {emp.avatar}
+              <div className={`flex items-center justify-center w-14 h-14 rounded-2xl
+                                     bg-gradient-to-br ${avatarColors[idx % avatarColors.length]}
+                                     shadow-lg shadow-brand-500/10 group-hover:scale-105 transition-transform duration-300 shrink-0 overflow-hidden`}>
+                {emp.profile_image_url ? (
+                  <img src={emp.profile_image_url} alt={emp.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-white text-lg font-bold">{emp.avatar}</span>
+                )}
               </div>
               <div className="flex flex-col items-end gap-2">
                 <StatusBadge
@@ -914,20 +974,20 @@ export default function EmployeeProfile() {
           <div className="space-y-6">
             {/* Header row */}
             <div className="flex items-start gap-4">
-              {isEmployee ? (
+              {isEditing ? (
                 <AvatarUpload
                   initials={selectedEmployee.avatar}
-                  colorClass={avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
-                  imageUrl={avatarImages[selectedEmployee.id]}
-                  onImageChange={(url) => setAvatarImages(prev => ({ ...prev, [selectedEmployee.id]: url }))}
+                  colorClass={avatarColors[0]}
+                  imageUrl={editForm?.profile_image_url || selectedEmployee.profile_image_url || avatarImages[selectedEmployee.id]}
+                  onImageChange={(url) => setEditForm(prev => ({ ...prev, profile_image_url: url }))}
                   isDark={isDark}
                 />
               ) : (
                 <div className="flex items-center justify-center w-16 h-16 rounded-full
                                  bg-neutral-100 dark:bg-neutral-800 border-2 border-white dark:border-neutral-700
                                  text-neutral-600 dark:text-neutral-300 text-xl font-bold shadow-md shrink-0 overflow-hidden">
-                  {avatarImages[selectedEmployee.id]
-                    ? <img src={avatarImages[selectedEmployee.id]} alt="" className="w-full h-full object-cover" />
+                  {selectedEmployee.profile_image_url || avatarImages[selectedEmployee.id]
+                    ? <img src={selectedEmployee.profile_image_url || avatarImages[selectedEmployee.id]} alt="" className="w-full h-full object-cover" />
                     : selectedEmployee.avatar}
                 </div>
               )}
