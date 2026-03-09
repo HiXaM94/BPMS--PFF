@@ -32,6 +32,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { adminData } from '../../../data/mockData';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
 import { cacheService } from '../../../services/CacheService';
+import { aiHealthCheckService } from '../../../services/AIHealthCheckService';
 
 /* ─── Asset-style cards with colored backgrounds matching template ─── */
 const assetCards = [
@@ -311,7 +312,12 @@ export default function AdminDashboard() {
     useEffect(() => {
         const daysMap = { '1D': 1, '7D': 7, '15D': 15, '30D': 30 };
         fetchDashboardStats(daysMap[timeRange] || 7);
-    }, [fetchDashboardStats, timeRange]);
+
+        // Auto-run AI Health Check proactively
+        if (profile?.id && profile?.entreprise_id) {
+            aiHealthCheckService.runDailyHealthCheck(profile.id, profile.entreprise_id);
+        }
+    }, [fetchDashboardStats, timeRange, profile?.id]);
 
     const fetchProjectsOverview = useCallback(async () => {
         if (!profile?.entreprise_id) return;

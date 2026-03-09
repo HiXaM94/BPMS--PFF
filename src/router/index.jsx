@@ -1,80 +1,121 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import MainLayout from '../components/layout/MainLayout';
 import AuthGuard from '../components/ui/AuthGuard';
 import RoleGuard from '../components/ui/RoleGuard';
+
+// Eagerly loaded for fast core UX
+import Login from '../pages/auth/Login';
 import Dashboard from '../pages/Dashboard';
 import PlaceholderPage from '../pages/PlaceholderPage';
 
-// Auth pages
-import Login from '../pages/auth/Login';
-import Register from '../pages/auth/Register';
-import ForgotPassword from '../pages/auth/ForgotPassword';
-import ResetPassword from '../pages/auth/ResetPassword';
+// Suspense Loader
+const PageLoader = () => (
+  <div className="flex h-[50vh] items-center justify-center">
+    <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+  </div>
+);
 
-// Module pages
-import EnterpriseManagement from '../pages/modules/EnterpriseManagement';
-import UserManagement from '../pages/modules/UserManagement';
-import EmployeeProfile from '../pages/modules/EmployeeProfile';
-import Attendance from '../pages/modules/Attendance';
-import TaskPerformance from '../pages/modules/TaskPerformance';
-import VacationRequest from '../pages/modules/VacationRequest';
-import DocumentRequest from '../pages/modules/DocumentRequest';
-import Payroll from '../pages/modules/Payroll';
-import Recruitment from '../pages/modules/Recruitment';
-import HRWorkflow from '../pages/modules/HRWorkflow';
-import AIRecruitmentAssistant from '../pages/modules/HR/AIRecruitmentAssistant';
-import Settings from '../pages/Settings';
-import MySettings from '../pages/MySettings';
-import Permissions from '../pages/Permissions';
-import AIAssistant from '../pages/AIAssistant';
-import Analytics from '../pages/modules/Analytics';
-import RealAnalyticsRouter from '../pages/modules/RealAnalyticsRouter';
-import QRKiosk from '../pages/modules/attendance/qrcode/QRKiosk';
-import Notifications from '../pages/modules/Notifications';
-import CompleteProfile from '../pages/modules/CompleteProfile';
-import Tickets from '../pages/modules/Tickets';
+const Loadable = (Component) => (props) => (
+  <Suspense fallback={<PageLoader />}>
+    <Component {...props} />
+  </Suspense>
+);
+
+// Lazy Loaded Pages
+const Register = lazy(() => import('../pages/auth/Register'));
+const ForgotPassword = lazy(() => import('../pages/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('../pages/auth/ResetPassword'));
+
+const EnterpriseManagement = lazy(() => import('../pages/modules/EnterpriseManagement'));
+const UserManagement = lazy(() => import('../pages/modules/UserManagement'));
+const EmployeeProfile = lazy(() => import('../pages/modules/EmployeeProfile'));
+const Attendance = lazy(() => import('../pages/modules/Attendance'));
+const TaskPerformance = lazy(() => import('../pages/modules/TaskPerformance'));
+const VacationRequest = lazy(() => import('../pages/modules/VacationRequest'));
+const DocumentRequest = lazy(() => import('../pages/modules/DocumentRequest'));
+const Payroll = lazy(() => import('../pages/modules/Payroll'));
+const Recruitment = lazy(() => import('../pages/modules/Recruitment'));
+const HRWorkflow = lazy(() => import('../pages/modules/HRWorkflow'));
+const AIRecruitmentAssistant = lazy(() => import('../pages/modules/HR/AIRecruitmentAssistant'));
+const Settings = lazy(() => import('../pages/Settings'));
+const MySettings = lazy(() => import('../pages/MySettings'));
+const Permissions = lazy(() => import('../pages/Permissions'));
+const AIAssistant = lazy(() => import('../pages/AIAssistant'));
+const Analytics = lazy(() => import('../pages/modules/Analytics'));
+const RealAnalyticsRouter = lazy(() => import('../pages/modules/RealAnalyticsRouter'));
+const QRKiosk = lazy(() => import('../pages/modules/attendance/qrcode/QRKiosk'));
+const Notifications = lazy(() => import('../pages/modules/Notifications'));
+const CompleteProfile = lazy(() => import('../pages/modules/CompleteProfile'));
+const Tickets = lazy(() => import('../pages/modules/Tickets'));
+
+const LoadableRegister = Loadable(Register);
+const LoadableForgotPassword = Loadable(ForgotPassword);
+const LoadableResetPassword = Loadable(ResetPassword);
+const LoadableEnterpriseManagement = Loadable(EnterpriseManagement);
+const LoadableUserManagement = Loadable(UserManagement);
+const LoadableEmployeeProfile = Loadable(EmployeeProfile);
+const LoadableAttendance = Loadable(Attendance);
+const LoadableTaskPerformance = Loadable(TaskPerformance);
+const LoadableVacationRequest = Loadable(VacationRequest);
+const LoadableDocumentRequest = Loadable(DocumentRequest);
+const LoadablePayroll = Loadable(Payroll);
+const LoadableRecruitment = Loadable(Recruitment);
+const LoadableHRWorkflow = Loadable(HRWorkflow);
+const LoadableAIRecruitmentAssistant = Loadable(AIRecruitmentAssistant);
+const LoadableSettings = Loadable(Settings);
+const LoadableMySettings = Loadable(MySettings);
+const LoadablePermissions = Loadable(Permissions);
+const LoadableAIAssistant = Loadable(AIAssistant);
+const LoadableAnalytics = Loadable(Analytics);
+const LoadableRealAnalyticsRouter = Loadable(RealAnalyticsRouter);
+const LoadableQRKiosk = Loadable(QRKiosk);
+const LoadableNotifications = Loadable(Notifications);
+const LoadableCompleteProfile = Loadable(CompleteProfile);
+const LoadableTickets = Loadable(Tickets);
 
 const router = createBrowserRouter([
   // ── Public auth routes ──
   { path: '/login', element: <Login /> },
-  { path: '/register', element: <Register /> },
-  { path: '/forgot-password', element: <ForgotPassword /> },
-  { path: '/reset-password', element: <ResetPassword /> },
-  { path: '/kiosk', element: <QRKiosk /> },
+  { path: '/register', element: <LoadableRegister /> },
+  { path: '/forgot-password', element: <LoadableForgotPassword /> },
+  { path: '/reset-password', element: <LoadableResetPassword /> },
+  { path: '/kiosk', element: <LoadableQRKiosk /> },
 
   // ── Protected app routes ──
   {
     element: <AuthGuard><MainLayout /></AuthGuard>,
     children: [
       { index: true, element: <Dashboard /> },
-      { path: 'tickets', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'admin']}><Tickets /></RoleGuard> },
+      { path: 'tickets', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'admin']}><LoadableTickets /></RoleGuard> },
 
       // HR & People
-      { path: 'enterprise', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><EnterpriseManagement /></RoleGuard> },
-      { path: 'users', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><UserManagement /></RoleGuard> },
-      { path: 'profile', element: <EmployeeProfile /> },
-      { path: 'attendance', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><Attendance /></RoleGuard> },
-      { path: 'recruitment', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Recruitment /></RoleGuard> },
+      { path: 'enterprise', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><LoadableEnterpriseManagement /></RoleGuard> },
+      { path: 'users', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><LoadableUserManagement /></RoleGuard> },
+      { path: 'profile', element: <LoadableEmployeeProfile /> },
+      { path: 'attendance', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><LoadableAttendance /></RoleGuard> },
+      { path: 'recruitment', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><LoadableRecruitment /></RoleGuard> },
 
       // Workflows
-      { path: 'tasks', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><TaskPerformance /></RoleGuard> },
-      { path: 'vacation', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><VacationRequest /></RoleGuard> },
-      { path: 'documents', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><DocumentRequest /></RoleGuard> },
-      { path: 'payroll', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Payroll /></RoleGuard> },
-      { path: 'hr-workflow', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><HRWorkflow /></RoleGuard> },
+      { path: 'tasks', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><LoadableTaskPerformance /></RoleGuard> },
+      { path: 'vacation', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><LoadableVacationRequest /></RoleGuard> },
+      { path: 'documents', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><LoadableDocumentRequest /></RoleGuard> },
+      { path: 'payroll', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><LoadablePayroll /></RoleGuard> },
+      { path: 'hr-workflow', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><LoadableHRWorkflow /></RoleGuard> },
 
       // Intelligence
-      { path: 'subscriptions', element: <RoleGuard allowedRoles={['super_admin']}><Analytics /></RoleGuard> },
-      { path: 'analytics', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><RealAnalyticsRouter /></RoleGuard> },
-      { path: 'ai-assistant', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><AIAssistant /></RoleGuard> },
-      { path: 'ai-recruitment', element: <RoleGuard allowedRoles={['company_admin', 'hr']}><AIRecruitmentAssistant /></RoleGuard> },
-      { path: 'notifications', element: <Notifications /> },
+      { path: 'subscriptions', element: <RoleGuard allowedRoles={['super_admin']}><LoadableAnalytics /></RoleGuard> },
+      { path: 'analytics', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><LoadableRealAnalyticsRouter /></RoleGuard> },
+      { path: 'ai-assistant', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><LoadableAIAssistant /></RoleGuard> },
+      { path: 'ai-recruitment', element: <RoleGuard allowedRoles={['company_admin', 'hr']}><LoadableAIRecruitmentAssistant /></RoleGuard> },
+      { path: 'notifications', element: <LoadableNotifications /> },
 
       // System
-      { path: 'permissions', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><Permissions /></RoleGuard> },
-      { path: 'settings', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><Settings /></RoleGuard> },
-      { path: 'my-settings', element: <RoleGuard allowedRoles={['manager', 'employee']}><MySettings /></RoleGuard> },
-      { path: 'complete-profile', element: <RoleGuard allowedRoles={['employee', 'manager', 'team_manager']}><CompleteProfile /></RoleGuard> },
+      { path: 'permissions', element: <RoleGuard allowedRoles={['super_admin', 'company_admin']}><LoadablePermissions /></RoleGuard> },
+      { path: 'settings', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><LoadableSettings /></RoleGuard> },
+      { path: 'my-settings', element: <RoleGuard allowedRoles={['manager', 'employee']}><LoadableMySettings /></RoleGuard> },
+      { path: 'complete-profile', element: <RoleGuard allowedRoles={['employee', 'manager', 'team_manager']}><LoadableCompleteProfile /></RoleGuard> },
 
       { path: '*', element: <PlaceholderPage title="Page Not Found" /> },
     ],
