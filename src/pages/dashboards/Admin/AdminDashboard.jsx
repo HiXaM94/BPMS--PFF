@@ -19,7 +19,8 @@ import {
     Clock,
     Shield,
     AlertCircle,
-    Check
+    Check,
+    RotateCcw
 } from 'lucide-react';
 
 import StatCard from '../../../components/ui/StatCard';
@@ -144,6 +145,7 @@ export default function AdminDashboard() {
     });
     const { profile, signUpSilently } = useAuth();
     const [globalLeave, setGlobalLeave] = useState([]);
+    const [globalLeaveStatus, setGlobalLeaveStatus] = useState('Normal Load');
     const [entrepriseInfo, setEntrepriseInfo] = useState(null);
     const [projectsOverview, setProjectsOverview] = useState([]);
     const [projectsLoading, setProjectsLoading] = useState(false);
@@ -265,6 +267,7 @@ export default function AdminDashboard() {
                     { status: 'pending', count: data.leave_pending },
                     { status: 'approved', count: data.leave_approved }
                 ]);
+                setGlobalLeaveStatus(data.leave_status_label || 'Normal Load');
                 setLatestAttendance(data.latest_attendance || []);
                 setChartData(data.chart_data || []);
                 setRoleDistribution(data.role_distribution || []);
@@ -482,7 +485,7 @@ export default function AdminDashboard() {
                 {/* Asset-style cards column — stretches to match System Usage height */}
                 <div className="lg:col-span-7 flex flex-col">
                     <h2 className="text-sm font-semibold text-text-secondary mb-3">Quick Stats</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
                         {cards.map((card, i) => (
                             <div
                                 key={i}
@@ -514,7 +517,7 @@ export default function AdminDashboard() {
                             </div>
                         ))}
                         {/* Global Leave Stats Card */}
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-border-secondary animate-fade-in flex flex-col justify-between"
+                        <div className="bg-[#fff8f1] dark:bg-orange-500/10 rounded-2xl p-5 border border-border-secondary animate-fade-in flex flex-col justify-between"
                             style={{ animationDelay: '240ms' }}>
                             <div>
                                 <span className="text-sm font-semibold text-text-secondary block mb-2 uppercase tracking-wider">Global Leave</span>
@@ -535,8 +538,8 @@ export default function AdminDashboard() {
                             </div>
                             <div className="mt-4 pt-4 border-t border-border-secondary flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    <span className="text-xs font-medium text-text-secondary">Normal Load</span>
+                                    <div className={`w-2 h-2 rounded-full ${globalLeaveStatus === 'High Load' ? 'bg-red-500' : globalLeaveStatus === 'Moderate Load' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                    <span className="text-xs font-medium text-text-secondary">{globalLeaveStatus}</span>
                                 </div>
                                 <Palmtree size={14} className="text-text-tertiary" />
                             </div>
@@ -571,7 +574,7 @@ export default function AdminDashboard() {
                                     <th className="px-5 py-3">Project Manager</th>
                                     <th className="px-5 py-3">Progress</th>
                                     <th className="px-5 py-3">Status</th>
-                                    <th className="px-5 py-3 text-right">Validation</th>
+                                    <th className="px-5 py-3 text-center">Validation</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border-secondary">
@@ -596,15 +599,23 @@ export default function AdminDashboard() {
                                                 {project.valider ? 'Validated' : project.status?.replace('_', ' ') || 'Pending'}
                                             </StatusBadge>
                                         </td>
-                                        <td className="px-5 py-4 text-right">
+                                        <td className="px-5 py-4 text-center">
                                             <button
                                                 disabled={projectValidationProcessing[project.id]}
                                                 onClick={() => handleToggleProjectValidation(project.id, project.valider)}
-                                                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-wait ${project.valider ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
+                                                className={`flex items-center justify-center gap-1.5 mx-auto px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all shadow-sm border disabled:opacity-50 disabled:cursor-wait
+                                                    ${project.valider
+                                                        ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:border-red-300'
+                                                        : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'}`}
                                             >
-                                                {projectValidationProcessing[project.id]
-                                                    ? 'Updating…'
-                                                    : project.valider ? 'Set to Pending' : 'Validate'}
+                                                {projectValidationProcessing[project.id] ? (
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                                ) : project.valider ? (
+                                                    <RotateCcw size={13} strokeWidth={2.5} />
+                                                ) : (
+                                                    <Check size={13} strokeWidth={2.5} />
+                                                )}
+                                                {projectValidationProcessing[project.id] ? 'Wait...' : project.valider ? 'Revoke' : 'Validate'}
                                             </button>
                                         </td>
                                     </tr>

@@ -22,6 +22,11 @@ export default function HRManagerAttendance() {
     const [currentCorrection, setCurrentCorrection] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [toast, setToast] = useState({ message: '', type: 'success' });
+    const [handledAbsent, setHandledAbsent] = useState(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const stored = localStorage.getItem(`hr_handled_absent_${today}`);
+        return stored ? JSON.parse(stored) : [];
+    });
 
     // Templates
     const [remindTemplate, setRemindTemplate] = useState(localStorage.getItem('hr_remind_template') || 'Reminder: {name}, you haven\'t clocked in today. Please check in if you are in company.');
@@ -408,7 +413,7 @@ export default function HRManagerAttendance() {
         }
     };
 
-    const sendHRNotification = async (userId, empName, type, template) => {
+    const sendHRNotification = async (userId, empName, type, template, empId = null) => {
         if (!isSupabaseReady) return;
 
         // Simple placeholder replacement
@@ -426,6 +431,16 @@ export default function HRManagerAttendance() {
 
             if (error) throw error;
             flash(`Message sent to ${empName}`);
+
+            // If it's an absent notification, mark as handled
+            if (empId && (pages.active === 'absent' || !pages.active)) {
+                setHandledAbsent(prev => {
+                    const next = [...new Set([...prev, empId])];
+                    const today = new Date().toISOString().split('T')[0];
+                    localStorage.setItem(`hr_handled_absent_${today}`, JSON.stringify(next));
+                    return next;
+                });
+            }
         } catch (err) {
             flash(err.message, 'error');
         }
@@ -477,7 +492,7 @@ export default function HRManagerAttendance() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     <StatCard title="Clocked In" value={`${stats.present}/${stats.total}`} subtitle={`${stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0}% present`} icon={UserCheck} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
                     <StatCard title="Late Arrivals" value={stats.late.toString()} subtitle="Clocked in after 9:15" icon={AlertCircle} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
-                    <StatCard title="Not Clocked In" value={stats.absent.toString()} subtitle="Action required" icon={AlertCircle} iconColor="bg-gradient-to-br from-red-500 to-rose-500" />
+                    <StatCard title="Not Clocked In" value={(stats.absent - (handledAbsent?.length || 0)).toString()} subtitle={`${handledAbsent?.length || 0} handled`} icon={AlertCircle} iconColor="bg-gradient-to-br from-red-500 to-rose-500" />
                     <StatCard title="On Break" value="0" subtitle="Not implemented" icon={Clock} iconColor="bg-gradient-to-br from-blue-500 to-indigo-500" />
                 </div>
 
@@ -497,7 +512,7 @@ export default function HRManagerAttendance() {
                                             : 'text-text-secondary hover:text-text-primary'
                                             }`}
                                     >
-                                        {cat} ({cat === 'absent' ? absentEmployees.length : cat === 'late' ? lateEmployees.length : presentEmployees.length})
+                                        {cat} ({cat === 'absent' ? (absentEmployees.length - handledAbsent.length) : cat === 'late' ? lateEmployees.length : presentEmployees.length})
                                     </button>
                                 ))}
                             </div>
@@ -509,6 +524,7 @@ export default function HRManagerAttendance() {
                                 {((pages.active || 'absent') === 'absent' ? absentEmployees :
                                     (pages.active || 'absent') === 'late' ? lateEmployees :
                                         presentEmployees)
+                                    .filter(item => (pages.active || 'absent') !== 'absent' || !handledAbsent.includes(item.id))
                                     .slice(pages[(pages.active || 'absent')] * itemsPerPage, (pages[(pages.active || 'absent')] + 1) * itemsPerPage)
                                     .map((item, i) => {
                                         const cat = pages.active || 'absent';
@@ -526,14 +542,14 @@ export default function HRManagerAttendance() {
                                                     </div>
                                                     <div className="flex gap-2">
                                                         <button
-                                                            onClick={() => sendHRNotification(item.user_id, item.users?.name || 'Employee', 'warning', remindTemplate)}
+                                                            onClick={() => sendHRNotification(item.user_id, item.users?.name || 'Employee', 'warning', remindTemplate, item.id)}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold bg-white text-text-primary border border-border-secondary rounded-lg hover:border-brand-500 transition-all cursor-pointer group/btn"
                                                         >
                                                             <BellRing size={12} className="text-amber-500 transition-transform group-hover/btn:scale-110" />
                                                             Remind
                                                         </button>
                                                         <button
-                                                            onClick={() => sendHRNotification(item.user_id, item.users?.name || 'Employee', 'error', alertTemplate)}
+                                                            onClick={() => sendHRNotification(item.user_id, item.users?.name || 'Employee', 'error', alertTemplate, item.id)}
                                                             className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold bg-white text-rose-500 border border-border-secondary rounded-lg hover:border-rose-500 transition-all cursor-pointer group/btn"
                                                         >
                                                             <AlertTriangle size={12} className="text-rose-500 transition-transform group-hover/btn:scale-110" />
@@ -810,7 +826,7 @@ export default function HRManagerAttendance() {
                         * Reports are generated based on the current month's attendance logs in the database.
                     </p>
                 </div>
-            </div >
+            </div>
             {/* Template Configuration Modal */}
             {
                 isTemplateModalOpen && (
@@ -979,6 +995,6 @@ export default function HRManagerAttendance() {
                     </div>
                 )
             }
-        </div >
+        </div>
     );
 }

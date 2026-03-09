@@ -566,17 +566,17 @@ export default function AIRecruitmentAssistant() {
                     )}
 
                     {analysisResult && (
-                        <div className="mt-6 p-5 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-2xl animate-fade-in relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/40 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                        <div className="mt-6 p-5 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/40 dark:to-purple-950/40 border border-indigo-100 dark:border-indigo-500/20 rounded-2xl animate-fade-in relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/40 dark:bg-brand-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
                             <div className="relative z-10">
                                 <div className="flex flex-col mb-4">
                                     <div className="flex items-center gap-2 mb-1">
                                         <CheckCircle2 size={18} className="text-emerald-500" />
-                                        <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wider">AI Recommendation</h3>
+                                        <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider">AI Recommendation</h3>
                                     </div>
                                 </div>
 
-                                <div className="bg-white/60 rounded-xl p-4 text-sm text-indigo-950 whitespace-pre-wrap leading-relaxed border border-white/50 shadow-sm font-medium">
+                                <div className="bg-white/60 dark:bg-surface-secondary/50 rounded-xl p-4 text-sm text-indigo-950 dark:text-indigo-100 whitespace-pre-wrap leading-relaxed border border-white/50 dark:border-indigo-500/20 shadow-sm font-medium">
                                     {analysisResult}
                                 </div>
                             </div>

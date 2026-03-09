@@ -8,16 +8,40 @@ DECLARE
     result JSONB;
     v_total_users INT;
     v_new_users_week INT;
+    v_total_employees INT;
+    v_on_leave_today INT;
+    v_leave_load_pct NUMERIC;
+    v_leave_status_label TEXT;
 BEGIN
     -- Basic counts
     SELECT count(id) INTO v_total_users FROM public.users WHERE entreprise_id = p_entreprise_id;
     SELECT count(id) INTO v_new_users_week FROM public.users 
     WHERE entreprise_id = p_entreprise_id AND created_at >= NOW() - interval '7 days';
+    
+    SELECT count(u.id) INTO v_total_employees 
+    FROM public.users u 
+    WHERE u.entreprise_id = p_entreprise_id AND u.role = 'EMPLOYEE'::user_role;
+
+    -- Global Leave Load calculation
+    SELECT count(v.id) INTO v_on_leave_today
+    FROM public.vacances v
+    JOIN public.employees e ON e.id = v.employee_id
+    WHERE e.entreprise_id = p_entreprise_id 
+    AND v.status = 'approved'::leave_status
+    AND CURRENT_DATE BETWEEN v.start_date AND v.end_date;
+
+    v_leave_load_pct := CASE WHEN v_total_employees > 0 THEN (v_on_leave_today * 100.0 / v_total_employees) ELSE 0 END;
+    
+    v_leave_status_label := CASE 
+        WHEN v_leave_load_pct > 30 THEN 'High Load'
+        WHEN v_leave_load_pct > 15 THEN 'Moderate Load'
+        ELSE 'Normal Load'
+    END;
 
     SELECT jsonb_build_object(
         'total_users', v_total_users,
         'user_trend_pct', ROUND(CASE WHEN v_total_users > 0 THEN (v_new_users_week * 100.0 / v_total_users) ELSE 0 END, 1),
-        'total_employees', (SELECT count(u.id) FROM public.users u WHERE u.entreprise_id = p_entreprise_id AND u.role = 'EMPLOYEE'::user_role),
+        'total_employees', v_total_employees,
         'attendance_today', (
             SELECT count(p.id) 
             FROM public.presences p
@@ -27,7 +51,7 @@ BEGIN
         'pending_documents', (
             SELECT count(d.id) 
             FROM public.documents d 
-            WHERE d.entreprise_id = p_entreprise_id AND d.status = 'pending'::document_status
+            WHERE d.entreprise_id = p_entreprise_id AND d.status IN ('pending'::document_status, 'submitted'::document_status)
         ),
         'leave_pending', (
             SELECT count(v.id) 
@@ -41,6 +65,7 @@ BEGIN
             JOIN public.employees e ON e.id = v.employee_id
             WHERE e.entreprise_id = p_entreprise_id AND v.status = 'approved'::leave_status
         ),
+        'leave_status_label', v_leave_status_label,
         'chart_data', (
             -- Dynamic attendance activity chart
             SELECT jsonb_agg(day_stats)
@@ -96,12 +121,12 @@ BEGIN
                 SELECT 
                     d.id,
                     d.title,
-                    d.type,
+                    COALESCE(d.doc_type, d.type::text) as type,
                     u.name as uploaded_by_name,
                     d.uploaded_at,
                     d.status
                 FROM public.documents d
-                LEFT JOIN public.users u ON u.id = d.uploaded_by
+                LEFT JOIN public.users u ON u.id = d.user_id
                 WHERE d.entreprise_id = p_entreprise_id
                 ORDER BY d.uploaded_at DESC
                 LIMIT 10
@@ -135,4 +160,4 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats(UUID, INT) TO authenticated;

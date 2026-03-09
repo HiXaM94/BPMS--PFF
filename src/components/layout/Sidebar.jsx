@@ -148,8 +148,8 @@ export default function Sidebar() {
               <div className={`${isCollapsed ? 'px-2' : 'px-3'}`}>
                 <div className={`group flex items-center transition-all duration-500 rounded-2xl
                                 ${isCollapsed
-                    ? 'justify-center w-12 h-12 mx-auto bg-white border border-border-secondary shadow-sm hover:border-brand-500/30'
-                    : 'w-full gap-3 p-2.5 bg-white border border-brand-500/5 shadow-sm hover:shadow-md hover:border-brand-500/20 transition-all'}`}>
+                    ? 'justify-center w-12 h-12 mx-auto bg-surface-primary border border-border-secondary shadow-sm hover:border-brand-500/30'
+                    : 'w-full gap-3 p-2.5 bg-surface-primary border border-brand-500/5 shadow-sm hover:shadow-md hover:border-brand-500/20 transition-all'}`}>
 
                   <div className={`shrink-0 overflow-hidden rounded-xl shadow-inner border border-border-secondary/50 bg-surface-primary
                                   ${isCollapsed ? 'w-8 h-8' : 'w-9 h-9'}`}>
@@ -249,7 +249,7 @@ export default function Sidebar() {
             {/* Company Card Section - Only for non-super admins */}
             {currentRole?.id !== 'super_admin' && (
               <div className="px-3">
-                <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-white border border-brand-500/5 shadow-sm">
+                <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-surface-primary border border-brand-500/5 shadow-sm">
                   <div className="w-9 h-9 shrink-0 overflow-hidden rounded-xl shadow-inner border border-border-secondary/50 bg-surface-primary">
                     <img
                       src={profile?.entreprise?.logo_url || LogoDemo}

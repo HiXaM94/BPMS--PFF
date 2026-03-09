@@ -77,7 +77,13 @@ export default function EmployeeAttendance() {
                 }
                 return s + h;
             }, 0);
-            const ot = historyData.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+            const ot = historyData.reduce((s, r) => {
+                const dbOt = r.overtime_hours || 0;
+                if (dbOt > 0) return s + dbOt;
+                // Fallback: any day with > 8 hours counts as overtime
+                const h = r.hours_worked || 0;
+                return s + Math.max(0, h - 8);
+            }, 0);
             setMonthlyHours(Math.round(hrs * 10) / 10);
             setOvertime(Math.round(ot * 10) / 10);
             setHistory(historyData);
@@ -171,12 +177,12 @@ export default function EmployeeAttendance() {
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-surface-primary border border-border-secondary p-4 rounded-2xl flex flex-col items-center justify-center text-center">
-                            <Clock size={24} className="text-text-tertiary mb-2" />
+                            <Clock size={24} className="text-slate-500 dark:text-white mb-2" />
                             <span className="text-2xl font-bold text-text-primary">{monthlyHours}h</span>
                             <span className="text-xs font-medium text-text-secondary mt-1">Worked This Month</span>
                         </div>
                         <div className="bg-surface-primary border border-border-secondary p-4 rounded-2xl flex flex-col items-center justify-center text-center">
-                            <History size={24} className="text-text-tertiary mb-2" />
+                            <History size={24} className="text-slate-500 dark:text-white mb-2" />
                             <span className="text-2xl font-bold text-text-primary">{overtime}h</span>
                             <span className="text-xs font-medium text-text-secondary mt-1">Overtime This Month</span>
                         </div>
