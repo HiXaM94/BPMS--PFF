@@ -6,12 +6,13 @@
  */
 
 import { supabase, isSupabaseReady } from './supabase';
+import { companyDataService } from './CompanyDataService';
 
 class AIService {
   constructor() {
-    this.apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    this.baseURL = 'https://api.openai.com/v1';
-    this.model = 'gpt-4-turbo-preview';
+    this.apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    this.baseURL = 'https://api.groq.com/openai/v1';
+    this.model = 'llama-3.3-70b-versatile';
   }
 
   /* ─────────── Logging (fire-and-forget, NEVER blocks callers) ─────────── */
@@ -38,9 +39,13 @@ class AIService {
   /* ─────────── Main Chat ─────────── */
 
   async chat(message, context = {}) {
-    // 1. If we have an OpenAI key, use the real API
+    // 1. If we have a Groq key, use the real API with live company data
     if (this.apiKey) {
       try {
+        // Fetch live company data filtered by the user's entreprise
+        const companyData = await companyDataService.getFullCompanyReport(context.entreprise_id);
+        const contextString = JSON.stringify(companyData, null, 2);
+
         const res = await fetch(`${this.baseURL}/chat/completions`, {
           method: 'POST',
           headers: {
@@ -50,21 +55,41 @@ class AIService {
           body: JSON.stringify({
             model: this.model,
             messages: [
-              { role: 'system', content: 'You are an AI assistant for Flowly. Help HR managers, team leads, and employees with tasks, analytics, and recommendations. Be professional, concise, and actionable.' },
+              {
+                role: 'system',
+                content: `You are an elite AI Business Advisor, CEO consultant, and HR Director for the company.
+Follow these rules strictly:
+1. Provide strategic, data-driven answers based ONLY on the real company data provided below.
+2. Format responses with clear structure: Analysis -> Causes -> Solutions (Short-term 0-3 months / Medium-term 3-6 months / Long-term 6-12 months).
+3. Be professional, concise, and actionable.
+4. Always reference real numbers from the data (attendance rate, late rate, leave utilization, payroll cost, task counts, etc.).
+5. If the user asks about "today", focus on current-day metrics.
+Here is the live company data:\n${contextString}`
+              },
               { role: 'user', content: message },
             ],
             temperature: 0.7,
-            max_tokens: 800,
+            max_tokens: 1500,
           }),
         });
+
         const data = await res.json();
+
+        if (!res.ok) {
+          console.error('[AIService] Groq API Error:', data);
+          return `🚨 **AI Connection Error**\nThe AI provider returned an error: ${data.error?.message || res.statusText}\n\nPlease check your Groq API key or rate limits.`;
+        }
+
         const text = data.choices?.[0]?.message?.content;
         if (text) {
           this.logInteraction('chat', message, text, { ...context, tokens: data.usage?.total_tokens });
           return text;
+        } else {
+           return `🚨 **AI Connection Error**\nThe AI returned an empty or invalid response.`;
         }
       } catch (err) {
-        console.warn('[AIService] OpenAI call failed, falling back to smart mock:', err.message);
+        console.warn('[AIService] Groq API call failed:', err.message);
+        return `🚨 **System Error**\nFailed to reach the AI service: ${err.message}.`;
       }
     }
 
@@ -72,6 +97,54 @@ class AIService {
     const reply = await this.generateSmartResponse(message, context);
     this.logInteraction('chat', message, reply, context);
     return reply;
+  }
+
+  /* ─────────── Smart Insights Generation ─────────── */
+
+  async getSmartInsights(entrepriseId = null) {
+    if (!this.apiKey) return null;
+
+    try {
+      const companyData = await companyDataService.getFullCompanyReport(entrepriseId);
+      const contextString = JSON.stringify(companyData, null, 2);
+
+      const res = await fetch(`${this.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            {
+              role: 'system',
+              content: `You are an elite AI Business Advisor.
+Analyze the following company data and return exactly valid JSON matching this structure:
+{
+  "productivity": {"issue": "string", "recommendation": "string"},
+  "hiring": {"issue": "string", "recommendation": "string"},
+  "structure": {"issue": "string", "recommendation": "string"},
+  "operations": {"issue": "string", "recommendation": "string"}
+}
+Do not include any explanation or markdown formatting around the JSON.
+Here is the live data: ${contextString}`
+            }
+          ],
+          temperature: 0.2, // Low temp for more deterministic JSON
+          max_tokens: 1500,
+          response_format: { type: "json_object" }
+        }),
+      });
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content;
+      if (text) {
+        return JSON.parse(text);
+      }
+    } catch (err) {
+      console.warn('[AIService] getSmartInsights failed:', err.message);
+      return null;
+    }
   }
 
   /* ─────────── Smart Mock Response Engine ─────────── */
@@ -268,7 +341,7 @@ Would you like me to analyze a specific position or department?`;
       try {
         const { count } = await supabase.from('users').select('id', { count: 'exact', head: true });
         userCount = count || 0;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     return `📊 **Performance Analysis Summary**
@@ -303,7 +376,7 @@ Would you like a detailed breakdown by department or employee?`;
       try {
         const { count } = await supabase.from('vacances').select('id', { count: 'exact', head: true }).eq('status', 'pending');
         pendingCount = count || 0;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     return `🏖️ **Leave Management Summary**
@@ -339,7 +412,7 @@ Would you like me to help process the pending requests or analyze leave trends?`
           const absent = data.filter(r => r.status === 'absent').length;
           stats = { present: present + late, late, absent, total: data.length };
         }
-      } catch (_) {}
+      } catch (_) { }
     }
 
     if (stats) {
@@ -421,8 +494,8 @@ Check the **Attendance Dashboard** for real-time monitoring!`;
       aiReasoning: index === 0
         ? 'Top match — strong skills alignment and relevant experience'
         : index === 1
-        ? 'Strong candidate — solid background with growth potential'
-        : 'Potential fit — recommend further technical assessment',
+          ? 'Strong candidate — solid background with growth potential'
+          : 'Potential fit — recommend further technical assessment',
     })).sort((a, b) => b.aiScore - a.aiScore);
   }
 
@@ -433,8 +506,8 @@ Check the **Attendance Dashboard** for real-time monitoring!`;
       aiReasoning: index === 0
         ? 'Excellent match - strong technical skills and relevant experience'
         : index === 1
-        ? 'Good fit - solid background with growth potential'
-        : 'Potential candidate - requires further evaluation',
+          ? 'Good fit - solid background with growth potential'
+          : 'Potential candidate - requires further evaluation',
     }));
   }
 
