@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+console.log('DEBUG: EmployeeDocuments.jsx loaded - UPDATED VERSION');
 import {
     FileCheck, Download, UploadCloud, AlertCircle, FileText, Send, Clock,
     CheckCircle2, Loader2, History, Eye, Trash2, X, File, RefreshCw, XCircle
@@ -248,6 +249,7 @@ export default function EmployeeDocuments() {
 
         setSubmitting(true);
         if (isSupabaseReady && profile?.id) {
+            console.log('DEBUG: Submitting with employee_id:', profile.id);
             const { error } = await supabase
                 .from('documents')
                 .update({ status: 'submitted' })
