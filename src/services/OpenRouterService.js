@@ -80,7 +80,7 @@ ${evaluationsText}`;
             const data = await response.json();
             return data.choices[0].message.content.trim();
         } catch (error) {
-            console.error('Error calling Hugging Face API:', error);
+            console.error('Error calling Groq API:', error);
             throw new Error('Failed to generate response using AI.');
         }
     }
