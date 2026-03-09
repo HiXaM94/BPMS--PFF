@@ -177,12 +177,12 @@ export default function EmployeeAttendance() {
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-surface-primary border border-border-secondary p-4 rounded-2xl flex flex-col items-center justify-center text-center">
-                            <Clock size={24} className="text-text-tertiary mb-2" />
+                            <Clock size={24} className="text-slate-500 dark:text-white mb-2" />
                             <span className="text-2xl font-bold text-text-primary">{monthlyHours}h</span>
                             <span className="text-xs font-medium text-text-secondary mt-1">Worked This Month</span>
                         </div>
                         <div className="bg-surface-primary border border-border-secondary p-4 rounded-2xl flex flex-col items-center justify-center text-center">
-                            <History size={24} className="text-text-tertiary mb-2" />
+                            <History size={24} className="text-slate-500 dark:text-white mb-2" />
                             <span className="text-2xl font-bold text-text-primary">{overtime}h</span>
                             <span className="text-xs font-medium text-text-secondary mt-1">Overtime This Month</span>
                         </div>
