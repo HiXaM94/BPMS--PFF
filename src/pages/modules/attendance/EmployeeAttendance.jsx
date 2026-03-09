@@ -77,7 +77,13 @@ export default function EmployeeAttendance() {
                 }
                 return s + h;
             }, 0);
-            const ot = historyData.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+            const ot = historyData.reduce((s, r) => {
+                const dbOt = r.overtime_hours || 0;
+                if (dbOt > 0) return s + dbOt;
+                // Fallback: any day with > 8 hours counts as overtime
+                const h = r.hours_worked || 0;
+                return s + Math.max(0, h - 8);
+            }, 0);
             setMonthlyHours(Math.round(hrs * 10) / 10);
             setOvertime(Math.round(ot * 10) / 10);
             setHistory(historyData);
