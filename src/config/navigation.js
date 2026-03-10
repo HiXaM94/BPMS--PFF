@@ -40,7 +40,7 @@ export const navigationItems = [
       { id: 'profile', label: 'Employee Profile', icon: User, path: '/profile', roles: ['company_admin', 'hr', 'manager', 'employee'] },
       { id: 'attendance', label: 'Attendance', icon: Clock, path: '/attendance', roles: ['super_admin', 'company_admin', 'hr', 'manager', 'employee'] },
       { id: 'recruitment', label: 'Recruitment', icon: Briefcase, path: '/recruitment', roles: ['company_admin', 'hr'] },
-      { id: 'ai-recruitment', label: 'AI Recruitment Assistant', icon: Sparkles, path: '/ai-recruitment', roles: ['company_admin', 'hr'] },
+      { id: 'ai-recruitment', label: 'AI Recruitment Assistant', icon: Sparkles, path: '/ai-recruitment', roles: ['hr'] },
     ],
   },
   {
@@ -50,7 +50,7 @@ export const navigationItems = [
       { id: 'vacation', label: 'Vacation Request', icon: Palmtree, path: '/vacation', roles: ['super_admin', 'company_admin', 'hr', 'manager', 'employee'] },
       { id: 'documents', label: 'Document Request', icon: File, path: '/documents', roles: ['company_admin', 'hr', 'manager', 'employee'] },
       { id: 'payroll', label: 'Payroll', icon: Banknote, path: '/payroll', roles: ['super_admin', 'company_admin', 'hr'] },
-      { id: 'hr-workflow', label: 'HR Workflow', icon: GitBranch, path: '/hr-workflow', roles: ['company_admin', 'hr', 'manager'] },
+      { id: 'hr-workflow', label: 'HR Workflow', icon: GitBranch, path: '/hr-workflow', roles: ['hr'] },
     ],
   },
 
@@ -58,7 +58,7 @@ export const navigationItems = [
     section: 'Intelligence',
     items: [
       { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics', roles: ['super_admin', 'company_admin', 'manager'] },
-      { id: 'ai-assistant', label: 'AI Assistant', icon: Sparkles, path: '/ai-assistant', roles: ['super_admin', 'company_admin', 'hr', 'manager'] },
+      { id: 'ai-assistant', label: 'AI Assistant', icon: Sparkles, path: '/ai-assistant', roles: ['super_admin', 'company_admin', 'hr'] },
       { id: 'notifications', label: 'Notifications', icon: Bell, path: '/notifications', roles: ['all'] },
     ],
   },

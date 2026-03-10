@@ -102,13 +102,13 @@ const router = createBrowserRouter([
       { path: 'vacation', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><LoadableVacationRequest /></RoleGuard> },
       { path: 'documents', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager', 'employee']}><LoadableDocumentRequest /></RoleGuard> },
       { path: 'payroll', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr']}><LoadablePayroll /></RoleGuard> },
-      { path: 'hr-workflow', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><LoadableHRWorkflow /></RoleGuard> },
+      { path: 'hr-workflow', element: <RoleGuard allowedRoles={['super_admin', 'hr']}><LoadableHRWorkflow /></RoleGuard> },
 
       // Intelligence
       { path: 'subscriptions', element: <RoleGuard allowedRoles={['super_admin']}><LoadableAnalytics /></RoleGuard> },
       { path: 'analytics', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'manager']}><LoadableRealAnalyticsRouter /></RoleGuard> },
-      { path: 'ai-assistant', element: <RoleGuard allowedRoles={['super_admin', 'company_admin', 'hr', 'manager']}><LoadableAIAssistant /></RoleGuard> },
-      { path: 'ai-recruitment', element: <RoleGuard allowedRoles={['company_admin', 'hr']}><LoadableAIRecruitmentAssistant /></RoleGuard> },
+      { path: 'ai-assistant', element: <RoleGuard allowedRoles={['super_admin', 'hr']}><LoadableAIAssistant /></RoleGuard> },
+      { path: 'ai-recruitment', element: <RoleGuard allowedRoles={['hr']}><LoadableAIRecruitmentAssistant /></RoleGuard> },
       { path: 'notifications', element: <LoadableNotifications /> },
 
       // System
