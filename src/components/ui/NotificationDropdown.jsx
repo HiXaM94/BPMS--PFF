@@ -111,7 +111,7 @@ export default function NotificationDropdown() {
                   key={notif.id}
                   className={`relative flex gap-3 px-4 py-3.5 cursor-pointer group
                              transition-all duration-200 animate-fade-in
-                             ${!notif.is_read ? 'bg-brand-500/3 hover:bg-brand-500/6' : 'hover:bg-surface-secondary/50'}`}
+                             ${!notif.is_read ? 'bg-surface-secondary hover:bg-surface-tertiary' : 'hover:bg-surface-secondary/50'}`}
                   style={{ animationDelay: `${i * 40}ms` }}
                   onClick={() => {
                     markAsRead(notif.id);
@@ -133,7 +133,7 @@ export default function NotificationDropdown() {
                       {notif.message.includes('Reason: ') ? (
                         <>
                           <span className="block mb-1.5">{notif.message.split('. Reason: ')[0].trim()}</span>
-                          <span className="block text-xs text-red-700 bg-red-50 p-2 rounded-lg border border-red-100 font-medium line-clamp-3">
+                          <span className="block text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 p-2 rounded-lg border border-red-100 dark:border-red-500/30 font-medium line-clamp-3">
                             <span className="font-bold">Reason:</span> {notif.message.split('. Reason: ')[1]?.trim() || 'No reason provided'}
                           </span>
                         </>

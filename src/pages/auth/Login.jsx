@@ -9,16 +9,17 @@ import {
 } from 'lucide-react';
 
 const DEMO_ACCOUNTS = [
-  { role: 'Super Admin', email: 'owner@flowly.io' },
+  { role: 'Super Admin', email: 'super.admin@gmail.com' },
   { role: 'Admin', email: 'admin@techcorp.ma' },
   { role: 'HR', email: 'hr@techcorp.ma' },
   { role: 'Manager', email: 'manager@techcorp.ma' },
   { role: 'Employee', email: 'employee@techcorp.ma' },
 ];
 const DEMO_PASSWORD = 'Demo@123456';
+const SUPER_ADMIN_PASSWORD = 'Team-E@2026';
 
 const inputCls = `w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200
-                  bg-gray-50/50 text-text-primary text-sm placeholder:text-text-tertiary
+                  bg-gray-50/50 text-gray-900 text-sm placeholder:text-gray-400
                   focus:bg-white focus:border-gray-400 focus:ring-2 focus:ring-brand-500/10
                   transition-all duration-200`;
 
@@ -107,7 +108,7 @@ export default function AuthPage() {
 
   const fillDemo = (acct) => {
     setEmail(acct.email);
-    setPassword(DEMO_PASSWORD);
+    setPassword(acct.role === 'Super Admin' ? SUPER_ADMIN_PASSWORD : DEMO_PASSWORD);
     setCopiedIdx(acct.email);
     setTimeout(() => setCopiedIdx(null), 1500);
   };
@@ -246,7 +247,7 @@ export default function AuthPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-sm font-medium text-text-secondary">{t('auth.password')}</label>
-                    <Link to="/forgot-password" className="text-xs text-brand-500 hover:text-brand-400 font-medium transition-colors">
+                    <Link to="/forgot-password" className="text-xs text-gray-900 hover:text-black font-medium transition-colors">
                       {t('auth.forgotPassword')}
                     </Link>
                   </div>
@@ -263,8 +264,8 @@ export default function AuthPage() {
 
                 <button type="submit" disabled={loading}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
-                             bg-brand-500 text-white font-semibold text-sm shadow-lg shadow-brand-500/20
-                             hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-md
+                             bg-gray-900 text-white font-semibold text-sm shadow-lg shadow-black/10
+                             hover:bg-black hover:-translate-y-0.5 active:translate-y-0 active:shadow-md
                              disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none
                              transition-all duration-200 cursor-pointer">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : null}
@@ -295,7 +296,7 @@ export default function AuthPage() {
                 }}
                 disabled={googleLoading || loading}
                 className="w-full flex items-center justify-center gap-3 py-3 rounded-xl
-                           bg-white border border-gray-200 text-text-primary font-semibold text-sm
+                           bg-white border border-gray-200 text-gray-900 font-semibold text-sm
                            hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm
                            disabled:opacity-60 disabled:cursor-not-allowed
                            transition-all duration-200 cursor-pointer">
@@ -314,10 +315,10 @@ export default function AuthPage() {
 
               <p className="text-center text-sm text-text-secondary mt-5">
                 {t('auth.noAccount')}{' '}
-                <button type="button" onClick={toggleMode}
-                  className="text-brand-500 hover:text-brand-400 font-semibold transition-colors cursor-pointer bg-transparent border-none p-0">
+                <a href="https://landing-page-bpms.vercel.app/"
+                  className="text-gray-900 hover:text-black font-semibold transition-colors cursor-pointer">
                   {t('auth.register')}
-                </button>
+                </a>
               </p>
 
               {/* Demo credentials */}

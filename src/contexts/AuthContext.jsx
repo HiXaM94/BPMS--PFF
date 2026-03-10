@@ -13,49 +13,90 @@ export function AuthProvider({ children }) {
   const suppressAuthChange = useRef(false);
 
   // Fetch the users row that extends auth.users with retry logic
-  const fetchProfile = useCallback(async (userId, retries = 3) => {
+  const fetchProfile = useCallback(async (userId, email = null, retries = 3) => {
     if (!supabase || !userId) return null;
 
+    let userProfile = null;
+    let rlsBlocked = false; // Keep this for the final fallback as per instruction
+
+    // 1. Try to fetch from the standard users table (and immediately fallback to owners before retrying)
     for (let i = 0; i < retries; i++) {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('*')
+          .select(`
+            *,
+            entreprise:entreprises(id, name, logo_url, status)
+          `)
           .eq('id', userId)
-          .single();
+          .maybeSingle(); // Use maybeSingle to prevent 406 Not Acceptable on 0 rows
 
         if (error) {
-          if (error.code === 'PGRST116') {
-            // Profile not found, wait and retry (trigger might still be running)
-            console.log(`Profile not found, retry ${i + 1}/${retries}...`);
-            await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
-            continue;
-          }
-          // 406 = RLS is blocking the read (e.g. new user whose policies aren't set yet)
-          // Return a minimal profile so the app doesn't crash or loop
-          if (error.status === 406) {
-            console.warn('RLS blocking profile read (406) — returning minimal profile');
-            return { id: userId, role: 'EMPLOYEE', status: 'active', _rls_blocked: true };
-          }
           console.error('Profile fetch error:', JSON.stringify(error, null, 2));
           if (error.message?.includes('schema') || error.code === 'PGRST000') {
-            console.warn('PostgREST schema error — using fallback profile');
             return { id: userId, role: 'ADMIN', status: 'active', _fallback: true };
           }
-          return null;
+          break; // Stop on real errors
         }
 
-        if (data) cacheService.set(`user:${userId}`, data, 600);
-        return data ?? null;
+        if (data) {
+          // Extra safety check in case the RPC check was bypassed
+          if (data.status === 'suspended' || data.entreprise?.status === 'suspended') {
+            console.warn('Account or Organization is suspended. Blocking session.');
+            cacheService.clear();
+            supabase.auth.signOut().catch(() => { });
+            return { _suspended: true };
+          }
+          userProfile = data;
+          break; // Found in users
+        }
+
+        // 2. If no data in users (maybe it's a Super Admin), check owners NOW before waiting
+        let ownerLookup;
+        if (email && email.trim() !== '') {
+          ownerLookup = await supabase.from('owners').select('*').or(`id.eq.${userId},email.ilike.${email.trim()}`).maybeSingle();
+        } else {
+          ownerLookup = await supabase.from('owners').select('*').eq('id', userId).maybeSingle();
+        }
+
+        if (ownerLookup.data) {
+          userProfile = { ...ownerLookup.data, role: 'SUPER_ADMIN', status: 'active' };
+          break; // Found in owners
+        }
+
+        // 3. If neither found, wait and retry (e.g. Supabase trigger is still running)
+        console.log(`Profile not found, retry ${i + 1}/${retries}...`);
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+        }
+
       } catch (err) {
         console.error('Profile fetch failed:', err);
-        if (i === retries - 1) return null;
+        if (i === retries - 1) break;
         await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
       }
     }
 
+    if (userProfile) {
+      cacheService.set(`user:${userId}`, userProfile, 600);
+      return userProfile;
+    }
+
+    // 4. Default fallback if RLS completely blocked everything
+    if (rlsBlocked) {
+      return { id: userId, role: 'EMPLOYEE', status: 'active', _rls_blocked: true };
+    }
+
+    // 5. If STILL null and we are not in the middle of a signup/suppression,
+    // then the user is likely deleted from the database. Sign them out.
+    if (!suppressAuthChange.current) {
+      console.error(`[AuthContext] Profile for ${userId} not found after retries. Signing out.`);
+      supabase.auth.signOut().catch(() => { });
+    }
+
     return null;
   }, []);
+
 
   useEffect(() => {
     if (!supabase) {
@@ -71,11 +112,11 @@ export function AuthProvider({ children }) {
       setSession(s);
       if (s?.user) {
         console.log('[AuthContext] Fetching profile for user:', s.user.id);
-        const profile = await fetchProfile(s.user.id);
+        const profile = await fetchProfile(s.user.id, s.user.email);
         console.log('[AuthContext] Profile fetched:', profile?.email || 'No profile');
         setProfile(profile);
         // Warm up cache with frequent queries after login
-        if (profile) cacheService.warmUp(s.user.id, profile.entreprise_id);
+        if (profile) cacheService.warmUp(s.user.id, profile.entreprise_id, profile.role);
       }
       console.log('[AuthContext] Setting loading to false');
       setLoading(false);
@@ -90,7 +131,7 @@ export function AuthProvider({ children }) {
         // Fire-and-forget: do NOT await fetchProfile here.
         // Awaiting inside onAuthStateChange blocks Supabase's auth state machine
         // and prevents updateUser() / signInWithPassword() from resolving.
-        fetchProfile(s.user.id).then(p => { if (p) setProfile(p); });
+        fetchProfile(s.user.id, s.user.email).then(p => { setProfile(p); });
       } else {
         setProfile(null);
       }
@@ -103,15 +144,17 @@ export function AuthProvider({ children }) {
     if (!supabase) throw new Error('Supabase not configured');
 
     // ── Step 1: Verify credentials against our DB tables ──
-    const { data: dbUsers, error: rpcError } = await supabase
+    const { data: dbUser, error: rpcError } = await supabase
       .rpc('verify_login', { p_email: email.trim(), p_password: password });
 
     if (rpcError) {
       // RPC doesn't exist yet — fall back to Supabase Auth only
       console.warn('[Auth] verify_login RPC unavailable, using Auth fallback:', rpcError.message);
-    } else if (!dbUsers || dbUsers.length === 0) {
-      // No matching record in DB → wrong email or wrong password
+    } else if (!dbUser) {
+      // No matching record in DB (JSON RPC returned null) → wrong email or wrong password
       throw new Error('Email or password is incorrect.');
+    } else if (dbUser.suspended) {
+      throw new Error("This organization's account is suspended. Please contact support.");
     }
 
     // ── Step 2: Sign in via Supabase Auth to get the JWT session ──
@@ -128,7 +171,10 @@ export function AuthProvider({ children }) {
 
     // ── Step 3: Load profile and block if no DB record ──
     if (data?.user) {
-      const p = await fetchProfile(data.user.id);
+      const p = await fetchProfile(data.user.id, email.trim());
+      if (p?._suspended) {
+        throw new Error("This organization's account is suspended. Please contact support.");
+      }
       if (!p || p._fallback) {
         await supabase.auth.signOut();
         throw new Error('There is no account with this email.');
@@ -215,8 +261,17 @@ export function AuthProvider({ children }) {
     if (error) throw error;
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    if (!session?.user?.id) return;
+    // Clear cache for this specific user to ensure fresh fetch
+    cacheService.delete(`user:${session.user.id}`);
+    const p = await fetchProfile(session.user.id, session.user.email);
+    setProfile(p);
+    return p;
+  }, [session, fetchProfile]);
+
   return (
-    <AuthContext.Provider value={{ session, profile, loading, signIn, signUp, signUpSilently, signOut, signInWithGoogle, resetPassword }}>
+    <AuthContext.Provider value={{ session, profile, loading, signIn, signUp, signUpSilently, signOut, signInWithGoogle, resetPassword, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

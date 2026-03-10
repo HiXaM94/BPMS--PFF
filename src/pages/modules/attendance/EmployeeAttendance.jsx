@@ -67,8 +67,23 @@ export default function EmployeeAttendance() {
             .order('date', { ascending: false });
 
         if (historyData && historyData.length > 0) {
-            const hrs = historyData.reduce((s, r) => s + (r.hours_worked || 0), 0);
-            const ot = historyData.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+            const hrs = historyData.reduce((s, r) => {
+                let h = r.hours_worked || 0;
+                if (!h && r.check_in_time && r.check_out_time) {
+                    const [inH, inM] = r.check_in_time.split(':').map(Number);
+                    const [outH, outM] = r.check_out_time.split(':').map(Number);
+                    h = outH - inH + (outM - inM) / 60;
+                    if (h < 0) h += 24;
+                }
+                return s + h;
+            }, 0);
+            const ot = historyData.reduce((s, r) => {
+                const dbOt = r.overtime_hours || 0;
+                if (dbOt > 0) return s + dbOt;
+                // Fallback: any day with > 8 hours counts as overtime
+                const h = r.hours_worked || 0;
+                return s + Math.max(0, h - 8);
+            }, 0);
             setMonthlyHours(Math.round(hrs * 10) / 10);
             setOvertime(Math.round(ot * 10) / 10);
             setHistory(historyData);
@@ -162,12 +177,12 @@ export default function EmployeeAttendance() {
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-surface-primary border border-border-secondary p-4 rounded-2xl flex flex-col items-center justify-center text-center">
-                            <Clock size={24} className="text-text-tertiary mb-2" />
+                            <Clock size={24} className="text-slate-500 dark:text-white mb-2" />
                             <span className="text-2xl font-bold text-text-primary">{monthlyHours}h</span>
                             <span className="text-xs font-medium text-text-secondary mt-1">Worked This Month</span>
                         </div>
                         <div className="bg-surface-primary border border-border-secondary p-4 rounded-2xl flex flex-col items-center justify-center text-center">
-                            <History size={24} className="text-text-tertiary mb-2" />
+                            <History size={24} className="text-slate-500 dark:text-white mb-2" />
                             <span className="text-2xl font-bold text-text-primary">{overtime}h</span>
                             <span className="text-xs font-medium text-text-secondary mt-1">Overtime This Month</span>
                         </div>
@@ -231,7 +246,17 @@ export default function EmployeeAttendance() {
                                                 <td className="px-5 py-3/5 my-1.5 text-text-secondary">{fmtTime(record.check_in_time)}</td>
                                                 <td className="px-5 py-3/5 my-1.5 text-text-secondary">{fmtTime(record.check_out_time)}</td>
                                                 <td className="px-5 py-3/5 my-1.5 font-medium">
-                                                    {record.hours_worked ? `${Math.round(record.hours_worked * 10) / 10}h` : '—'}
+                                                    {(() => {
+                                                        if (record.hours_worked) return `${Math.round(record.hours_worked * 10) / 10}h`;
+                                                        if (record.check_in_time && record.check_out_time) {
+                                                            const [inH, inM] = record.check_in_time.split(':').map(Number);
+                                                            const [outH, outM] = record.check_out_time.split(':').map(Number);
+                                                            let totalHours = outH - inH + (outM - inM) / 60;
+                                                            if (totalHours < 0) totalHours += 24; // Cross midnight
+                                                            return `${Math.round(totalHours * 10) / 10}h`;
+                                                        }
+                                                        return '—';
+                                                    })()}
                                                 </td>
                                                 <td className="px-5 py-3/5 my-1.5">
                                                     <span className={`px-2 py-1 text-xs font-semibold rounded-md bg-${statusColor}-500/10 text-${statusColor}-500 inline-block`}>

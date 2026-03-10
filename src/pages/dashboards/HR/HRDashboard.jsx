@@ -117,6 +117,7 @@ function OnboardingCard({ item }) {
 }
 
 import PasswordChangeModal from '../../../components/ui/PasswordChangeModal';
+import { useDefaultPasswordCheck } from '../../../hooks/useDefaultPasswordCheck';
 
 
 export default function HRDashboard() {
@@ -126,22 +127,9 @@ export default function HRDashboard() {
     const [onboarding, setOnboarding] = useState(hrData.onboarding);
     const [pipeline, setPipeline] = useState(hrData.recruitmentPipeline);
     const [showPasswordReset, setShowPasswordReset] = useState(false);
+    const { showPasswordModal: showDefaultPassModal, hidePasswordModal } = useDefaultPasswordCheck();
 
-    // Show password reset modal only if hr_profiles.password_changed = false
-    useEffect(() => {
-        if (!session?.user?.id || profile?.role !== 'HR') return;
-        supabase
-            .from('hr_profiles')
-            .select('password_changed')
-            .eq('user_id', session.user.id)
-            .maybeSingle()
-            .then(({ data }) => {
-                // Only show if password_changed is NOT true
-                if (data?.password_changed !== true) {
-                    setShowPasswordReset(true);
-                }
-            });
-    }, [session?.user?.id, profile?.role]);
+    // Password check is now handled by useDefaultPasswordCheck hook
 
     // Listen for notification event to open the password modal
     useEffect(() => {
@@ -153,6 +141,7 @@ export default function HRDashboard() {
 
     const handleModalClose = () => {
         setShowPasswordReset(false);
+        hidePasswordModal();
     };
 
 
@@ -218,12 +207,6 @@ export default function HRDashboard() {
 
     return (
         <div className="space-y-6">
-            {/* Shared Password Reset Modal for HR */}
-            <PasswordChangeModal
-                isOpen={showPasswordReset}
-                onClose={handleModalClose}
-                role="HR"
-            />
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>

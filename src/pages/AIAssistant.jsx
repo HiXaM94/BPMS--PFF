@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
+import {
   Sparkles, Send, Loader2, User, Bot, ThumbsUp, ThumbsDown,
   FileText, Users, TrendingUp, Lightbulb, X, Copy, Check
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { aiService } from '../services/AIService';
+import SmartInsightsPanel from '../components/ui/SmartInsightsPanel';
 
 // Lightweight markdown-to-JSX for AI responses
 function renderMarkdown(text) {
@@ -39,27 +40,27 @@ export default function AIAssistant() {
   const quickPrompts = [
     {
       icon: Users,
-      title: 'Analyze Team Performance',
-      prompt: 'Analyze my team\'s performance for the last month and provide insights',
+      title: 'Analyze Company Productivity',
+      prompt: 'Analyze current company productivity and identify performance bottlenecks',
       color: 'blue'
     },
     {
-      icon: FileText,
-      title: 'Document Summary',
-      prompt: 'Help me summarize and extract key information from documents',
-      color: 'green'
-    },
-    {
       icon: TrendingUp,
-      title: 'Recruitment Insights',
-      prompt: 'Provide recommendations for improving our recruitment process',
+      title: 'Review Hiring Pipeline',
+      prompt: 'Review our current recruitment pipeline and suggest process improvements',
       color: 'purple'
     },
     {
-      icon: Lightbulb,
-      title: 'Workflow Optimization',
-      prompt: 'Suggest ways to optimize our current workflows and processes',
+      icon: FileText,
+      title: 'Identify Management Issues',
+      prompt: 'Analyze attendance and leave patterns to identify potential management issues',
       color: 'orange'
+    },
+    {
+      icon: Lightbulb,
+      title: 'Operational Improvements',
+      prompt: 'Suggest operational improvements for our HR and task workflows',
+      color: 'green'
     }
   ];
 
@@ -119,7 +120,7 @@ export default function AIAssistant() {
 
   const handleFeedback = async (messageId, rating) => {
     // Update message with feedback
-    setMessages(prev => prev.map(msg => 
+    setMessages(prev => prev.map(msg =>
       msg.id === messageId ? { ...msg, feedback: rating } : msg
     ));
 
@@ -183,7 +184,7 @@ export default function AIAssistant() {
                   Welcome to AI Assistant
                 </h3>
                 <p className="text-gray-600 max-w-md mb-6">
-                  I can help you with team performance analysis, candidate recommendations, 
+                  I can help you with team performance analysis, candidate recommendations,
                   document processing, and workflow optimization.
                 </p>
                 <p className="text-sm text-gray-500">
@@ -205,17 +206,16 @@ export default function AIAssistant() {
 
                     <div className={`max-w-2xl ${message.role === 'user' ? 'order-first' : ''}`}>
                       <div
-                        className={`rounded-2xl px-4 py-3 ${
-                          message.role === 'user'
-                            ? 'bg-brand-600 text-white'
-                            : message.error
+                        className={`rounded-2xl px-4 py-3 ${message.role === 'user'
+                          ? 'bg-brand-600 text-white'
+                          : message.error
                             ? 'bg-red-50 text-red-900 border border-red-200'
                             : 'bg-gray-100 text-gray-900'
-                        }`}
+                          }`}
                       >
                         <div className="whitespace-pre-wrap text-sm leading-relaxed">{renderMarkdown(message.content)}</div>
                       </div>
-                      
+
                       {message.role === 'assistant' && !message.error && (
                         <div className="flex items-center gap-2 mt-2 ml-2">
                           <button
@@ -231,22 +231,20 @@ export default function AIAssistant() {
                           </button>
                           <button
                             onClick={() => handleFeedback(message.id, 'positive')}
-                            className={`p-1.5 rounded transition-colors ${
-                              message.feedback === 'positive'
-                                ? 'text-green-600 bg-green-50'
-                                : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                            }`}
+                            className={`p-1.5 rounded transition-colors ${message.feedback === 'positive'
+                              ? 'text-green-600 bg-green-50'
+                              : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                              }`}
                             title="Helpful"
                           >
                             <ThumbsUp size={14} />
                           </button>
                           <button
                             onClick={() => handleFeedback(message.id, 'negative')}
-                            className={`p-1.5 rounded transition-colors ${
-                              message.feedback === 'negative'
-                                ? 'text-red-600 bg-red-50'
-                                : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                            }`}
+                            className={`p-1.5 rounded transition-colors ${message.feedback === 'negative'
+                              ? 'text-red-600 bg-red-50'
+                              : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                              }`}
                             title="Not helpful"
                           >
                             <ThumbsDown size={14} />
@@ -255,9 +253,9 @@ export default function AIAssistant() {
                       )}
 
                       <p className="text-xs text-gray-500 mt-1 ml-2">
-                        {message.timestamp.toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
+                        {message.timestamp.toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
                         })}
                       </p>
                     </div>
@@ -269,7 +267,7 @@ export default function AIAssistant() {
                     )}
                   </div>
                 ))}
-                
+
                 {loading && (
                   <div className="flex gap-3">
                     <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center">
@@ -288,7 +286,7 @@ export default function AIAssistant() {
               </>
             )}
           </div>
-        
+
           {/* Input Area */}
           <div className="border-t border-gray-200 p-4">
             <form
@@ -321,11 +319,15 @@ export default function AIAssistant() {
           </div>
         </div>
 
-        {/* Quick Prompts Sidebar */}
-        <div className="w-80 space-y-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <h3 className="font-semibold text-gray-900 mb-3">Quick Prompts</h3>
-            <div className="space-y-2">
+        {/* Insights & Quick Prompts Sidebar */}
+        <div className="w-96 space-y-4 flex flex-col h-full">
+          <div className="flex-1 min-h-0">
+            <SmartInsightsPanel />
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 shrink-0">
+            <h3 className="font-semibold text-gray-900 mb-3 text-sm">Quick Analysis Topics</h3>
+            <div className="grid grid-cols-2 gap-2">
               {quickPrompts.map((prompt, index) => {
                 const Icon = prompt.icon;
                 const colorClasses = {
@@ -340,36 +342,14 @@ export default function AIAssistant() {
                     key={index}
                     onClick={() => handleQuickPrompt(prompt.prompt)}
                     disabled={loading}
-                    className={`w-full text-left p-3 rounded-lg transition-colors disabled:opacity-50 ${
-                      colorClasses[prompt.color]
-                    }`}
+                    className={`text-left p-2.5 rounded-lg transition-colors disabled:opacity-50 flex flex-col gap-1 items-start ${colorClasses[prompt.color]
+                      }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <Icon size={20} className="flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-sm">{prompt.title}</p>
-                        <p className="text-xs opacity-75 mt-1">{prompt.prompt}</p>
-                      </div>
-                    </div>
+                    <Icon size={16} className="flex-shrink-0" />
+                    <span className="font-medium text-[11px] leading-tight flex-1">{prompt.title}</span>
                   </button>
                 );
               })}
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 rounded-xl border border-brand-200 p-4">
-            <div className="flex items-start gap-3">
-              <Sparkles className="text-brand-600 flex-shrink-0" size={20} />
-              <div>
-                <h4 className="font-medium text-gray-900 mb-1">AI Capabilities</h4>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li>• Team performance analysis</li>
-                  <li>• Candidate recommendations</li>
-                  <li>• Document processing</li>
-                  <li>• Workflow optimization</li>
-                  <li>• Data insights & trends</li>
-                </ul>
-              </div>
             </div>
           </div>
         </div>

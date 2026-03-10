@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-
 import {
   Users, UserPlus, Shield, Mail, Eye, Edit, Trash2,
   Search, Filter, UserCheck, UserX, UserCog,
@@ -82,11 +81,12 @@ function getColumns(onView, onEdit, onDelete, isSuperAdmin) {
         <div className="flex items-center gap-3">
 
           <div className={`flex items-center justify-center w-9 h-9 rounded-full
-
-                           bg-gradient-to-br ${avatarColors[row.role] || avatarColors.Employee} text-white text-xs font-bold shrink-0`}>
-
-            {row.avatar}
-
+                           bg-gradient-to-br ${avatarColors[row.role] || avatarColors.Employee} text-white text-xs font-bold shrink-0 overflow-hidden`}>
+            {row.profile_image_url ? (
+              <img src={row.profile_image_url} alt={val} className="w-full h-full object-cover" />
+            ) : (
+              row.avatar
+            )}
           </div>
 
           <div>
@@ -171,7 +171,7 @@ function getColumns(onView, onEdit, onDelete, isSuperAdmin) {
 
 
 
-const departments = ['Engineering', 'Marketing', 'Design', 'Human Resources', 'Finance', 'QA', 'Sales', 'Operations'];
+
 
 
 
@@ -191,7 +191,7 @@ export default function UserManagement() {
 
   const { currentRole } = useRole();
 
-  const { profile, signUpSilently } = useAuth();
+  const { profile, signUpSilently, signOut } = useAuth();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
 
@@ -202,14 +202,13 @@ export default function UserManagement() {
 
 
   const [search, setSearch] = useState('');
-
   const [roleFilter, setRoleFilter] = useState('all');
-
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 7;
   const [users, setUsers] = useState(isSuperAdmin ? superAdminUsers : defaultUsers);
-
   const [showCreateModal, setShowCreateModal] = useState(false);
-
   const [successMsg, setSuccessMsg] = useState('');
+  const [availableDepartments, setAvailableDepartments] = useState([]);
 
   // ── HR-specific modal state ──
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
@@ -251,56 +250,72 @@ export default function UserManagement() {
 
 
   // ── Fetch users from Supabase ──
-
   const fetchUsers = useCallback(async () => {
-
     if (!isSupabaseReady) { setUsers(defaultUsers); return; }
+    // Super admins don't need a specific company to fetch users (they fetch all company admins)
+    if (!isSuperAdmin && !profile?.entreprise_id) { setUsers([]); return; }
 
-    if (!profile?.entreprise_id) { setUsers([]); return; } // logged in but company not loaded yet
-
-    const cacheKey = `users:list:${profile.entreprise_id}`;
+    const cacheKey = isSuperAdmin ? 'users:list:superadmin' : `users:list:${profile.entreprise_id}`;
 
     const data = await cacheService.getOrSet(cacheKey, async () => {
+      // Use direct join to fetch user_details, specifying the foreign key to avoid ambiguity
+      let query = supabase
+        .from('users')
+        .select('*, entreprises(name), user_details!id_user(phone, adresse, department)');
 
-      const { data, error } = await supabase.from('users')
+      if (!isSuperAdmin) {
+        query = query.eq('entreprise_id', profile.entreprise_id);
+      }
 
-        .select('*')
-
-        .eq('entreprise_id', profile.entreprise_id)
-
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await query.order('created_at', { ascending: false });
       if (error) { console.error('Fetch users error:', error.message); return null; }
-
       return data;
-
     }, 90);
 
-    setUsers((data ?? []).map(u => ({
-
-      id: u.id,
-
-      name: u.name || u.email?.split('@')[0],
-
-      email: u.email,
-
-      role: u.role ? (roleMap[u.role.toUpperCase()] || u.role) : 'Employee',
-
-      department: '-',
-
-      status: u.status || 'active',
-
-      lastLogin: u.last_login_at ? new Date(u.last_login_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never',
-
-      avatar: u.avatar_initials || u.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??',
-
-    })));
-
-  }, [profile]);
+    setUsers((data ?? []).map(u => {
+      // Supabase returns user_details as either an object or an array depending on constraint uniqueness
+      const details = Array.isArray(u.user_details) ? (u.user_details[0] || {}) : (u.user_details || {});
+      return {
+        id: u.id,
+        name: u.name || u.email?.split('@')[0],
+        email: u.email,
+        role: u.role ? (roleMap[u.role.toUpperCase()] || u.role) : 'Employee',
+        department: details.department || u.department || '-',
+        company: u.entreprises?.name || 'Unknown',
+        phone: details.phone || u.phone || '—',
+        location: details.adresse || u.location || u.adresse || '—',
+        status: u.status || 'active',
+        lastLogin: u.last_login_at ? new Date(u.last_login_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never',
+        avatar: u.avatar_initials || u.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '??',
+        profile_image_url: u.profile_image_url,
+      };
+    }));
+  }, [profile, isSuperAdmin]);
 
 
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  const fetchAvailableDepartments = useCallback(async () => {
+    if (!isSupabaseReady) return;
+    const { data, error } = await supabase
+      .from('user_details')
+      .select('department')
+      .not('department', 'is', null)
+      .neq('department', '');
+
+    if (error) {
+      console.error('Fetch departments error:', error.message);
+      return;
+    }
+
+    // Get unique and sorted departments
+    const uniqueDeps = [...new Set(data.map(d => d.department))].sort();
+    setAvailableDepartments(uniqueDeps);
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+    fetchAvailableDepartments();
+  }, [fetchUsers, fetchAvailableDepartments]);
 
 
 
@@ -582,21 +597,30 @@ export default function UserManagement() {
 
 
     if (isSupabaseReady) {
-
-      const { error } = await supabase.from('users').delete().eq('id', deleteTarget.id);
+      console.log('[UserManagement] Calling rpc_delete_user_entirely for:', deleteTarget.id);
+      const { data: success, error } = await supabase.rpc('rpc_delete_user_entirely', {
+        p_user_id: deleteTarget.id
+      });
 
       if (error) {
-
         showToast(`Error: ${error.message}`);
-
         fetchUsers();
-
+      } else if (!success) {
+        showToast(`Error: Backend deletion failed.`);
+        fetchUsers();
+      } else {
+        if (deleteTarget.id === profile?.id) {
+          showToast('Account deleted. Signing out...');
+          setTimeout(() => {
+            signOut();
+          }, 1500);
+        } else {
+          showToast(`User "${deleteTarget.name}" deleted definitively.`);
+        }
       }
 
       cacheService.invalidatePattern('^users:');
-
       cacheService.invalidatePattern('^admin:');
-
     }
 
     setDeleting(false);
@@ -630,16 +654,19 @@ export default function UserManagement() {
 
 
   const filtered = users.filter(u => {
-
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
-
       u.email.toLowerCase().includes(search.toLowerCase());
-
     const matchRole = roleFilter === 'all' || u.role === roleFilter;
-
     return matchSearch && matchRole;
-
   });
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+  const currentData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, roleFilter]);
 
 
 
@@ -741,63 +768,56 @@ export default function UserManagement() {
 
 
   const handleEditSave = async (e) => {
-
     e.preventDefault();
+    if (!isSupabaseReady || !editUser) return;
 
+    setIsCreating(true);
     const newAvatar = editForm.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
-    // Optimistic
-
-    setUsers(prev => prev.map(u =>
-
-      u.id === editUser.id
-
-        ? { ...u, name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department, status: editForm.status, avatar: newAvatar }
-
-        : u
-
-    ));
-
-    showToast(`User "${editForm.name}" updated successfully!`);
-
-    setEditUser(null);
-
-
-
-    if (isSupabaseReady) {
-
+    try {
       const dbRole = roleMapReverse[editForm.role] || 'EMPLOYEE';
 
-      const { error } = await supabase.from('users').update({
-
+      // 1. Update users table (Name, Email, Role, Status)
+      const { error: userError } = await supabase.from('users').update({
         name: editForm.name,
-
         email: editForm.email,
-
         role: dbRole,
-
         status: editForm.status,
-
         avatar_initials: newAvatar,
-
       }).eq('id', editUser.id);
 
-      if (error) {
+      if (userError) throw userError;
 
-        showToast(`Error: ${error.message}`);
+      // 2. Update/Upsert user_details table (Department)
+      const { error: detailsError } = await supabase
+        .from('user_details')
+        .upsert({
+          id_user: editUser.id,
+          department: editForm.department
+        }, { onConflict: 'id_user' });
 
-        fetchUsers(); // rollback
-
-        return;
-
+      if (detailsError) {
+        console.warn('[UserManagement] Could not update user_details:', detailsError.message);
       }
 
-      cacheService.invalidatePattern('^users:');
+      // 3. Update local state
+      setUsers(prev => prev.map(u =>
+        u.id === editUser.id
+          ? { ...u, name: editForm.name, email: editForm.email, role: editForm.role, department: editForm.department, status: editForm.status, avatar: newAvatar }
+          : u
+      ));
 
+      cacheService.invalidatePattern('^users:');
       cacheService.invalidatePattern('^admin:');
 
+      showToast(`User "${editForm.name}" updated successfully!`);
+      setEditUser(null);
+    } catch (err) {
+      console.error('[UserManagement] Edit failed:', err);
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setIsCreating(false);
     }
-
   };
 
 
@@ -988,93 +1008,33 @@ export default function UserManagement() {
 
 
 
-        {isSuperAdmin ? (
+        <DataTable columns={columns} data={currentData} emptyMessage="No users found" />
 
-          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 bg-surface-secondary/20">
-
-            {filtered.length > 0 ? filtered.map(user => (
-
-              <div
-
-                key={user.id}
-
-                onClick={() => setViewUser(user)}
-
-                className="bg-surface-primary rounded-2xl border border-border-secondary p-5 
-
-                           hover:shadow-md hover:border-brand-500/40 transition-all cursor-pointer group"
-
-              >
-
-                <div className="flex items-center gap-3 mb-4">
-
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${avatarColors[user.role] || avatarColors.Employee} 
-
-                                  text-white flex items-center justify-center font-bold text-lg 
-
-                                  group-hover:scale-105 transition-transform shadow-sm shrink-0`}>
-
-                    {user.avatar}
-
-                  </div>
-
-                  <div className="min-w-0">
-
-                    <h3 className="font-bold text-text-primary text-base group-hover:text-brand-500 transition-colors truncate">
-
-                      {user.company || 'Unknown Company'}
-
-                    </h3>
-
-                    <p className="text-sm font-medium text-text-secondary truncate">{user.name}</p>
-
-                  </div>
-
-                </div>
-
-                <div className="space-y-2.5 pt-3 border-t border-border-secondary">
-
-                  <div className="flex items-center justify-between gap-2 overflow-hidden">
-
-                    <span className="text-xs text-text-tertiary uppercase tracking-wider shrink-0">Admin Email</span>
-
-                    <span className="text-sm font-medium text-text-primary truncate">{user.email}</span>
-
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2">
-
-                    <span className="text-xs text-text-tertiary uppercase tracking-wider">Status</span>
-
-                    <StatusBadge variant={{ active: 'success', inactive: 'danger', pending: 'warning' }[user.status]} dot size="sm">
-
-                      {user.status}
-
-                    </StatusBadge>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            )) : (
-
-              <div className="col-span-full py-10 text-center text-text-tertiary text-sm">
-
-                No company admins found matching your search.
-
-              </div>
-
-            )}
-
+        {/* Pagination Controls */}
+        <div className="px-5 py-4 border-t border-border-secondary flex items-center justify-between bg-surface-secondary/10">
+          <div className="text-xs text-text-tertiary">
+            Showing {filtered.length > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0} to {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} entries
           </div>
-
-        ) : (
-
-          <DataTable columns={columns} data={filtered} emptyMessage="No users found" />
-
-        )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-text-secondary hover:bg-surface-tertiary disabled:opacity-50 transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-xs font-medium text-text-primary">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-text-secondary hover:bg-surface-tertiary disabled:opacity-50 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
 
       </div>
 
@@ -1123,7 +1083,7 @@ export default function UserManagement() {
               onChange={e => handleInputChange('department', e.target.value)}
               className={inputClassName + ' cursor-pointer'}>
               <option value="" disabled>Select department</option>
-              {departments.map(d => <option key={d} value={d}>{d}</option>)}
+              {availableDepartments.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
 
@@ -1373,13 +1333,13 @@ export default function UserManagement() {
             <div className="flex items-start gap-4">
 
               <div className={`flex items-center justify-center w-14 h-14 rounded-2xl
-
                                bg-gradient-to-br ${avatarColors[viewUser.role] || avatarColors.Employee}
-
-                               text-white text-lg font-bold shadow-lg shrink-0`}>
-
-                {viewUser.avatar}
-
+                               text-white text-lg font-bold shadow-lg shrink-0 overflow-hidden`}>
+                {viewUser.profile_image_url ? (
+                  <img src={viewUser.profile_image_url} alt={viewUser.name} className="w-full h-full object-cover" />
+                ) : (
+                  viewUser.avatar
+                )}
               </div>
 
               <div className="flex-1 min-w-0">
@@ -1419,53 +1379,48 @@ export default function UserManagement() {
               </div>
 
               <div className="flex items-start gap-3 py-2.5">
-
                 <Building2 size={16} className="text-text-tertiary mt-0.5 shrink-0" />
-
                 <div>
-
                   <span className="text-[11px] text-text-tertiary uppercase tracking-wider block">
-
                     {isSuperAdmin ? 'Company' : 'Department'}
-
                   </span>
-
                   <span className="text-sm font-medium text-text-primary">
-
                     {isSuperAdmin ? (viewUser.company || '—') : viewUser.department}
-
                   </span>
-
                 </div>
+              </div>
 
+              {/* Added Phone & Address/Location Fields */}
+              <div className="flex items-start gap-3 py-2.5">
+                <Phone size={16} className="text-text-tertiary mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-[11px] text-text-tertiary uppercase tracking-wider block">Phone</span>
+                  <span className="text-sm font-medium text-text-primary">{viewUser.phone || '—'}</span>
+                </div>
               </div>
 
               <div className="flex items-start gap-3 py-2.5">
+                <MapPin size={16} className="text-text-tertiary mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-[11px] text-text-tertiary uppercase tracking-wider block">Address / Location</span>
+                  <span className="text-sm font-medium text-text-primary">{viewUser.location || '—'}</span>
+                </div>
+              </div>
 
+              <div className="flex items-start gap-3 py-2.5">
                 <Shield size={16} className="text-text-tertiary mt-0.5 shrink-0" />
-
                 <div>
-
                   <span className="text-[11px] text-text-tertiary uppercase tracking-wider block">Role</span>
-
                   <span className="text-sm font-medium text-text-primary">{viewUser.role}</span>
-
                 </div>
-
               </div>
 
               <div className="flex items-start gap-3 py-2.5">
-
                 <Calendar size={16} className="text-text-tertiary mt-0.5 shrink-0" />
-
                 <div>
-
                   <span className="text-[11px] text-text-tertiary uppercase tracking-wider block">Last Login</span>
-
                   <span className="text-sm font-medium text-text-primary">{viewUser.lastLogin}</span>
-
                 </div>
-
               </div>
 
             </div>
@@ -1589,23 +1544,20 @@ export default function UserManagement() {
               </div>
 
               <div>
-
                 <label className={labelClassName}>Department</label>
-
                 <select
-
                   value={editForm.department}
-
                   onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))}
-
                   className={inputClassName + ' cursor-pointer'}
-
                 >
-
-                  {departments.map(d => <option key={d} value={d}>{d}</option>)}
-
+                  <option value="">Select Department</option>
+                  {availableDepartments.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
                 </select>
-
+                <p className="text-[10px] text-text-tertiary mt-1 italic">
+                  Data from user_details table
+                </p>
               </div>
 
             </div>
@@ -1661,22 +1613,24 @@ export default function UserManagement() {
               </button>
 
               <button
-
                 type="submit"
-
+                disabled={isCreating}
                 className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-
-                           bg-gradient-to-r from-brand-500 to-brand-600
-
-                           shadow-md hover:shadow-lg hover:-translate-y-0.5
-
-                           active:translate-y-0 transition-all duration-200 cursor-pointer"
-
+                         bg-gradient-to-r from-brand-500 to-brand-600
+                         shadow-md hover:shadow-lg hover:-translate-y-0.5
+                         active:translate-y-0 transition-all duration-200 cursor-pointer
+                         disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
-
-                Save Changes
-
+                {isCreating ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </button>
+
 
             </div>
 

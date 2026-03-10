@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
+import { cacheService } from '../../services/CacheService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import ProfileImageUpload from '../../components/profile/ProfileImageUpload';
 import PageHeader from '../../components/ui/PageHeader';
 import { Briefcase, Calendar, CreditCard, Hash, Phone, Building, UserCheck, Loader2, CheckCircle2 } from 'lucide-react';
 
@@ -13,7 +15,6 @@ const EMPLOYEE_FIELDS = [
   { field: 'phone', label: 'Phone Number', type: 'text', icon: Phone, placeholder: '+212 6XX XXX XXX' },
   { field: 'location', label: 'Location', type: 'text', icon: Building, placeholder: 'Casablanca, Morocco' },
   { field: 'rib', label: 'RIB', type: 'text', icon: CreditCard, placeholder: 'MA76 0011 1110 0000 0123 4567 890' },
-  { field: 'bio', label: 'Short Bio', type: 'text', icon: UserCheck, placeholder: 'Tell us briefly about your role.' },
   { field: 'cnss', label: 'CNSS Number', type: 'text', icon: CreditCard, placeholder: '1234567890' },
   { field: 'join_date', label: 'Join Date', type: 'date', icon: Calendar },
   { field: 'department', label: 'Department', type: 'text', icon: Building, placeholder: 'Engineering' },
@@ -40,6 +41,7 @@ const INITIAL_FORM = {
   cnss: '',
   join_date: '',
   department: '',
+  profile_image_url: '',
 };
 
 export default function CompleteProfile() {
@@ -59,6 +61,8 @@ export default function CompleteProfile() {
   const userId = session?.user?.id;
   const isEmployee = targetRole === 'EMPLOYEE';
   const isManager = targetRole === 'TEAM_MANAGER';
+  const isHR = targetRole === 'HR';
+  const isIndividualContributor = isEmployee || isHR;
   const fields = isManager ? MANAGER_FIELDS : EMPLOYEE_FIELDS;
   const formComplete = fields.every(({ field }) => String(form[field] ?? '').trim().length > 0);
 
@@ -72,16 +76,33 @@ export default function CompleteProfile() {
       }
       setInitialLoading(true);
       try {
+        // Always fetch user's own basic data (bio, image) for any role
+        const { data: userBio } = await supabase
+          .from('users')
+          .select('bio, profile_image_url')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (cancelled) return;
+
+        if (userBio) {
+          setForm(prev => ({
+            ...prev,
+            bio: userBio.bio || prev.bio,
+            profile_image_url: userBio.profile_image_url || prev.profile_image_url,
+          }));
+        }
+
         if (isEmployee) {
           const [{ data: employee }, { data: details }] = await Promise.all([
             supabase
               .from('employees')
-              .select('id, employee_code, hire_date, salary_base, phone, location, rib, bio')
+              .select('id, employee_code, hire_date, salary_base, phone, location, rib')
               .eq('user_id', userId)
               .maybeSingle(),
             supabase
               .from('user_details')
-              .select('cnss, rib, join_date, department, phone')
+              .select('cnss, rib, join_date, department, phone, adresse')
               .eq('id_user', userId)
               .maybeSingle(),
           ]);
@@ -94,12 +115,8 @@ export default function CompleteProfile() {
             hire_date: employee?.hire_date ? employee.hire_date.slice(0, 10) : prev.hire_date,
             salary_base: employee?.salary_base ? String(employee.salary_base) : prev.salary_base,
             phone: employee?.phone || details?.phone || prev.phone,
-            location: employee?.location || prev.location,
-            rib: employee?.rib || details?.rib || prev.rib,
-            bio: employee?.bio || prev.bio,
-            cnss: details?.cnss || prev.cnss,
-            join_date: details?.join_date ? details.join_date.slice(0, 10) : prev.join_date,
             department: details?.department || prev.department,
+            location: employee?.location || details?.adresse || prev.location,
           }));
         }
 
@@ -107,7 +124,7 @@ export default function CompleteProfile() {
           const [{ data: details }, { data: managerProfile }, { data: employee }] = await Promise.all([
             supabase
               .from('user_details')
-              .select('cnss, rib, join_date, department, phone')
+              .select('cnss, rib, join_date, department, phone, adresse')
               .eq('id_user', userId)
               .maybeSingle(),
             supabase
@@ -126,12 +143,9 @@ export default function CompleteProfile() {
           setForm(prev => ({
             ...prev,
             salary_base: managerProfile?.salary_base ? String(managerProfile.salary_base) : prev.salary_base,
-            location: managerProfile?.location || prev.location,
-            cnss: details?.cnss || prev.cnss,
-            rib: details?.rib || prev.rib,
-            join_date: details?.join_date ? details.join_date.slice(0, 10) : prev.join_date,
             department: details?.department || prev.department,
             phone: details?.phone || prev.phone,
+            location: managerProfile?.location || details?.adresse || prev.location,
           }));
         }
       } finally {
@@ -145,6 +159,8 @@ export default function CompleteProfile() {
 
   const updateField = (field) => (event) => setForm(prev => ({ ...prev, [field]: event.target.value }));
 
+  const { refreshProfile } = useAuth(); // Destructure refreshProfile
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!userId || (!isEmployee && !isManager)) {
@@ -154,7 +170,32 @@ export default function CompleteProfile() {
     setError('');
     setLoading(true);
     try {
-      if (isEmployee) {
+      // 1. Department Sync
+      if (form.department) {
+        const deptName = form.department.trim();
+        if (deptName && profile?.entreprise_id) {
+          try {
+            const { data: existingDept } = await supabase
+              .from('departments')
+              .select('id')
+              .eq('entreprise_id', profile.entreprise_id)
+              .ilike('name', deptName)
+              .maybeSingle();
+
+            if (!existingDept) {
+              await supabase.from('departments').insert({
+                entreprise_id: profile.entreprise_id,
+                name: deptName
+              });
+            }
+          } catch (deptErr) {
+            console.error('Error inserting department:', deptErr);
+          }
+        }
+      }
+
+      // 2. Role Specific Data Persistence
+      if (isIndividualContributor) {
         const employeePayload = {
           employee_code: form.employee_code || null,
           hire_date: form.hire_date || new Date().toISOString().split('T')[0],
@@ -168,11 +209,10 @@ export default function CompleteProfile() {
 
         const { error: employeeError } = employeeId
           ? await supabase.from('employees').update(employeePayload).eq('id', employeeId)
-          : await supabase.from('employees').insert({
-            ...employeePayload,
-            user_id: userId,
-            entreprise_id: profile?.entreprise_id,
-          });
+          : (isEmployee
+            ? await supabase.from('employees').insert({ ...employeePayload, user_id: userId, entreprise_id: profile?.entreprise_id })
+            : { error: null }
+          );
         if (employeeError) throw employeeError;
 
         const { error: detailError } = await supabase
@@ -184,6 +224,7 @@ export default function CompleteProfile() {
             join_date: form.join_date || null,
             department: form.department || null,
             phone: form.phone || null,
+            adresse: form.location || null,
             entreprise_id: profile?.entreprise_id || null,
           }, { onConflict: 'id_user' });
         if (detailError) throw detailError;
@@ -203,6 +244,27 @@ export default function CompleteProfile() {
         });
         if (managerError) throw managerError;
       }
+
+      // 3. COMMON Update for users table (Bio, Profile Image, and Onboarding Flag) - For everyone
+      if (form.bio !== undefined || form.profile_image_url !== undefined) {
+        console.log('[CompleteProfile] Saving bio, profile image and marking onboarding as complete for user:', userId);
+        const { error: bioError } = await supabase.from('users').update({
+          bio: form.bio || null,
+          profile_image_url: form.profile_image_url || null,
+          onboarding_completed: true
+        }).eq('id', userId);
+        if (bioError) throw bioError;
+      } else {
+        // Just mark onboarding as complete if no bio/image changes were detected (edge case)
+        await supabase.from('users').update({ onboarding_completed: true }).eq('id', userId);
+      }
+
+      // 4. Invalidate caches and refresh context
+      cacheService.invalidatePattern('^users:');
+      cacheService.invalidatePattern(`^user:${userId}$`); // Specifically target user profile cache
+
+      // Refresh the profile in AuthContext
+      await refreshProfile();
 
       dismissProfileNotification();
       setSuccess(true);
@@ -247,6 +309,14 @@ export default function CompleteProfile() {
                     {error}
                   </div>
                 )}
+                <div className="flex flex-col items-center justify-center space-y-4 pb-6">
+                  <ProfileImageUpload
+                    userId={userId}
+                    currentImageUrl={form.profile_image_url}
+                    onUploadSuccess={(url) => setForm(prev => ({ ...prev, profile_image_url: url }))}
+                  />
+                </div>
+
                 <div className="grid gap-4 md:grid-cols-2">
                   {fields.map(({ field, label, type, placeholder, icon: Icon, step }) => (
                     <label key={field} className="space-y-1 text-sm font-semibold uppercase tracking-wide text-text-tertiary">
@@ -266,6 +336,21 @@ export default function CompleteProfile() {
                     </label>
                   ))}
                 </div>
+
+                {/* Bio Textarea Section */}
+                <label className="space-y-1 text-sm font-semibold uppercase tracking-wide text-text-tertiary block">
+                  <div className="flex items-center gap-2">
+                    <UserCheck size={16} className="text-text-tertiary" />
+                    <span className="text-xs font-bold text-text-primary">Short Bio</span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    placeholder="Tell us briefly about your role and background..."
+                    value={form.bio}
+                    onChange={updateField('bio')}
+                    className="w-full rounded-2xl border border-border-secondary bg-surface-secondary py-3 px-4 text-sm font-medium text-text-primary placeholder:text-text-tertiary focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 resize-none"
+                  />
+                </label>
                 <div className="flex flex-col gap-3 pt-2 text-sm text-text-secondary">
                   <div className="rounded-2xl border border-dashed border-border-secondary bg-surface-muted p-4">
                     <p>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2, Plus, Users, Globe, MapPin, Phone, Mail,
   MoreHorizontal, Edit, Trash2, Eye, ShieldAlert, ToggleLeft, ToggleRight,
@@ -11,6 +12,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useRole } from '../../contexts/RoleContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../services/supabase';
+import { landingSupabase } from '../../services/landingSupabase';
 import { cacheService } from '../../services/CacheService';
 
 /**
@@ -92,24 +94,17 @@ function getColumns(onView, onEdit, onToggleStatus, onDelete, isSuperAdmin) {
               <Edit size={14} className="text-text-tertiary" />
             </button>
           )}
-          <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete">
-            <Trash2 size={14} className="text-red-400" />
-          </button>
+          {isSuperAdmin && (
+            <button onClick={() => onToggleStatus(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title={row.status === 'suspended' ? 'Activate' : 'Pause'}>
+              {row.status === 'suspended' ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} className="text-amber-500" />}
+            </button>
+          )}
         </div>
       ),
     },
   ];
 }
 
-const industryStats = [
-  { label: 'Technology', count: 1, color: 'brand' },
-  { label: 'Finance', count: 1, color: 'brand' },
-  { label: 'Healthcare', count: 1, color: 'success' },
-  { label: 'Education', count: 1, color: 'info' },
-  { label: 'Retail', count: 1, color: 'warning' },
-  { label: 'Construction', count: 1, color: 'danger' },
-  { label: 'Logistics', count: 1, color: 'pink' },
-];
 
 const emptyCompanyForm = {
   name: '',
@@ -140,6 +135,8 @@ export default function EnterpriseManagement() {
   const [deleting, setDeleting] = useState(false);
   const { currentRole } = useRole();
   const { profile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
   const isSuperAdmin = currentRole.id === 'super_admin';
@@ -152,22 +149,70 @@ export default function EnterpriseManagement() {
       return;
     }
     setLoading(true);
-    const cacheKey = isSuperAdmin ? 'enterprises:list' : `enterprises:${profile?.entreprise_id}`;
+    // 1. Fetch Landing DB Data for intersection (using the secure RPC we created)
+    let landingCompanyNames = new Set();
+    try {
+      const { data: landingData, error: landingError } = await landingSupabase.rpc('get_dashboard_subscriptions', {
+        admin_token: 'bpms_admin_secret_2026'
+      });
+      if (!landingError && landingData) {
+        landingData.forEach(s => {
+          if (s.company_name) {
+            landingCompanyNames.add(s.company_name.toLowerCase().trim());
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching landing DB subscriptions for enterprise view:", err);
+    }
+
+    // 2. Fetch SaaS DB Data (DB2)
+    const cacheKey = isSuperAdmin ? 'enterprises:list' : `enterprises:${profile?.entreprise_id || 'unknown'}`;
     const data = await cacheService.getOrSet(cacheKey, async () => {
       let query = supabase.from('entreprises').select('*');
-      if (!isSuperAdmin && profile?.entreprise_id) {
-        query = query.eq('id', profile.entreprise_id);
+      if (!isSuperAdmin) {
+        if (profile?.entreprise_id) {
+          query = query.eq('id', profile.entreprise_id);
+        } else {
+          return null;
+        }
       }
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data: db2Data, error } = await query.order('created_at', { ascending: false });
       if (error) {
         console.error('Fetch entreprises error:', error.message);
         return null;
       }
-      return data;
+
+      // Fetch user counts to accurately show the number of employees profile per organization
+      try {
+        const { data: usersData, error: usersError } = await supabase.from('users').select('entreprise_id');
+        if (!usersError && usersData) {
+          const userCounts = {};
+          usersData.forEach(u => {
+            if (u.entreprise_id) {
+              userCounts[u.entreprise_id] = (userCounts[u.entreprise_id] || 0) + 1;
+            }
+          });
+          // Attach accurately calculated employee counts
+          return db2Data.map(e => ({
+            ...e,
+            employees: userCounts[e.id] || 0
+          }));
+        }
+      } catch (err) {
+        console.warn('Error fetching user count for enterprises', err);
+      }
+
+      return db2Data;
     }, 90);
 
+    // 3. Filter DB2 data: Only include companies that exist in Landing DB (intersection)
     if (data) {
-      setEnterprises(data.map(e => {
+      const intersectedData = isSuperAdmin
+        ? data.filter(e => landingCompanyNames.has((e.name || '').toLowerCase().trim()))
+        : data;
+
+      setEnterprises(intersectedData.map(e => {
         const formatDate = (value) => value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
         return {
           ...e,
@@ -196,6 +241,20 @@ export default function EnterpriseManagement() {
 
   useEffect(() => { fetchEnterprises(); }, [fetchEnterprises]);
 
+  // Handle auto-opening the details modal from a router redirection (e.g. from Subscriptions Analytics)
+  useEffect(() => {
+    if (location.state?.openCompanyDetails && enterprises.length > 0) {
+      const targetName = location.state.openCompanyDetails.toLowerCase();
+      const targetCompany = enterprises.find(e => e.name.toLowerCase() === targetName);
+
+      if (targetCompany) {
+        setViewEnterprise(targetCompany);
+        // Clean up the state so it doesn't endlessly reopen if the user closes it and interacts with the page
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.state?.openCompanyDetails, enterprises, navigate, location.pathname]);
+
   const filtered = enterprises.filter(e =>
     e.name.toLowerCase().includes(search.toLowerCase()) ||
     e.industry.toLowerCase().includes(search.toLowerCase())
@@ -204,14 +263,20 @@ export default function EnterpriseManagement() {
   const totalEmployees = enterprises.reduce((sum, e) => sum + e.employees, 0);
   const activeCount = enterprises.filter(e => e.status === 'active').length;
 
-  // Derive industry stats from what the user can see
-  const visibleIndustries = isSuperAdmin
-    ? industryStats
-    : enterprises.map(e => ({
-      label: e.industry,
-      count: 1,
-      color: industryStats.find(i => i.label === e.industry)?.color || 'neutral',
-    }));
+  // Derive legal status stats dynamically from the actual data
+  const legalStatusCounts = enterprises.reduce((acc, e) => {
+    const legalStatus = e.legal_form && e.legal_form !== '-' ? e.legal_form : 'Other';
+    acc[legalStatus] = (acc[legalStatus] || 0) + 1;
+    return acc;
+  }, {});
+
+  const predefinedColors = ['brand', 'success', 'info', 'warning', 'danger', 'pink', 'purple', 'emerald'];
+
+  const visibleLegalStatuses = Object.entries(legalStatusCounts).map(([label, count], index) => ({
+    label,
+    count,
+    color: predefinedColors[index % predefinedColors.length]
+  })).sort((a, b) => b.count - a.count);
 
   const handleInputChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -255,14 +320,25 @@ export default function EnterpriseManagement() {
     showToast(`${ent.name} ${newStatus === 'active' ? 'activated' : 'suspended'}.`);
 
     if (isSupabaseReady) {
+      // 1. Update company status
       const { error } = await supabase.from('entreprises')
         .update({ status: newStatus }).eq('id', ent.id);
+
       if (error) {
         showToast(`Error: ${error.message}`);
         fetchEnterprises(); // rollback
         return;
       }
+
+      // 2. Cascade suspended status to all users linked to this company
+      // This enforces the DB-level block because `verify_login` and the frontend
+      // also check user.status explicitly for login success.
+      await supabase.from('users')
+        .update({ status: newStatus === 'suspended' ? 'suspended' : 'active' })
+        .eq('entreprise_id', ent.id);
+
       cacheService.invalidatePattern('^enterprises:');
+      cacheService.invalidatePattern('^users:');
       cacheService.invalidatePattern('^admin:');
     }
   };
@@ -375,7 +451,7 @@ export default function EnterpriseManagement() {
           { label: 'Total Organizations', value: enterprises.length, icon: Building2, color: 'from-brand-500 to-brand-600' },
           { label: 'Active', value: activeCount, icon: Globe, color: 'from-emerald-500 to-teal-600' },
           { label: 'Total Employees', value: totalEmployees.toLocaleString(), icon: Users, color: 'from-brand-500 to-brand-600' },
-          { label: 'Industries', value: visibleIndustries.length, icon: Globe, color: 'from-amber-500 to-orange-600' },
+          { label: 'Legal Status', value: visibleLegalStatuses.length, icon: Globe, color: 'from-amber-500 to-orange-600' },
         ].map((card, i) => (
           <div key={i} className="bg-surface-primary rounded-2xl border border-border-secondary p-4
                                   hover:shadow-md transition-all duration-300 group animate-fade-in"
@@ -392,14 +468,14 @@ export default function EnterpriseManagement() {
         ))}
       </div>
 
-      {/* Industries */}
+      {/* Legal Statuses */}
       <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5 animate-fade-in"
         style={{ animationDelay: '350ms' }}>
-        <h2 className="text-sm font-semibold text-text-primary mb-3">Industries</h2>
+        <h2 className="text-sm font-semibold text-text-primary mb-3">Legal Status</h2>
         <div className="flex flex-wrap gap-2">
-          {visibleIndustries.map(ind => (
-            <StatusBadge key={ind.label} variant={ind.color} size="md">
-              {ind.label} ({ind.count})
+          {visibleLegalStatuses.map(status => (
+            <StatusBadge key={status.label} variant={status.color} size="md">
+              {status.label} ({status.count})
             </StatusBadge>
           ))}
         </div>
@@ -447,7 +523,7 @@ export default function EnterpriseManagement() {
         {viewEnterprise && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/15 shrink-0">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-neutral-100 dark:bg-neutral-800 border-2 border-white dark:border-neutral-700 shrink-0 shadow-sm">
                 <Building2 size={22} className="text-brand-500" />
               </div>
               <div>

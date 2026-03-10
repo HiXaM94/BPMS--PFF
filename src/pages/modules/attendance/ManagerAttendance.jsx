@@ -64,7 +64,11 @@ export default function ManagerAttendance() {
             if (historyData) {
                 setHistory(historyData);
                 const hrs = historyData.reduce((s, r) => s + (r.hours_worked || 0), 0);
-                const ot = historyData.reduce((s, r) => s + (r.overtime_hours || 0), 0);
+                const ot = historyData.reduce((s, r) => {
+                    const dbOt = r.overtime_hours || 0;
+                    if (dbOt > 0) return s + dbOt;
+                    return s + Math.max(0, (r.hours_worked || 0) - 8);
+                }, 0);
                 setMonthlyHours(Math.round(hrs * 10) / 10);
                 setOvertime(Math.round(ot * 10) / 10);
                 setAvgHours(historyData.length > 0 ? Math.round((hrs / historyData.length) * 10) / 10 : 0);
@@ -224,7 +228,7 @@ export default function ManagerAttendance() {
                         <div className="space-y-5">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-surface-secondary rounded-xl text-text-tertiary">
+                                    <div className="p-2 bg-surface-secondary rounded-xl text-slate-500 dark:text-white">
                                         <Clock size={20} />
                                     </div>
                                     <span className="text-sm font-medium text-text-secondary">Worked This Month</span>
@@ -236,7 +240,7 @@ export default function ManagerAttendance() {
 
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-surface-secondary rounded-xl text-text-tertiary">
+                                    <div className="p-2 bg-surface-secondary rounded-xl text-slate-500 dark:text-white">
                                         <History size={20} />
                                     </div>
                                     <span className="text-sm font-medium text-text-secondary">Overtime This Month</span>
@@ -248,7 +252,7 @@ export default function ManagerAttendance() {
 
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-surface-secondary rounded-xl text-text-tertiary">
+                                    <div className="p-2 bg-surface-secondary rounded-xl text-slate-500 dark:text-white">
                                         <Maximize2 size={20} />
                                     </div>
                                     <span className="text-sm font-medium text-text-secondary">Average Hours / day</span>

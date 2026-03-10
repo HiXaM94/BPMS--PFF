@@ -8,4 +8,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/api/hf': {
+        target: 'https://router.huggingface.co',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/hf/, '')
+      }
+    }
+  }
 })

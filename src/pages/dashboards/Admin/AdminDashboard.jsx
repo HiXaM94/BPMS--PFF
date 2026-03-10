@@ -13,8 +13,16 @@ import {
     Star,
     Palmtree,
     UserPlus,
-    Plus
+    Plus,
+    FileText,
+    Calendar,
+    Clock,
+    Shield,
+    AlertCircle,
+    Check,
+    RotateCcw
 } from 'lucide-react';
+
 import StatCard from '../../../components/ui/StatCard';
 import DataTable from '../../../components/ui/DataTable';
 import StatusBadge from '../../../components/ui/StatusBadge';
@@ -24,6 +32,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { adminData } from '../../../data/mockData';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
 import { cacheService } from '../../../services/CacheService';
+import { aiHealthCheckService } from '../../../services/AIHealthCheckService';
 
 /* ─── Asset-style cards with colored backgrounds matching template ─── */
 const assetCards = [
@@ -62,15 +71,6 @@ const assetCards = [
     },
 ];
 
-/* ─── Market-style table data ─── */
-const orgTableData = [
-    { id: 1, name: 'TechCorp International', tag: 'TECH', plan: 'Enterprise', users: '245', growth: '+13.38%', positive: true, status: 'active' },
-    { id: 2, name: 'FinServe Global', tag: 'FIN', plan: 'Business', users: '189', growth: '+11.19%', positive: true, status: 'active' },
-    { id: 3, name: 'MediCare Plus', tag: 'MED', plan: 'Enterprise', users: '156', growth: '+7.57%', positive: true, status: 'active' },
-    { id: 4, name: 'EduLearn Academy', tag: 'EDU', plan: 'Starter', users: '112', growth: '-6.80%', positive: false, status: 'trial' },
-    { id: 5, name: 'RetailMax Holdings', tag: 'RET', plan: 'Business', users: '198', growth: '+3.22%', positive: true, status: 'active' },
-];
-
 const orgAvatarColors = [
     'from-[#2a85ff] to-[#6cb4ff]',
     'from-[#ff6a55] to-[#ff9a7b]',
@@ -79,64 +79,48 @@ const orgAvatarColors = [
     'from-[#ff9a55] to-[#ffbe7b]',
 ];
 
-function getOrgColumns(toggleFavorite, favorites) {
+function getAttendanceColumns() {
     return [
         {
-            key: 'name',
-            label: 'Name',
+            key: 'employee_name',
+            label: 'Employee',
             render: (val, row) => (
                 <div className="flex items-center gap-3">
-                    <div className={`flex items-center justify-center w-9 h-9 rounded-xl
-                           bg-gradient-to-br ${orgAvatarColors[(row.id - 1) % orgAvatarColors.length]}
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg
+                           bg-gradient-to-br ${orgAvatarColors[Math.abs(row.id?.length || 0) % orgAvatarColors.length]}
                            text-white text-[10px] font-bold shrink-0 shadow-sm`}>
-                        {row.tag}
+                        {val ? val.slice(0, 2).toUpperCase() : 'EE'}
                     </div>
-                    <div>
-                        <span className="font-semibold text-text-primary block text-sm">{val}</span>
-                        <span className="text-[11px] text-text-tertiary">{row.tag}</span>
-                    </div>
+                    <span className="font-semibold text-text-primary block text-sm">{val}</span>
                 </div>
             ),
         },
         {
-            key: 'users',
-            label: 'Users',
-            cellClassName: 'font-semibold text-text-primary text-sm',
+            key: 'check_in_time',
+            label: 'Check In',
+            render: (val) => <span className="text-sm text-text-secondary font-medium">{val || '--:--'}</span>
         },
         {
-            key: 'growth',
-            label: 'Change',
-            render: (val, row) => (
-                <span className={`text-sm font-medium ${row.positive ? 'text-[#83bf6e]' : 'text-[#ff6a55]'}`}>
-                    {val}
-                </span>
-            ),
-        },
-        {
-            key: 'plan',
-            label: 'Plan',
-            render: (val) => (
-                <span className="text-sm text-text-secondary">{val}</span>
-            ),
+            key: 'check_out_time',
+            label: 'Check Out',
+            render: (val) => <span className="text-sm text-text-secondary font-medium">{val || '--:--'}</span>
         },
         {
             key: 'status',
             label: 'Status',
-            render: (val) => {
-                const map = { active: 'success', trial: 'warning', suspended: 'danger' };
-                return <StatusBadge variant={map[val] || 'neutral'} dot size="sm">{val}</StatusBadge>;
-            },
+            render: (val) => (
+                <StatusBadge variant={val === 'present' ? 'success' : val === 'late' ? 'warning' : 'neutral'} dot size="sm">
+                    {val || 'Present'}
+                </StatusBadge>
+            ),
         },
         {
-            key: 'watch',
-            label: '',
-            render: (_, row) => (
-                <button
-                    onClick={(e) => { e.stopPropagation(); toggleFavorite(row.id); }}
-                    className={`transition-colors cursor-pointer ${favorites.includes(row.id) ? 'text-[#fbbf24]' : 'text-text-tertiary hover:text-[#fbbf24]'}`}
-                >
-                    <Star size={16} fill={favorites.includes(row.id) ? '#fbbf24' : 'none'} />
-                </button>
+            key: 'date',
+            label: 'Date',
+            render: (val) => (
+                <span className="text-xs text-text-tertiary">
+                    {val ? new Date(val).toLocaleDateString() : '-'}
+                </span>
             ),
         },
     ];
@@ -145,18 +129,25 @@ function getOrgColumns(toggleFavorite, favorites) {
 export default function AdminDashboard() {
     const navigate = useNavigate();
     const [cards, setCards] = useState(assetCards);
-    const [orgs, setOrgs] = useState(orgTableData);
-    const [totalUsers, setTotalUsers] = useState('1,846');
-    const [systemLogs, setSystemLogs] = useState(adminData.systemLogs);
-    const [timeRange, setTimeRange] = useState('1Y');
-    const [chartData, setChartData] = useState(adminData.monthlyUsers || []);
-    const [orgPeriod, setOrgPeriod] = useState('month');
-    const [orgSort, setOrgSort] = useState('growing');
+    const [latestAttendance, setLatestAttendance] = useState([]);
+    const [attendancePage, setAttendancePage] = useState(1);
+    const itemsPerPage = 6;
+    const [recentDocuments, setRecentDocuments] = useState([]);
+    const [roleDistribution, setRoleDistribution] = useState([]);
+    const [totalUsers, setTotalUsers] = useState('0');
+    const [totalUsersTrend, setTotalUsersTrend] = useState(0);
+    const [totalActivity, setTotalActivity] = useState(0);
+    const [systemLogs, setSystemLogs] = useState([]);
+    const [timeRange, setTimeRange] = useState('7D');
+    const [chartData, setChartData] = useState([]);
+    const [statsLoading, setStatsLoading] = useState(true);
     const [favorites, setFavorites] = useState(() => {
         try { return JSON.parse(localStorage.getItem('flowly_fav_orgs') || '[]'); } catch { return []; }
     });
     const { profile, signUpSilently } = useAuth();
-    const [globalLeave, setGlobalLeave] = useState(adminData.globalLeaveRequests || []);
+    const [globalLeave, setGlobalLeave] = useState([]);
+    const [globalLeaveStatus, setGlobalLeaveStatus] = useState('Normal Load');
+    const [entrepriseInfo, setEntrepriseInfo] = useState(null);
     const [projectsOverview, setProjectsOverview] = useState([]);
     const [projectsLoading, setProjectsLoading] = useState(false);
     const [projectValidationProcessing, setProjectValidationProcessing] = useState({});
@@ -165,7 +156,7 @@ export default function AdminDashboard() {
     const [hrForm, setHrForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '' });
     const [isSubmittingHR, setIsSubmittingHR] = useState(false);
     const [hrCreated, setHrCreated] = useState(false);
-    const [hrError, setHrError] = useState(null); // shown inside the modal
+    const [hrError, setHrError] = useState(null);
 
     const handleCreateHR = async (e) => {
         e.preventDefault();
@@ -256,91 +247,77 @@ export default function AdminDashboard() {
         },
     ];
 
-    // ── Toggle favorite org ──
-    const toggleFavorite = useCallback((orgId) => {
-        setFavorites(prev => {
-            const next = prev.includes(orgId) ? prev.filter(id => id !== orgId) : [...prev, orgId];
-            localStorage.setItem('flowly_fav_orgs', JSON.stringify(next));
-            return next;
-        });
-    }, []);
+    // ── Fetch Dashboard Stats from RPC ──
+    const fetchDashboardStats = useCallback(async (days = 7) => {
+        if (!profile?.entreprise_id || !isSupabaseReady) return;
 
-    // ── Build chart data based on time range ──
-    const getChartSlice = useCallback((range, fullData) => {
-        const months = { '3M': 3, '6M': 6, '1Y': 12, 'YTD': new Date().getMonth() + 1, 'ALL': fullData.length };
-        const count = months[range] || 12;
-        return fullData.slice(-count);
-    }, []);
-
-    // ── Fetch chart data from Supabase or use mock ──
-    const fetchChartData = useCallback(async (range) => {
-        if (!isSupabaseReady) {
-            const raw = adminData.monthlyUsers || [];
-            const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i + 1}`, value: v }));
-            setChartData(getChartSlice(range, arr));
-            return;
-        }
-        const data = await cacheService.getOrSet(`admin:chart:${range}`, async () => {
-            const months = { '3M': 3, '6M': 6, '1Y': 12, 'YTD': new Date().getMonth() + 1, 'ALL': 24 };
-            const count = months[range] || 12;
-            const since = new Date();
-            since.setMonth(since.getMonth() - count);
-            const { data: rows } = await supabase.from('users')
-                .select('created_at')
-                .gte('created_at', since.toISOString())
-                .order('created_at', { ascending: true });
-            if (!rows || rows.length === 0) return null;
-            // Bucket into months
-            const buckets = {};
-            rows.forEach(r => {
-                const d = new Date(r.created_at);
-                const key = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
-                buckets[key] = (buckets[key] || 0) + 1;
+        setStatsLoading(true);
+        try {
+            const { data, error } = await supabase.rpc('get_admin_dashboard_stats', {
+                p_entreprise_id: profile.entreprise_id,
+                p_chart_days: days
             });
-            // Cumulative
-            let cum = 0;
-            return Object.entries(buckets).map(([label, value]) => { cum += value; return { label, value: cum }; });
-        }, 120);
-        if (data) {
-            setChartData(data);
-        } else {
-            const raw = adminData.monthlyUsers || [];
-            const arr = Array.isArray(raw) && typeof raw[0] === 'object' ? raw : raw.map((v, i) => ({ label: `M${i + 1}`, value: v }));
-            setChartData(getChartSlice(range, arr));
-        }
-    }, [getChartSlice]);
 
-    // ── Fetch orgs with period/sort filters ──
-    const fetchOrgs = useCallback(async () => {
-        if (!isSupabaseReady) {
-            let sorted = [...orgTableData];
-            if (orgSort === 'users') sorted.sort((a, b) => parseInt(b.users) - parseInt(a.users));
-            if (orgSort === 'newest') sorted.sort((a, b) => b.id - a.id);
-            setOrgs(sorted);
-            return;
-        }
-        const since = new Date();
-        if (orgPeriod === 'month') since.setMonth(since.getMonth() - 1);
-        else if (orgPeriod === 'quarter') since.setMonth(since.getMonth() - 3);
-        else since.setFullYear(since.getFullYear() - 1);
+            if (error) throw error;
 
-        const { data } = await supabase.from('entreprises')
-            .select('id, name, status, plan, created_at')
-            .gte('created_at', since.toISOString())
-            .order('created_at', { ascending: false })
-            .limit(5);
-        if (!data || data.length === 0) return;
-        setOrgs(data.map((e) => ({
-            id: e.id,
-            name: e.name,
-            tag: e.name.slice(0, 4).toUpperCase(),
-            plan: e.plan || 'Business',
-            users: '-',
-            growth: '',
-            positive: true,
-            status: e.status || 'active',
-        })));
-    }, [orgPeriod, orgSort]);
+            if (data) {
+                setTotalUsers(data.total_users?.toLocaleString() || '0');
+                setTotalUsersTrend(data.user_trend_pct || 0);
+                setTotalActivity(data.period_activity_count || 0);
+                setGlobalLeave([
+                    { status: 'pending', count: data.leave_pending },
+                    { status: 'approved', count: data.leave_approved }
+                ]);
+                setGlobalLeaveStatus(data.leave_status_label || 'Normal Load');
+                setLatestAttendance(data.latest_attendance || []);
+                setChartData(data.chart_data || []);
+                setRoleDistribution(data.role_distribution || []);
+                setRecentDocuments(data.recent_documents || []);
+                setEntrepriseInfo(data.entreprise_info || null);
+
+                setCards([
+                    {
+                        ...assetCards[0],
+                        label: 'Total Employees',
+                        value: data.total_employees?.toString() || '0',
+                        sub: `${data.total_users || 0} users total`,
+                        change: '',
+                    },
+                    {
+                        ...assetCards[1],
+                        label: "Today's Attendance",
+                        value: data.attendance_today?.toString() || '0',
+                        sub: 'employees present',
+                        icon: Calendar,
+                        change: '',
+                    },
+                    {
+                        ...assetCards[2],
+                        label: 'Pending Documents',
+                        value: data.pending_documents?.toString() || '0',
+                        sub: 'awaiting approval',
+                        icon: FileText,
+                        change: '',
+                        positive: data.pending_documents === 0,
+                    }
+                ]);
+            }
+        } catch (err) {
+            console.error('[Admin Dashboard] Error fetching stats:', err);
+        } finally {
+            setStatsLoading(false);
+        }
+    }, [profile?.entreprise_id]);
+
+    useEffect(() => {
+        const daysMap = { '1D': 1, '7D': 7, '15D': 15, '30D': 30 };
+        fetchDashboardStats(daysMap[timeRange] || 7);
+
+        // Auto-run AI Health Check proactively
+        if (profile?.id && profile?.entreprise_id) {
+            aiHealthCheckService.runDailyHealthCheck(profile.id, profile.entreprise_id);
+        }
+    }, [fetchDashboardStats, timeRange, profile?.id]);
 
     const fetchProjectsOverview = useCallback(async () => {
         if (!profile?.entreprise_id) return;
@@ -418,30 +395,10 @@ export default function AdminDashboard() {
         }
     }, []);
 
-    // ── Initial data load ──
     useEffect(() => {
-        fetchChartData(timeRange);
-
         if (!isSupabaseReady) return;
-
-        cacheService.getOrSet('admin:counts', async () => {
-            const [ents, users] = await Promise.all([
-                supabase.from('entreprises').select('id', { count: 'exact', head: true }),
-                supabase.from('users').select('id', { count: 'exact', head: true }),
-            ]);
-            return { entCount: ents.count ?? 0, userCount: users.count ?? 0 };
-        }, 120).then(({ entCount, userCount }) => {
-            setTotalUsers(userCount.toLocaleString());
-            setCards(prev => [
-                { ...prev[0], value: entCount.toString(), sub: `${userCount} employees` },
-                { ...prev[1], value: userCount.toLocaleString(), sub: 'registered users' },
-                prev[2],
-            ]);
-        });
-    }, [fetchChartData, timeRange]);
-
-    // ── Refetch orgs when filters change ──
-    useEffect(() => { fetchOrgs(); }, [fetchOrgs]);
+        fetchProjectsOverview();
+    }, [fetchProjectsOverview]);
 
     return (
         <div className="space-y-6">
@@ -484,24 +441,29 @@ export default function AdminDashboard() {
 
             {/* Top Row: Portfolio card + Asset cards */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Portfolio-style summary card */}
-                <div className="lg:col-span-5 bg-surface-primary rounded-2xl border border-border-secondary p-6
-                        animate-fade-in">
-                    <h2 className="text-sm font-semibold text-text-secondary mb-1">System Usage</h2>
-                    <div className="flex items-baseline gap-3 mb-1">
-                        <span className="text-3xl font-bold text-text-primary tracking-tight">{totalUsers}</span>
-                        <span className="text-xs font-medium text-text-tertiary">total users</span>
+                <div className="lg:col-span-5 bg-surface-primary rounded-2xl border border-border-secondary p-8
+                        animate-fade-in shadow-sm">
+                    <h2 className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-4">System Activity</h2>
+                    <div className="flex items-baseline gap-2 mb-1">
+                        <span className="text-4xl font-bold tracking-tight text-text-primary">
+                            {totalActivity}
+                        </span>
+                        <span className="text-xs font-medium text-text-tertiary uppercase tracking-wider">
+                            Check-ins ({timeRange})
+                        </span>
                     </div>
                     <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#eafaf0] dark:bg-emerald-500/10 mb-4">
-                        <ArrowUpRight size={12} className="text-[#83bf6e]" />
-                        <span className="text-xs font-semibold text-[#83bf6e]">+12.4%</span>
+                        <ArrowUpRight size={12} className={totalUsersTrend >= 0 ? "text-[#83bf6e]" : "text-red-500"} />
+                        <span className={`text-xs font-semibold ${totalUsersTrend >= 0 ? "text-[#83bf6e]" : "text-red-500"}`}>
+                            {totalUsersTrend >= 0 ? '+' : ''}{totalUsersTrend}%
+                        </span>
                     </div>
 
                     {/* Mini chart */}
                     <div className="mt-2">
                         <MiniChart
                             data={chartData}
-                            label="Monthly active users"
+                            label="Daily Activity (Attendance)"
                             height={80}
                             colorFrom="#2a85ff"
                             colorTo="#6cb4ff"
@@ -510,10 +472,10 @@ export default function AdminDashboard() {
 
                     {/* Time range tabs */}
                     <div className="flex items-center gap-1 mt-4">
-                        {['3M', '6M', '1Y', 'YTD', 'ALL'].map((tab) => (
+                        {['1D', '7D', '15D', '30D'].map((tab) => (
                             <button
                                 key={tab}
-                                onClick={() => { setTimeRange(tab); fetchChartData(tab); }}
+                                onClick={() => setTimeRange(tab)}
                                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer
                   ${tab === timeRange
                                         ? 'bg-text-primary text-text-inverse'
@@ -529,7 +491,7 @@ export default function AdminDashboard() {
                 {/* Asset-style cards column — stretches to match System Usage height */}
                 <div className="lg:col-span-7 flex flex-col">
                     <h2 className="text-sm font-semibold text-text-secondary mb-3">Quick Stats</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
                         {cards.map((card, i) => (
                             <div
                                 key={i}
@@ -561,20 +523,20 @@ export default function AdminDashboard() {
                             </div>
                         ))}
                         {/* Global Leave Stats Card */}
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-border-secondary animate-fade-in flex flex-col justify-between"
+                        <div className="bg-[#fff8f1] dark:bg-orange-500/10 rounded-2xl p-5 border border-border-secondary animate-fade-in flex flex-col justify-between"
                             style={{ animationDelay: '240ms' }}>
                             <div>
                                 <span className="text-sm font-semibold text-text-secondary block mb-2 uppercase tracking-wider">Global Leave</span>
                                 <div className="flex items-center gap-4">
                                     <div className="flex-1">
                                         <span className="text-xl font-bold text-text-primary block">
-                                            {globalLeave.filter(r => r.status === 'pending').length}
+                                            {globalLeave.find(r => r.status === 'pending')?.count ?? 0}
                                         </span>
                                         <span className="text-[10px] text-text-tertiary uppercase font-bold">Pending</span>
                                     </div>
                                     <div className="flex-1">
                                         <span className="text-xl font-bold text-text-primary block">
-                                            {globalLeave.filter(r => r.status === 'approved').length}
+                                            {globalLeave.find(r => r.status === 'approved')?.count ?? 0}
                                         </span>
                                         <span className="text-[10px] text-text-tertiary uppercase font-bold">Approved</span>
                                     </div>
@@ -582,8 +544,8 @@ export default function AdminDashboard() {
                             </div>
                             <div className="mt-4 pt-4 border-t border-border-secondary flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    <span className="text-xs font-medium text-text-secondary">Normal Load</span>
+                                    <div className={`w-2 h-2 rounded-full ${globalLeaveStatus === 'High Load' ? 'bg-red-500' : globalLeaveStatus === 'Moderate Load' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                    <span className="text-xs font-medium text-text-secondary">{globalLeaveStatus}</span>
                                 </div>
                                 <Palmtree size={14} className="text-text-tertiary" />
                             </div>
@@ -618,7 +580,7 @@ export default function AdminDashboard() {
                                     <th className="px-5 py-3">Project Manager</th>
                                     <th className="px-5 py-3">Progress</th>
                                     <th className="px-5 py-3">Status</th>
-                                    <th className="px-5 py-3 text-right">Validation</th>
+                                    <th className="px-5 py-3 text-center">Validation</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border-secondary">
@@ -643,15 +605,23 @@ export default function AdminDashboard() {
                                                 {project.valider ? 'Validated' : project.status?.replace('_', ' ') || 'Pending'}
                                             </StatusBadge>
                                         </td>
-                                        <td className="px-5 py-4 text-right">
+                                        <td className="px-5 py-4 text-center">
                                             <button
                                                 disabled={projectValidationProcessing[project.id]}
                                                 onClick={() => handleToggleProjectValidation(project.id, project.valider)}
-                                                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-wait ${project.valider ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
+                                                className={`flex items-center justify-center gap-1.5 mx-auto px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all shadow-sm border disabled:opacity-50 disabled:cursor-wait
+                                                    ${project.valider
+                                                        ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:border-red-300'
+                                                        : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'}`}
                                             >
-                                                {projectValidationProcessing[project.id]
-                                                    ? 'Updating…'
-                                                    : project.valider ? 'Set to Pending' : 'Validate'}
+                                                {projectValidationProcessing[project.id] ? (
+                                                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                                ) : project.valider ? (
+                                                    <RotateCcw size={13} strokeWidth={2.5} />
+                                                ) : (
+                                                    <Check size={13} strokeWidth={2.5} />
+                                                )}
+                                                {projectValidationProcessing[project.id] ? 'Wait...' : project.valider ? 'Revoke' : 'Validate'}
                                             </button>
                                         </td>
                                     </tr>
@@ -669,101 +639,169 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-            {/* Bottom Row: Organizations table + Promo card */}
+            {/* Bottom Row: Recent Activity table + Promo card */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Organizations Table — styled like the "Market" table */}
+                {/* Latest Attendance Table */}
                 <div className="lg:col-span-8 bg-surface-primary rounded-2xl border border-border-secondary
                         overflow-hidden animate-fade-in" style={{ animationDelay: '300ms' }}>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-5 pt-5 pb-3 gap-3">
+                    <div className="px-5 pt-5 pb-3">
                         <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600">
-                                <Globe size={20} />
+                            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                                <Clock size={20} />
                             </div>
                             <div>
-                                <h2 className="text-sm font-bold text-text-primary uppercase tracking-tight">Organizations</h2>
-                                <p className="text-[10px] text-text-tertiary font-medium uppercase mt-0.5">overview</p>
+                                <h2 className="text-sm font-bold text-text-primary uppercase tracking-tight">Latest Attendance</h2>
+                                <p className="text-[10px] text-text-tertiary font-medium uppercase mt-0.5">Real-time check-in activity</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <select
-                                value={orgPeriod}
-                                onChange={e => setOrgPeriod(e.target.value)}
-                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
-                                 border border-border-secondary text-text-secondary cursor-pointer
-                                 focus:outline-none">
-                                <option value="month">This month</option>
-                                <option value="quarter">This quarter</option>
-                                <option value="year">This year</option>
-                            </select>
-                            <select
-                                value={orgSort}
-                                onChange={e => setOrgSort(e.target.value)}
-                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-secondary
-                                 border border-border-secondary text-text-secondary cursor-pointer
-                                 focus:outline-none">
-                                <option value="growing">Top growing</option>
-                                <option value="users">Most users</option>
-                                <option value="newest">Newest</option>
-                            </select>
-                        </div>
                     </div>
-                    <DataTable columns={getOrgColumns(toggleFavorite, favorites)} data={orgs} emptyMessage="No organizations found" />
+                    <div className="flex flex-col">
+                        <div className="overflow-hidden">
+                            <DataTable
+                                columns={getAttendanceColumns()}
+                                data={latestAttendance.slice((attendancePage - 1) * itemsPerPage, attendancePage * itemsPerPage)}
+                                emptyMessage={statsLoading ? "Loading attendance..." : "No attendance recorded for today"}
+                            />
+                        </div>
+
+                        {latestAttendance.length > itemsPerPage && (
+                            <div className="px-5 py-4 border-t border-border-secondary flex items-center justify-between bg-surface-secondary/50">
+                                <span className="text-xs font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
+                                    Page {attendancePage} / {Math.ceil(latestAttendance.length / itemsPerPage)}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setAttendancePage(p => Math.max(1, p - 1));
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
+                                        disabled={attendancePage === 1}
+                                        className="inline-flex items-center gap-1 px-4 py-2 rounded-xl border border-border-secondary bg-surface-primary text-xs font-bold uppercase transition-all hover:bg-surface-tertiary hover:border-brand-500/30 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95"
+                                    >
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                        Prev
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setAttendancePage(p => Math.min(Math.ceil(latestAttendance.length / itemsPerPage), p + 1));
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
+                                        disabled={attendancePage >= Math.ceil(latestAttendance.length / itemsPerPage)}
+                                        className="inline-flex items-center gap-1 px-4 py-2 rounded-xl border border-border-secondary bg-surface-primary text-xs font-bold uppercase transition-all hover:bg-surface-tertiary hover:border-brand-500/30 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm active:scale-95"
+                                    >
+                                        Next
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Promo / CTA Card — dark card matching template */}
-                <div className="lg:col-span-4 bg-[#1a1d1f] rounded-2xl p-6 flex flex-col justify-between
-                        min-h-[280px] animate-fade-in relative overflow-hidden"
-                    style={{ animationDelay: '400ms' }}>
-                    {/* Decorative geometric lines */}
-                    <div className="absolute -bottom-8 -right-8 w-40 h-40 border border-white/5 rounded-2xl
-                          rotate-12" />
-                    <div className="absolute -bottom-4 -right-4 w-32 h-32 border border-white/10 rounded-2xl
-                          rotate-12" />
-                    <div className="absolute top-4 right-4 w-16 h-16 border border-white/5 rounded-xl
-                          -rotate-6" />
+                {/* Department Distribution / Subscription Card */}
+                <div className="lg:col-span-4 bg-surface-primary rounded-2xl border border-border-secondary p-6 flex flex-col justify-between
+                        animate-fade-in" style={{ animationDelay: '400ms' }}>
+                    <div>
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-2">
+                                <Shield size={16} className="text-brand-500" />
+                                <h2 className="text-sm font-bold text-text-primary uppercase tracking-tight">Organization Roles</h2>
+                            </div>
+                            <StatusBadge variant="info" size="xs">{entrepriseInfo?.plan || 'Starter'}</StatusBadge>
+                        </div>
 
-                    <div className="relative z-10">
-                        <h3 className="text-xl font-bold text-white leading-tight mb-2">
-                            Automate <span className="inline-block px-2 py-0.5 rounded-md bg-white/10 text-white text-sm font-semibold mx-0.5">free</span> processes
-                            <br />with Flowly!
-                        </h3>
-                        <p className="text-sm text-[#6f767e] mt-3 leading-relaxed">
-                            Streamline your business processes and manage workflows effortlessly.
-                        </p>
+                        <div className="space-y-4">
+                            {roleDistribution.length > 0 ? (
+                                roleDistribution.map((r, i) => (
+                                    <div key={i} className="space-y-1.5">
+                                        <div className="flex justify-between text-xs font-medium">
+                                            <span className="text-text-secondary">{r.role.replace('_', ' ')}</span>
+                                            <span className="text-text-primary">{r.count} members</span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-surface-secondary rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all duration-1000 ${r.role === 'ADMIN' ? 'bg-orange-500' :
+                                                    r.role === 'HR' ? 'bg-brand-500' :
+                                                        r.role === 'TEAM_MANAGER' ? 'bg-purple-500' : 'bg-emerald-500'
+                                                    }`}
+                                                style={{ width: `${Math.min(100, (r.count / (Math.max(1, parseInt(totalUsers.replace(',', ''))))) * 100)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-8 text-xs text-text-tertiary border-2 border-dashed border-border-secondary rounded-xl">
+                                    <Globe size={24} className="mx-auto mb-2 opacity-20" />
+                                    No role data available.
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    <button
-                        onClick={() => navigate('/enterprise')}
-                        className="relative z-10 mt-6 self-start px-5 py-2.5 rounded-xl bg-white text-[#1a1d1f]
-                             text-sm font-semibold hover:bg-gray-100 transition-colors cursor-pointer
-                             shadow-lg shadow-black/20">
-                        Get Started
-                    </button>
+                    <div className="mt-8 pt-4 border-t border-border-secondary flex items-center justify-between">
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-[10px] text-text-tertiary uppercase font-bold tracking-wider">Plan Status</span>
+                            <span className="text-xs font-semibold text-text-secondary truncate">
+                                {entrepriseInfo?.name || 'Company Account'}
+                            </span>
+                        </div>
+                        <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${entrepriseInfo?.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                            {entrepriseInfo?.status || 'Active'}
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* System Logs */}
+            {/* Recent Document Uploads */}
             <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5
                       animate-fade-in" style={{ animationDelay: '500ms' }}>
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-9 h-9 rounded-xl bg-slate-500/10 flex items-center justify-center text-slate-600">
-                        <Activity size={20} />
-                    </div>
-                    <h2 className="text-sm font-bold text-text-primary uppercase tracking-tight">System Logs</h2>
-                </div>
-                <div className="space-y-3">
-                    {systemLogs.map((log) => (
-                        <div key={log.id} className="flex items-start gap-3 group">
-                            <StatusBadge variant={{ success: 'success', warning: 'warning', danger: 'danger', info: 'info' }[log.severity]} size="sm" dot>
-                                {log.severity}
-                            </StatusBadge>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-text-primary">{log.event}</p>
-                                <p className="text-xs text-text-tertiary">{log.details}</p>
-                            </div>
-                            <span className="text-[11px] text-text-tertiary whitespace-nowrap">{log.time}</span>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-600">
+                            <FileText size={20} />
                         </div>
-                    ))}
+                        <h2 className="text-sm font-bold text-text-primary uppercase tracking-tight">Recent Document Submissions</h2>
+                    </div>
+                    <StatusBadge variant="neutral" size="sm">Real Time</StatusBadge>
+                </div>
+                <div className="space-y-4">
+                    {recentDocuments.length > 0 ? (
+                        recentDocuments.map((doc) => (
+                            <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-surface-secondary transition-colors group">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-10 h-10 rounded-lg bg-surface-tertiary flex items-center justify-center text-text-tertiary group-hover:text-brand-500 transition-colors">
+                                        <FileText size={20} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-text-primary truncate">{doc.title}</p>
+                                        <p className="text-xs text-text-tertiary mt-0.5">
+                                            {doc.type} • Uploaded by {doc.uploaded_by_name || 'System'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4 shrink-0">
+                                    <span className="text-[11px] text-text-tertiary font-medium">
+                                        {new Date(doc.uploaded_at).toLocaleDateString()}
+                                    </span>
+                                    <StatusBadge
+                                        variant={doc.status === 'approved' ? 'success' : doc.status === 'pending' ? 'warning' : 'danger'}
+                                        size="xs"
+                                    >
+                                        {doc.status}
+                                    </StatusBadge>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-center py-6 border-2 border-dashed border-border-secondary rounded-xl text-xs text-text-tertiary">
+                            No recent document submissions recorded.
+                        </div>
+                    )}
                 </div>
             </div>
 

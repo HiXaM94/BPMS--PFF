@@ -1,18 +1,97 @@
-import { useState } from 'react';
-import { Server, Activity, Users, AlertTriangle, Monitor, HardDrive, Cpu, CheckCircle2, AlertOctagon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Server, Activity, Users, Monitor, HardDrive, Cpu, CheckCircle2, AlertOctagon, Building } from 'lucide-react';
+import { supabase } from '../../../services/supabase';
+import { landingSupabase } from '../../../services/landingSupabase';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 
 export default function SuperAdminAttendance() {
+    const [stats, setStats] = useState({
+        companies: '0',
+        employees: '0',
+        attendance: '0',
+        rate: '0%',
+        activeKiosks: '128'
+    });
+    const [topCompanies, setTopCompanies] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [ticketStatus, setTicketStatus] = useState(null);
     const [toast, setToast] = useState('');
     const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
+
+    useEffect(() => {
+        const fetchGlobalStats = async () => {
+            setIsLoading(true);
+            try {
+                // 1. Fetch Global Counts from both databases
+                const [{ count: companiesCountMain }, { count: employeesCountMain }, { count: attendanceCountMain }] = await Promise.all([
+                    supabase.from('entreprises').select('*', { count: 'exact', head: true }),
+                    supabase.from('employees').select('*', { count: 'exact', head: true }),
+                    supabase.from('presences').select('*', { count: 'exact', head: true }).eq('date', new Date().toISOString().split('T')[0])
+                ]);
+                const [{ count: companiesCountLanding }, { count: employeesCountLanding }, { count: attendanceCountLanding }] = await Promise.all([
+                    landingSupabase.from('entreprises').select('*', { count: 'exact', head: true }),
+                    landingSupabase.from('employees').select('*', { count: 'exact', head: true }),
+                    landingSupabase.from('presences').select('*', { count: 'exact', head: true }).eq('date', new Date().toISOString().split('T')[0])
+                ]);
+
+                const totalCompanies = (companiesCountMain || 0) + (companiesCountLanding || 0);
+                const totalEmployees = (employeesCountMain || 0) + (employeesCountLanding || 0);
+                const totalAttendance = (attendanceCountMain || 0) + (attendanceCountLanding || 0);
+                const rate = totalEmployees > 0 ? Math.round((totalAttendance / totalEmployees) * 100) : 0;
+
+                setStats(prev => ({
+                    ...prev,
+                    companies: totalCompanies?.toString() || '0',
+                    employees: totalEmployees?.toString() || '0',
+                    attendance: totalAttendance?.toString() || '0',
+                    rate: `${rate}%`
+                }));
+
+                // 2. Fetch Companies and usage from both DBs
+                const [{ data: mainCompanies }, { data: landingCompanies }] = await Promise.all([
+                    supabase.from('entreprises').select('id, name'),
+                    landingSupabase.from('entreprises').select('id, name')
+                ]);
+                const allCompanies = [...(mainCompanies || []), ...(landingCompanies || [])];
+
+                const [{ data: mainPresences }, { data: landingPresences }] = await Promise.all([
+                    supabase.from('presences').select('entreprise_id').eq('date', new Date().toISOString().split('T')[0]),
+                    landingSupabase.from('presences').select('entreprise_id').eq('date', new Date().toISOString().split('T')[0])
+                ]);
+                const presencesToday = [...(mainPresences || []), ...(landingPresences || [])];
+
+                const [{ data: mainEmpCounts }, { data: landingEmpCounts }] = await Promise.all([
+                    supabase.from('employees').select('entreprise_id'),
+                    landingSupabase.from('employees').select('entreprise_id')
+                ]);
+                const employeeCounts = [...(mainEmpCounts || []), ...(landingEmpCounts || [])];
+
+                const usageMap = allCompanies.reduce((acc, comp) => {
+                    const totalEmps = employeeCounts.filter(e => e.entreprise_id === comp.id).length;
+                    const presentToday = presencesToday.filter(p => p.entreprise_id === comp.id).length;
+                    const usageRate = totalEmps > 0 ? Math.round((presentToday / totalEmps) * 100) : 0;
+                    acc.push({ id: comp.id, name: comp.name, present: presentToday, total: totalEmps, rate: usageRate });
+                    return acc;
+                }, []);
+                const top = usageMap.sort((a, b) => b.rate - a.rate).slice(0, 3);
+                setTopCompanies(top);
+
+            } catch (err) {
+                console.error('Error fetching global attendance stats:', err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchGlobalStats();
+    }, []);
 
     return (
         <div className="space-y-6 animate-fade-in">
             {toast && (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
-                    <CheckCircle2 size={16}/> {toast}
+                    <CheckCircle2 size={16} /> {toast}
                 </div>
             )}
 
@@ -23,10 +102,10 @@ export default function SuperAdminAttendance() {
                     Global Statistics (All Companies)
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <StatCard title="Active Companies" value="47" icon={Building} iconColor="bg-gradient-to-br from-blue-500 to-cyan-500" />
-                    <StatCard title="Total Employees" value="3,842" icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
-                    <StatCard title="Clock-ins Today" value="3,156" subtitle="82% attendance rate" icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
-                    <StatCard title="Active Kiosks" value="128" icon={Monitor} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
+                    <StatCard title="Active Companies" value={stats.companies} icon={Building} iconColor="bg-gradient-to-br from-blue-500 to-cyan-500" />
+                    <StatCard title="Total Employees" value={stats.employees} icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" />
+                    <StatCard title="Clock-ins Today" value={stats.attendance} subtitle={isLoading ? "Loading..." : `${stats.rate} attendance rate`} icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-500" />
+                    <StatCard title="Active Kiosks" value={stats.activeKiosks} icon={Monitor} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" />
                 </div>
             </div>
 
@@ -55,44 +134,31 @@ export default function SuperAdminAttendance() {
                             </div>
                             <StatusBadge variant="success">Healthy</StatusBadge>
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-surface-secondary rounded-xl border border-amber-500/20">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><Monitor size={18} /></div>
-                                <div>
-                                    <p className="text-sm font-medium text-text-primary">Kiosk KSK-042 (Acme Corp)</p>
-                                    <p className="text-xs text-text-secondary">Offline since 8:30 AM</p>
-                                </div>
-                            </div>
-                            <StatusBadge variant="warning">Offline</StatusBadge>
-                        </div>
+                        <StatusBadge variant="warning" className="hidden">Offline</StatusBadge>
                     </div>
                 </div>
 
                 {/* Top Companies */}
                 <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5">
-                    <h3 className="text-base font-semibold text-text-primary mb-4">Top Companies Usage (Today)</h3>
+                    <h3 className="text-base font-semibold text-text-primary mb-4 text-xs font-bold uppercase tracking-wider">Top Companies Usage (Today)</h3>
                     <div className="space-y-4">
-                        <div className="p-3 border border-border-secondary rounded-xl">
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm font-medium text-text-primary">1. TechStart Solutions</span>
-                                <span className="text-xs font-semibold text-text-secondary">441/456 (96%)</span>
+                        {isLoading ? (
+                            <div className="flex items-center justify-center py-10">
+                                <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
                             </div>
-                            <div className="w-full bg-surface-secondary rounded-full h-1.5"><div className="bg-brand-500 h-1.5 rounded-full" style={{ width: '96%' }}></div></div>
-                        </div>
-                        <div className="p-3 border border-border-secondary rounded-xl">
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm font-medium text-text-primary">2. Maroc Industries</span>
-                                <span className="text-xs font-semibold text-text-secondary">312/389 (80%)</span>
+                        ) : topCompanies.length > 0 ? topCompanies.map((comp, idx) => (
+                            <div key={comp.id} className="p-3 border border-border-secondary rounded-xl hover:bg-surface-secondary transition-colors">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-sm font-medium text-text-primary truncate max-w-[200px]">{idx + 1}. {comp.name}</span>
+                                    <span className="text-xs font-semibold text-text-secondary">{comp.present}/{comp.total} ({comp.rate}%)</span>
+                                </div>
+                                <div className="w-full bg-surface-secondary rounded-full h-1.5 overflow-hidden">
+                                    <div className="bg-brand-500 h-1.5 rounded-full transition-all duration-700" style={{ width: `${comp.rate}%` }}></div>
+                                </div>
                             </div>
-                            <div className="w-full bg-surface-secondary rounded-full h-1.5"><div className="bg-brand-500 h-1.5 rounded-full" style={{ width: '80%' }}></div></div>
-                        </div>
-                        <div className="p-3 border border-border-secondary rounded-xl">
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="text-sm font-medium text-text-primary">3. Acme Corporation</span>
-                                <span className="text-xs font-semibold text-text-secondary">82/87 (94%)</span>
-                            </div>
-                            <div className="w-full bg-surface-secondary rounded-full h-1.5"><div className="bg-brand-500 h-1.5 rounded-full" style={{ width: '94%' }}></div></div>
-                        </div>
+                        )) : (
+                            <div className="text-center py-10 text-text-tertiary text-sm">No usage data found for today</div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -163,6 +229,3 @@ export default function SuperAdminAttendance() {
         </div>
     );
 }
-
-// Needed to avoid undefined error
-const Building = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="16" height="20" x="4" y="2" rx="2" ry="2" /><path d="M9 22v-4h6v4" /><path d="M8 6h.01" /><path d="M16 6h.01" /><path d="M12 6h.01" /><path d="M12 10h.01" /><path d="M12 14h.01" /><path d="M16 10h.01" /><path d="M16 14h.01" /><path d="M8 10h.01" /><path d="M8 14h.01" /></svg>;

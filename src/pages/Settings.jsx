@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { 
-  Settings as SettingsIcon, Save, Bell, Shield, Palette, Globe, 
+import {
+  Settings as SettingsIcon, Save, Bell, Shield, Palette, Globe,
   Database, Zap, Mail, Smartphone, Lock, Key, Users, Building2,
   AlertCircle, CheckCircle2, Loader2
 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { supabase } from '../services/supabase';
 import { auditService } from '../services/AuditService';
 import { cacheService } from '../services/CacheService';
+import PasswordChangeModal from '../components/ui/PasswordChangeModal';
 
 export default function Settings() {
   const { profile } = useAuth();
@@ -17,6 +18,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [settings, setSettings] = useState({
     general: {
       company_name: '',
@@ -182,11 +184,10 @@ export default function Settings() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-brand-50 text-brand-700 font-medium'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${activeTab === tab.id
+                    ? 'bg-brand-50 text-brand-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-50'
+                    }`}
                 >
                   <Icon size={20} />
                   {tab.label}
@@ -204,7 +205,7 @@ export default function Settings() {
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">General Settings</h3>
-                  
+
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -277,15 +278,15 @@ export default function Settings() {
             {activeTab === 'notifications' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Notification Preferences</h3>
-                  
+                  <h3 className="text-lg font-semibold text-text-primary mb-4">Notification Preferences</h3>
+
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-lg border border-border-secondary">
                       <div className="flex items-center gap-3">
-                        <Mail className="text-brand-600" size={20} />
+                        <Mail className="text-brand-500" size={20} />
                         <div>
-                          <p className="font-medium text-gray-900">Email Notifications</p>
-                          <p className="text-sm text-gray-600">Receive updates via email</p>
+                          <p className="font-medium text-text-primary">Email Notifications</p>
+                          <p className="text-sm text-text-secondary">Receive updates via email</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -295,16 +296,16 @@ export default function Settings() {
                           onChange={(e) => updateSetting('notifications', 'email_enabled', e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+                        <div className="w-11 h-6 bg-surface-tertiary peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-border-secondary after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                       </label>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-lg border border-border-secondary">
                       <div className="flex items-center gap-3">
-                        <Bell className="text-brand-600" size={20} />
+                        <Bell className="text-brand-500" size={20} />
                         <div>
-                          <p className="font-medium text-gray-900">Push Notifications</p>
-                          <p className="text-sm text-gray-600">Browser push notifications</p>
+                          <p className="font-medium text-text-primary">Push Notifications</p>
+                          <p className="text-sm text-text-secondary">Browser push notifications</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -314,16 +315,16 @@ export default function Settings() {
                           onChange={(e) => updateSetting('notifications', 'push_enabled', e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+                        <div className="w-11 h-6 bg-surface-tertiary peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-border-secondary after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                       </label>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-surface-secondary rounded-lg border border-border-secondary">
                       <div className="flex items-center gap-3">
-                        <Smartphone className="text-brand-600" size={20} />
+                        <Smartphone className="text-brand-500" size={20} />
                         <div>
-                          <p className="font-medium text-gray-900">SMS Notifications</p>
-                          <p className="text-sm text-gray-600">Critical alerts via SMS</p>
+                          <p className="font-medium text-text-primary">SMS Notifications</p>
+                          <p className="text-sm text-text-secondary">Critical alerts via SMS</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -333,12 +334,12 @@ export default function Settings() {
                           onChange={(e) => updateSetting('notifications', 'sms_enabled', e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+                        <div className="w-11 h-6 bg-surface-tertiary peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-border-secondary after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                       </label>
                     </div>
 
-                    <div className="pt-4 border-t">
-                      <h4 className="font-medium text-gray-900 mb-3">Notification Types</h4>
+                    <div className="pt-4 border-t border-border-secondary">
+                      <h4 className="font-medium text-text-primary mb-3">Notification Types</h4>
                       <div className="space-y-2">
                         {[
                           { key: 'notify_task_assigned', label: 'Task Assignments' },
@@ -346,14 +347,14 @@ export default function Settings() {
                           { key: 'notify_document_approved', label: 'Document Approvals' },
                           { key: 'notify_leave_request', label: 'Leave Requests' }
                         ].map(item => (
-                          <label key={item.key} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                          <label key={item.key} className="flex items-center gap-3 p-2 hover:bg-surface-secondary rounded cursor-pointer">
                             <input
                               type="checkbox"
                               checked={settings.notifications[item.key]}
                               onChange={(e) => updateSetting('notifications', item.key, e.target.checked)}
-                              className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500"
+                              className="w-4 h-4 text-brand-500 border-border-secondary rounded focus:ring-brand-500 bg-surface-primary"
                             />
-                            <span className="text-sm text-gray-700">{item.label}</span>
+                            <span className="text-sm text-text-primary">{item.label}</span>
                           </label>
                         ))}
                       </div>
@@ -368,8 +369,26 @@ export default function Settings() {
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Security Settings</h3>
-                  
+
                   <div className="space-y-4">
+                    <div className="p-4 bg-surface-secondary border border-border-secondary rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Lock className="text-brand-500" size={20} />
+                          <div>
+                            <p className="font-medium text-text-primary">Change My Password</p>
+                            <p className="text-sm text-text-secondary">Update your personal account credentials</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowPasswordModal(true)}
+                          className="px-4 py-2 bg-brand-50 text-brand-700 font-semibold rounded-lg hover:bg-brand-100 transition-colors"
+                        >
+                          Change Password
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
                       <div className="flex gap-3">
                         <AlertCircle className="text-amber-600 flex-shrink-0" size={20} />
@@ -464,7 +483,7 @@ export default function Settings() {
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Features</h3>
-                  
+
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-gradient-to-r from-brand-50 to-blue-50 rounded-lg border border-brand-200">
                       <div className="flex items-center gap-3">
@@ -534,7 +553,7 @@ export default function Settings() {
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Integrations</h3>
-                  
+
                   <div className="space-y-4">
                     <div className="p-4 border border-gray-200 rounded-lg">
                       <div className="flex items-center justify-between mb-3">
@@ -620,7 +639,7 @@ export default function Settings() {
                   </div>
                 )}
               </div>
-              
+
               <button
                 onClick={saveSettings}
                 disabled={loading}
@@ -642,6 +661,11 @@ export default function Settings() {
           </div>
         </div>
       </div>
+      <PasswordChangeModal
+        role={profile?.role === 'SUPER_ADMIN' ? 'ADMIN' : (profile?.role || 'HR')}
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+      />
     </div>
   );
 }

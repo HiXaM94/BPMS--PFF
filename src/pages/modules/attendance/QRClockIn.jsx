@@ -138,7 +138,7 @@ export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, 
                 ) : (
                     <>
                         <h3 className="text-xl font-extrabold flex items-center gap-2 mb-1.5 text-text-primary tracking-tight">
-                            <LogIn size={24} className="text-text-primary" /> Not Clocked In
+                            <LogIn size={24} className="text-[#1a1d1f] dark:text-white" /> Not Clocked In
                         </h3>
                         <p className="text-text-secondary text-sm mb-6 font-medium">Use the kiosk or QR code to clock in.</p>
 
@@ -146,8 +146,8 @@ export default function QRClockIn({ isClockedIn, isOnTime, checkInTime, status, 
                             onClick={handleStartScan}
                             className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border-secondary hover:border-brand-500/50 hover:bg-brand-50/50 dark:hover:bg-brand-500/5 rounded-2xl mb-5 transition-all cursor-pointer group"
                         >
-                            <div className="bg-surface-secondary group-hover:bg-surface-primary p-3 rounded-2xl shadow-sm mb-2 transition-colors">
-                                <ScanLine size={32} className="text-text-tertiary group-hover:text-brand-500 transition-colors" />
+                            <div className="bg-slate-900 dark:bg-white p-3 rounded-2xl shadow-lg mb-2 transition-all duration-300 group-hover:scale-110">
+                                <ScanLine size={32} className="text-white dark:text-slate-900" />
                             </div>
                             <span className="text-xs font-semibold text-text-tertiary group-hover:text-brand-500">Tap to scan</span>
                         </div>

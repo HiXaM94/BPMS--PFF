@@ -83,15 +83,63 @@
   --color-sidebar-bg: #111315;
   --color-sidebar-hover: #1a1d1f;
   --color-sidebar-active: #272b30;
-  --color-sidebar-text: #0d0d0d;
+  --color-sidebar-text: #9a9fa5;
   --color-sidebar-text-active: #ffffff;
-  --color-sidebar-border: #ffffff;
+  --color-sidebar-border: #272b30;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.4);
+
+  /* Invert Brand Colors for Dark Mode (Dark Charcoal -> Bright White) */
+  --color-brand-50: #0a0908;
+  --color-brand-100: #0f0d0c;
+  --color-brand-200: #171412;
+  --color-brand-300: #1c1917;
+  --color-brand-400: #292524;
+  --color-brand-500: #fcfcfc;
+  --color-brand-600: #e7e5e4;
+  --color-brand-700: #d6d3d1;
+  --color-brand-800: #a8a29e;
+  --color-brand-900: #78716c;
+}
+
+/* Fix for time/date input icons in dark mode */
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(2);
+}
+
+/* Force dark text and icons inside brand-colored backgrounds in dark mode */
+.dark [class*="bg-brand-"],
+.dark [class*="from-brand-"],
+.dark [class*="to-brand-"],
+.dark [class*="bg-brand-"] *,
+.dark [class*="from-brand-"] *,
+.dark [class*="to-brand-"] * {
+  color: #1a1d1f !important;
+  stroke: #1a1d1f !important;
+}
+
+/* Base resets to ensure specific components don't override the contrast fix */
+.dark .bg-brand-500 .text-white,
+.dark [class*="from-brand-"] .text-white {
+  color: #1a1d1f !important;
+}
+
+/* Clean up notification list overrides — ensure high contrast in dark mode unread rows */
+.dark .notification-item-unread,
+.dark .notification-item-unread *,
+.dark .notification-message,
+.dark .notification-type-label,
+.dark .notification-time {
+  color: var(--color-text-primary) !important;
+}
+
+.dark .notification-item-unread .notification-icon-container * {
+  stroke: currentColor !important;
 }
 
 /* ===== BASE STYLES ===== */
@@ -111,15 +159,30 @@
       color 0.3s var(--transition-timing-smooth);
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-weight: 500;
   }
 
-  p, span, label, figcaption, legend, a {
+  p,
+  span,
+  label,
+  figcaption,
+  legend,
+  a {
     font-weight: 400;
   }
 
-  figure, .text-3xl, .text-2xl, .text-4xl, .text-5xl, .text-6xl {
+  figure,
+  .text-3xl,
+  .text-2xl,
+  .text-4xl,
+  .text-5xl,
+  .text-6xl {
     font-weight: 400;
   }
 
@@ -144,7 +207,9 @@
   }
 
   /* Remove green/colored outline on all interactive elements */
-  input:focus, select:focus, textarea:focus {
+  input:focus,
+  select:focus,
+  textarea:focus {
     outline: none;
   }
 }
@@ -290,8 +355,15 @@
 }
 
 @keyframes glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(99, 102, 241, 0.15); }
-  50% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.15);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  }
 }
 
 @keyframes spin-slow {

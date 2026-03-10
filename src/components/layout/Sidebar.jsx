@@ -9,8 +9,10 @@ import {
   X,
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import IconWhite from '../../logo/ICONWHITE.svg';
 import IconBlack from '../../logo/ICONBLACK.svg';
+import LogoDemo from '../../logo/logo-demo.png';
 
 
 // Map navigation item ids → i18n keys
@@ -21,6 +23,7 @@ const navLabelKeys = {
   profile: 'nav.employeeProfile',
   attendance: 'nav.attendance',
   recruitment: 'nav.recruitment',
+  'ai-recruitment': 'nav.aiRecruitment',
   tasks: 'nav.taskPerformance',
   vacation: 'nav.vacationRequest',
   documents: 'nav.documentRequest',
@@ -101,6 +104,7 @@ function SidebarSection({ section, isCollapsed, t }) {
 export default function Sidebar() {
   const { isCollapsed, isMobileOpen, toggleCollapse, closeMobile } = useSidebar();
   const { currentRole } = useRole();
+  const { profile } = useAuth();
   const { t } = useLanguage();
   const { isDark } = useTheme();
 
@@ -124,20 +128,47 @@ export default function Sidebar() {
                     ${isCollapsed ? 'w-[72px]' : 'w-60'}`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className={`flex items-center h-[72px] shrink-0
-                           ${isCollapsed ? 'justify-center' : 'px-5 gap-3'}`}>
-            <div className="flex items-center justify-center w-10 h-10 shrink-0">
-              <img src={isDark ? IconWhite : IconBlack} alt="Logo" className="w-8 h-8 object-contain" />
+          {/* Main Logo Section */}
+          <div className="flex flex-col gap-4 py-4 shrink-0 border-b border-sidebar-border/50">
+            {/* SaaS Branding */}
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'px-5 gap-3'}`}>
+              <div className="flex items-center justify-center w-8 h-8 shrink-0">
+                <img src={isDark ? IconWhite : IconBlack} alt="Flowly" className="w-7 h-7 object-contain" />
+              </div>
+              {!isCollapsed && (
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-text-primary leading-tight">Flowly</span>
+                  <span className="text-[10px] text-text-tertiary font-medium">Business Suite</span>
+                </div>
+              )}
             </div>
-            {!isCollapsed && (
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
-                  Flowly
-                </span>
-                <span className="text-[10px] text-text-tertiary font-medium tracking-wide">
-                  Business Suite
-                </span>
+
+            {/* Company Card Section - Only for non-super admins */}
+            {currentRole?.id !== 'super_admin' && (
+              <div className={`${isCollapsed ? 'px-2' : 'px-3'}`}>
+                <div className={`group flex items-center transition-all duration-500 rounded-2xl
+                                ${isCollapsed
+                    ? 'justify-center w-12 h-12 mx-auto bg-surface-primary border border-border-secondary shadow-sm hover:border-brand-500/30'
+                    : 'w-full gap-3 p-2.5 bg-surface-primary border border-brand-500/5 shadow-sm hover:shadow-md hover:border-brand-500/20 transition-all'}`}>
+
+                  <div className={`shrink-0 overflow-hidden rounded-xl shadow-inner border border-border-secondary/50 bg-surface-primary
+                                  ${isCollapsed ? 'w-8 h-8' : 'w-9 h-9'}`}>
+                    <img
+                      src={profile?.entreprise?.logo_url || LogoDemo}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      alt="Company"
+                    />
+                  </div>
+
+                  {!isCollapsed && (
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[7.5px] font-black text-brand-500/70 uppercase tracking-[0.18em] leading-none mb-1.5 antialiased">Organization</span>
+                      <span className="text-sm font-black text-text-primary truncate leading-tight tracking-tight antialiased">
+                        {profile?.entreprise?.name || 'Company Name'}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -202,19 +233,39 @@ export default function Sidebar() {
           <X size={18} />
         </button>
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center h-[72px] px-5 gap-3 shrink-0">
-            <div className="flex items-center justify-center w-10 h-10 shrink-0">
-              <img src={isDark ? IconWhite : IconBlack} alt="Logo" className="w-8 h-8 object-contain" />
+          {/* Main Logo Section */}
+          <div className="flex flex-col gap-4 py-4 shrink-0 border-b border-sidebar-border/50">
+            {/* SaaS Branding */}
+            <div className="flex items-center px-5 gap-3">
+              <div className="flex items-center justify-center w-8 h-8 shrink-0">
+                <img src={isDark ? IconWhite : IconBlack} alt="Flowly" className="w-7 h-7 object-contain" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-text-primary leading-tight">Flowly</span>
+                <span className="text-[10px] text-text-tertiary font-medium">Business Suite</span>
+              </div>
             </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm font-bold text-text-primary tracking-tight leading-tight">
-                Flowly
-              </span>
-              <span className="text-[10px] text-text-tertiary font-medium tracking-wide">
-                Business Suite
-              </span>
-            </div>
+
+            {/* Company Card Section - Only for non-super admins */}
+            {currentRole?.id !== 'super_admin' && (
+              <div className="px-3">
+                <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-surface-primary border border-brand-500/5 shadow-sm">
+                  <div className="w-9 h-9 shrink-0 overflow-hidden rounded-xl shadow-inner border border-border-secondary/50 bg-surface-primary">
+                    <img
+                      src={profile?.entreprise?.logo_url || LogoDemo}
+                      className="w-full h-full object-cover"
+                      alt="Company"
+                    />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[7.5px] font-black text-brand-500/70 uppercase tracking-[0.18em] leading-none mb-1.5 antialiased">Organization</span>
+                    <span className="text-sm font-black text-text-primary truncate leading-tight tracking-tight antialiased">
+                      {profile?.entreprise?.name || 'Company Name'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Navigation */}

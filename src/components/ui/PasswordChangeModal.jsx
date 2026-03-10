@@ -69,11 +69,21 @@ export default function PasswordChangeModal({ isOpen, onClose, role }) {
             const { error: authError } = await supabase.auth.updateUser({ password });
             if (authError) throw authError;
 
-            // Mark password_changed = true via unified RPC based on role
+            // Mark password_changed = true in the users table (universal, role-agnostic)
+            const { error: userFlagError } = await supabase
+                .from('users')
+                .update({ password_changed: true })
+                .eq('id', session.user.id);
+
+            if (userFlagError) {
+                console.warn('[PasswordChangeModal] Failed to set password_changed flag on users:', userFlagError.message);
+            }
+
+            // Also mark via the role-specific RPC for backward compatibility
             const { error: rpcError } = await supabase.rpc('update_profile_password', {
                 p_user_id: session.user.id,
                 p_role: role,
-                p_password: password,
+                p_new_password: password,
             });
 
             if (rpcError) {
