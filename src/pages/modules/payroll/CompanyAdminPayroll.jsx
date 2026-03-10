@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
     Building2, Users, DollarSign, Download, CheckCircle2,
-    AlertTriangle, Eye, FileText, Lock, Loader2, Receipt
+    AlertTriangle, Eye, FileText, Lock, Loader2, Receipt, Edit3, X, Save
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { useAuth } from '../../../contexts/AuthContext';
-import { fmt, fmtDate, periodLabel, fetchPayrollsByPeriod, generatePayslipPDF, generateBatchPayslipsPDF } from './payrollUtils';
+import { fmt, fmtDate, periodLabel, fetchPayrollsByPeriod, generatePayslipPDF, generateBatchPayslipsPDF, updatePayrollAmounts } from './payrollUtils';
 
 export default function CompanyAdminPayroll() {
     const { profile } = useAuth();
@@ -16,6 +16,11 @@ export default function CompanyAdminPayroll() {
     const [approvalStatus, setApprovalStatus] = useState(null);
     const [uploadMarked, setUploadMarked] = useState(false);
     const [toast, setToast] = useState('');
+
+    // Editing State
+    const [editingPayroll, setEditingPayroll] = useState(null);
+    const [editForm, setEditForm] = useState({ bonuses: '', deductions: '' });
+    const [savingEdit, setSavingEdit] = useState(false);
 
     const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
@@ -55,6 +60,59 @@ export default function CompanyAdminPayroll() {
         }
         fetchAdminStats();
     }, [profile?.entreprise_id]);
+
+    const handleSaveEdit = async () => {
+        if (!editingPayroll) return;
+        setSavingEdit(true);
+        try {
+            const res = await updatePayrollAmounts(
+                editingPayroll.id,
+                editingPayroll.salary_base,
+                editingPayroll.overtime_pay,
+                editForm.bonuses,
+                editForm.deductions
+            );
+            if (res) {
+                // Update local state
+                const updatedPayrolls = payrolls.map(p => {
+                    if (p.id === editingPayroll.id) {
+                        return {
+                            ...p,
+                            bonuses: editForm.bonuses,
+                            deductions: editForm.deductions,
+                            net_salary: res.netSalary
+                        };
+                    }
+                    return p;
+                });
+
+                // Recalculate stats
+                let totalNet = 0;
+                const employerContrib = updatedPayrolls.reduce((sum, p) => sum + Number(p.salary_base || 0) * 0.245, 0);
+
+                updatedPayrolls.forEach(p => {
+                    totalNet += Number(p.net_salary || 0);
+                });
+
+                setStats(s => ({
+                    ...s,
+                    totalCost: totalNet + Math.round(employerContrib),
+                    totalNet: totalNet,
+                }));
+
+                setPayrolls(updatedPayrolls);
+                flash(`Updated payroll for ${editingPayroll.employees?.users?.name || 'Employee'}`);
+                setEditingPayroll(null);
+            } else {
+                flash('Error updating payroll');
+            }
+        } catch (err) {
+            console.error(err);
+            flash('Error saving changes');
+        } finally {
+            setSavingEdit(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -121,7 +179,7 @@ export default function CompanyAdminPayroll() {
                                 <th className="px-5 py-3 font-medium text-right">Deductions</th>
                                 <th className="px-5 py-3 font-medium text-right">Net Salary</th>
                                 <th className="px-5 py-3 font-medium text-center">Status</th>
-                                <th className="px-5 py-3 font-medium text-center">PDF</th>
+                                <th className="px-5 py-3 font-medium text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="text-text-primary divide-y divide-border-secondary">
@@ -149,12 +207,26 @@ export default function CompanyAdminPayroll() {
                                             </span>
                                         </td>
                                         <td className="px-5 py-3 text-center">
-                                            <button
-                                                onClick={() => { generatePayslipPDF({ ...row, position }, empName); flash(`Downloaded payslip for ${empName}`); }}
-                                                className="p-1.5 rounded-lg hover:bg-surface-secondary transition-colors cursor-pointer"
-                                            >
-                                                <Download size={16} className="text-text-tertiary hover:text-brand-500 transition-colors" />
-                                            </button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingPayroll(row);
+                                                        setEditForm({ bonuses: row.bonuses || '', deductions: row.deductions || '' });
+                                                    }}
+                                                    disabled={approvalStatus === 'approved'}
+                                                    title="Edit Additions & Deductions"
+                                                    className={`p-1.5 rounded-lg transition-colors ${approvalStatus === 'approved' ? 'opacity-50 cursor-not-allowed text-text-tertiary' : 'hover:bg-brand-50 hover:text-brand-500 text-text-tertiary cursor-pointer'}`}
+                                                >
+                                                    <Edit3 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => { generatePayslipPDF({ ...row, position }, empName); flash(`Downloaded payslip for ${empName}`); }}
+                                                    title="Download PDF"
+                                                    className="p-1.5 rounded-lg hover:bg-surface-secondary text-text-tertiary hover:text-brand-500 transition-colors cursor-pointer"
+                                                >
+                                                    <Download size={16} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -292,6 +364,79 @@ export default function CompanyAdminPayroll() {
                 </div>
 
             </div>
+
+            {/* Edit Modal */}
+            {editingPayroll && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-surface-primary rounded-2xl border border-border-secondary shadow-2xl w-full max-w-md animate-scale-in">
+                        <div className="p-5 border-b border-border-secondary flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-text-primary">Edit Payroll Entries</h3>
+                            <button onClick={() => setEditingPayroll(null)} className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-surface-secondary rounded-lg transition-colors cursor-pointer">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-6">
+                                <p className="text-sm text-text-secondary">Employee</p>
+                                <p className="font-bold text-text-primary">{editingPayroll.employees?.users?.name || 'Employee'}</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-text-primary mb-1.5">Additions (Bonuses) <span className="text-emerald-500">+</span></label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <span className="text-text-tertiary font-medium">MAD</span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={editForm.bonuses}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, bonuses: e.target.value }))}
+                                            placeholder="0.00"
+                                            className="w-full pl-12 pr-4 py-2.5 bg-surface-secondary border border-border-secondary rounded-xl text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-text-primary mb-1.5">Deductions <span className="text-red-400">-</span></label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <span className="text-text-tertiary font-medium">MAD</span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={editForm.deductions}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, deductions: e.target.value }))}
+                                            placeholder="0.00"
+                                            className="w-full pl-12 pr-4 py-2.5 bg-surface-secondary border border-border-secondary rounded-xl text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="mt-4 p-4 rounded-xl bg-surface-secondary border border-border-secondary flex justify-between items-center text-sm">
+                                    <span className="font-medium text-text-secondary">New Net Salary:</span>
+                                    <span className="font-bold text-text-primary text-lg">
+                                        {fmt(Number(editingPayroll.salary_base || 0) + Number(editingPayroll.overtime_pay || 0) + Number(editForm.bonuses || 0) - Number(editForm.deductions || 0))}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-5 border-t border-border-secondary flex justify-end gap-3 bg-surface-secondary/30">
+                            <button onClick={() => setEditingPayroll(null)} className="px-5 py-2.5 rounded-xl font-semibold text-text-secondary hover:bg-surface-secondary transition-colors cursor-pointer">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                disabled={savingEdit}
+                                className="flex items-center gap-2 px-6 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                            >
+                                {savingEdit ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

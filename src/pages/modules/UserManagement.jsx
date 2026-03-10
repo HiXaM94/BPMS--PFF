@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-
 import {
   Users, UserPlus, Shield, Mail, Eye, Edit, Trash2,
   Search, Filter, UserCheck, UserX, UserCog,
   Phone, MapPin, Building2, Calendar, Briefcase,
-  Lock, Loader2,
+  Lock, Upload, AlertCircle, CheckCircle2, Loader2,
 } from 'lucide-react';
 
 import PageHeader from '../../components/ui/PageHeader';
@@ -214,7 +213,12 @@ export default function UserManagement() {
   // ── HR-specific modal state ──
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [showManagerModal, setShowManagerModal] = useState(false);
-  const emptyHrForm = { fullName: '', email: '' };
+  const [wizardStep, setWizardStep] = useState(1); // 1 = Account, 2 = Contract/Payroll
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResults, setImportResults] = useState(null);
+
+  const emptyHrForm = { fullName: '', email: '', baseSalary: '', rib: '', startDate: new Date().toISOString().slice(0, 10) };
   const [hrForm, setHrForm] = useState(emptyHrForm);
   const [isCreating, setIsCreating] = useState(false);
   const [hrError, setHrError] = useState('');
@@ -370,6 +374,17 @@ export default function UserManagement() {
       });
       if (rpcErr) throw new Error(rpcErr.message);
 
+      // 3. Update the employee's salary and details
+      const updatePayload = {};
+      if (hrForm.baseSalary) updatePayload.salary_base = hrForm.baseSalary;
+      if (hrForm.rib) updatePayload.rib = hrForm.rib;
+      if (hrForm.startDate) updatePayload.hire_date = hrForm.startDate;
+
+      if (Object.keys(updatePayload).length > 0) {
+        const { error: empErr } = await supabase.from('employees').update(updatePayload).eq('user_id', newUserId);
+        if (empErr) console.error('Failed to attach salary/contract info:', empErr.message);
+      }
+
       // 4. Update local list
       setUsers(prev => [{
         id: newUserId, name: hrForm.fullName.trim(), email: hrForm.email.trim(),
@@ -378,6 +393,7 @@ export default function UserManagement() {
 
       cacheService.invalidatePattern('^users:');
       setShowEmployeeModal(false);
+      setWizardStep(1);
       setHrForm(emptyHrForm);
       showToast(`Employee "${hrForm.fullName.trim()}" created! Default password: 000000`);
     } catch (err) {
@@ -417,6 +433,17 @@ export default function UserManagement() {
       });
       if (rpcErr) throw new Error(rpcErr.message);
 
+      // 3. Update the employee's salary and details
+      const updatePayload = {};
+      if (hrForm.baseSalary) updatePayload.salary_base = hrForm.baseSalary;
+      if (hrForm.rib) updatePayload.rib = hrForm.rib;
+      if (hrForm.startDate) updatePayload.hire_date = hrForm.startDate;
+
+      if (Object.keys(updatePayload).length > 0) {
+        const { error: empErr } = await supabase.from('employees').update(updatePayload).eq('user_id', newUserId);
+        if (empErr) console.error('Failed to attach salary/contract info:', empErr.message);
+      }
+
       // 4. Update local list
       setUsers(prev => [{
         id: newUserId, name: hrForm.fullName.trim(), email: hrForm.email.trim(),
@@ -425,6 +452,7 @@ export default function UserManagement() {
 
       cacheService.invalidatePattern('^users:');
       setShowManagerModal(false);
+      setWizardStep(1);
       setHrForm(emptyHrForm);
       showToast(`Team Manager "${hrForm.fullName.trim()}" created! Default password: 000000`);
     } catch (err) {
@@ -432,6 +460,123 @@ export default function UserManagement() {
       setHrError(err.message || 'Failed to create team manager.');
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // ── HR: Wizard Nav Helpers ──
+  const nextStep = () => {
+    if (!hrForm.fullName.trim() || !hrForm.email.trim()) {
+      setHrError('Please fill in both Name and Email to continue.');
+      return;
+    }
+    setHrError('');
+    setWizardStep(2);
+  };
+
+  // ── HR: Bulk Import CSV ──
+  const handleBulkImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportLoading(true);
+    setImportResults(null);
+    setHrError('');
+
+    try {
+      const text = await file.text();
+      // Basic CSV parsing
+      const rows = text.split('\n').map(row => row.split(',').map(cell => cell.trim())).filter(row => row.length > 0 && row[0]);
+
+      if (rows.length < 2) {
+        throw new Error("CSV file seems empty or missing data rows.");
+      }
+
+      const headers = rows[0].map(h => h.toLowerCase());
+      const nameIdx = headers.findIndex(h => h.includes('name'));
+      const emailIdx = headers.findIndex(h => h.includes('email'));
+      const roleIdx = headers.findIndex(h => h.includes('role'));
+      const salaryIdx = headers.findIndex(h => h.includes('salary') || h.includes('base'));
+      const ribIdx = headers.findIndex(h => h.includes('rib') || h.includes('iban'));
+      const deptIdx = headers.findIndex(h => h.includes('department') || h.includes('dept'));
+
+      if (nameIdx === -1 || emailIdx === -1) {
+        throw new Error("CSV must contain 'Name' and 'Email' columns.");
+      }
+
+      const dataRows = rows.slice(1);
+      const results = { success: 0, failed: 0, errors: [] };
+
+      // Process sequentially to avoid abusing the Auth API rate limit
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const name = row[nameIdx];
+        const email = row[emailIdx];
+        let rawRole = roleIdx !== -1 && row[roleIdx] ? row[roleIdx] : 'EMPLOYEE';
+        let role = String(rawRole).trim().toUpperCase();
+        if (role === 'MANAGER') role = 'TEAM_MANAGER';
+
+        const salary = salaryIdx !== -1 ? parseFloat(row[salaryIdx]) : 0;
+        const rib = ribIdx !== -1 ? row[ribIdx] : null;
+        const dept = deptIdx !== -1 ? row[deptIdx] : null;
+        const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+        if (!name || !email) continue;
+
+        try {
+          // 1. Create Auth User 
+          const { data: authData, error: authErr } = await supabase.auth.signUp({
+            email, password: '000000', options: { data: { full_name: name, role: role } }
+          });
+
+          if (authErr) {
+            // If user already exists, authErr might not be thrown but user will be null if email confirmation on. Handle silently fail for existing users.
+            if (authErr.message.includes('User already registered') || authErr.message.includes('already exists')) {
+              results.failed++;
+              results.errors.push(`Row ${i + 2} (${email}): Already exists.`);
+              continue;
+            }
+            throw authErr;
+          }
+
+          const newUserId = authData.user?.id;
+          if (!newUserId) throw new Error("Could not create user account.");
+
+          // 2. Insert into users table
+          const { error: userErr } = await supabase.from('users').insert([{
+            id: newUserId, entreprise_id: profile.entreprise_id, name, email,
+            role, status: 'active', avatar_initials: initials
+          }]);
+          if (userErr) throw userErr;
+
+          // 3. Insert into employees
+          const { error: empErr } = await supabase.from('employees').insert([{
+            user_id: newUserId, entreprise_id: profile.entreprise_id, position: role,
+            employee_code: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+            department_id: null, hire_date: new Date().toISOString().slice(0, 10),
+            salary_base: salary || 0, rib: rib || null
+          }]);
+
+          if (empErr) throw empErr;
+
+          results.success++;
+        } catch (rowErr) {
+          results.failed++;
+          results.errors.push(`Row ${i + 2} (${email}): ${rowErr.message}`);
+        }
+      }
+
+      setImportResults(results);
+      if (results.success > 0) {
+        showToast(`Successfully imported ${results.success} employees.`);
+        fetchUsers(); // Refresh list
+      }
+
+    } catch (err) {
+      setHrError(err.message || "Failed to process CSV file.");
+    } finally {
+      setImportLoading(false);
+      // Reset input
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -692,9 +837,9 @@ export default function UserManagement() {
         onAction={canCreate && !isHR ? () => setShowCreateModal(true) : undefined}
       >
         {isHR && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <button
-              onClick={() => { setHrForm(emptyHrForm); setHrError(''); setShowEmployeeModal(true); }}
+              onClick={() => { setHrForm(emptyHrForm); setHrError(''); setWizardStep(1); setShowEmployeeModal(true); }}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl
                          bg-gradient-to-r from-brand-500 to-brand-600 text-white
                          text-sm font-semibold shadow-sm hover:-translate-y-0.5
@@ -704,7 +849,7 @@ export default function UserManagement() {
               Add Employee
             </button>
             <button
-              onClick={() => { setHrForm(emptyHrForm); setHrError(''); setShowManagerModal(true); }}
+              onClick={() => { setHrForm(emptyHrForm); setHrError(''); setWizardStep(1); setShowManagerModal(true); }}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl
                          bg-gradient-to-r from-violet-500 to-purple-600 text-white
                          text-sm font-semibold shadow-sm hover:-translate-y-0.5
@@ -712,6 +857,16 @@ export default function UserManagement() {
             >
               <UserCog size={15} />
               Add Team Manager
+            </button>
+            <button
+              onClick={() => { setImportResults(null); setHrError(''); setShowBulkImportModal(true); }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl
+                         bg-surface-secondary border border-emerald-500/30 text-emerald-600 dark:text-emerald-400
+                         text-sm font-semibold shadow-sm hover:bg-emerald-50 hover:border-emerald-500 dark:hover:bg-emerald-500/10
+                         transition-all duration-200 cursor-pointer"
+            >
+              <Upload size={15} />
+              Bulk Import CSV
             </button>
           </div>
         )}
@@ -949,50 +1104,77 @@ export default function UserManagement() {
         </form>
       </Modal>
 
-      {/* ═══ HR: Add Employee Modal ═══ */}
+      {/* ═══ HR: Add Employee Wizard ═══ */}
       <Modal
         isOpen={showEmployeeModal}
-        onClose={() => { setShowEmployeeModal(false); setHrError(''); }}
-        title="Add Employee"
+        onClose={() => { setShowEmployeeModal(false); setHrError(''); setWizardStep(1); }}
+        title={wizardStep === 1 ? "Add Employee: Account Info" : "Add Employee: Contract details"}
         maxWidth="max-w-md"
       >
-        <form onSubmit={handleAddEmployee} className="space-y-4">
-          {/* Role badge */}
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-secondary">
-            <Shield size={14} className="text-text-tertiary" />
-            <span className="text-xs font-medium text-text-secondary">Account role:</span>
-            <StatusBadge variant="info" size="sm">Employee</StatusBadge>
+        <form onSubmit={wizardStep === 1 ? (e) => { e.preventDefault(); nextStep(); } : handleAddEmployee} className="space-y-4">
+          <div className="flex gap-2 items-center mb-4">
+            <div className={`h-1.5 flex-1 rounded-full ${wizardStep >= 1 ? 'bg-brand-500' : 'bg-surface-tertiary'}`} />
+            <div className={`h-1.5 flex-1 rounded-full ${wizardStep >= 2 ? 'bg-brand-500' : 'bg-surface-tertiary'}`} />
           </div>
 
-          <div>
-            <label className={labelClassName}>Full Name *</label>
-            <input
-              type="text" required
-              value={hrForm.fullName}
-              onChange={e => setHrForm(f => ({ ...f, fullName: e.target.value }))}
-              placeholder="e.g. Ahmed Hassan"
-              className={inputClassName}
-            />
-          </div>
+          {wizardStep === 1 && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-secondary">
+                <Shield size={14} className="text-text-tertiary" />
+                <span className="text-xs font-medium text-text-secondary">Account role:</span>
+                <StatusBadge variant="info" size="sm">Employee</StatusBadge>
+              </div>
 
-          <div>
-            <label className={labelClassName}>Email *</label>
-            <input
-              type="email" required
-              value={hrForm.email}
-              onChange={e => setHrForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="e.g. ahmed.h@company.com"
-              className={inputClassName}
-            />
-          </div>
+              <div>
+                <label className={labelClassName}>Full Name *</label>
+                <input type="text" required value={hrForm.fullName}
+                  onChange={e => setHrForm(f => ({ ...f, fullName: e.target.value }))}
+                  placeholder="e.g. Ahmed Hassan" className={inputClassName} />
+              </div>
 
-          {/* Password notice */}
-          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
-            <Lock size={14} className="text-amber-500 shrink-0" />
-            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-              Password is automatically set to <span className="font-bold tracking-widest">000000</span>
-            </span>
-          </div>
+              <div>
+                <label className={labelClassName}>Email *</label>
+                <input type="email" required value={hrForm.email}
+                  onChange={e => setHrForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="e.g. ahmed.h@company.com" className={inputClassName} />
+              </div>
+
+              {/* Password notice */}
+              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <Lock size={14} className="text-amber-500 shrink-0" />
+                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  Password is automatically set to <span className="font-bold tracking-widest">000000</span>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 2 && (
+            <div className="space-y-4 animate-fade-in">
+              <div>
+                <label className={labelClassName}>Base Salary (Monthly) *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary font-bold">MAD</span>
+                  <input type="number" required min="0" step="0.01" value={hrForm.baseSalary}
+                    onChange={e => setHrForm(f => ({ ...f, baseSalary: e.target.value }))}
+                    placeholder="e.g. 15000" className={inputClassName + ' pl-12'} />
+                </div>
+                <p className="text-[10px] text-text-tertiary mt-1">Visible only to HR and Company Admins. Added securely.</p>
+              </div>
+              <div>
+                <label className={labelClassName}>Bank Account (RIB / IBAN)</label>
+                <input type="text" value={hrForm.rib}
+                  onChange={e => setHrForm(f => ({ ...f, rib: e.target.value }))}
+                  placeholder="24-digit RIB" className={inputClassName} maxLength={24} />
+              </div>
+              <div>
+                <label className={labelClassName}>Hire Date / Contract Start *</label>
+                <input type="date" required value={hrForm.startDate}
+                  onChange={e => setHrForm(f => ({ ...f, startDate: e.target.value }))}
+                  className={inputClassName} />
+              </div>
+            </div>
+          )}
 
           {hrError && (
             <div className="px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium">
@@ -1001,69 +1183,100 @@ export default function UserManagement() {
           )}
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-secondary">
-            <button type="button"
-              onClick={() => { setShowEmployeeModal(false); setHrError(''); }}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary
-                         hover:bg-surface-tertiary border border-border-secondary
-                         transition-all duration-200 cursor-pointer">Cancel</button>
-            <button type="submit" disabled={isCreating}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-                         bg-gradient-to-r from-brand-500 to-brand-600
-                         shadow-md hover:shadow-lg hover:-translate-y-0.5
-                         active:translate-y-0 transition-all duration-200 cursor-pointer
-                         disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
-              {isCreating ? (
-                <><svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Creating...</>
-              ) : 'Add Employee'}
-            </button>
+            {wizardStep === 1 && (
+              <button type="submit"
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 shadow-md hover:shadow-lg cursor-pointer">
+                Next: Contract Info
+              </button>
+            )}
+
+            {wizardStep === 2 && (
+              <>
+                <button type="button" onClick={() => setWizardStep(1)}
+                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:bg-surface-tertiary border border-border-secondary transition-all duration-200 cursor-pointer">
+                  Back
+                </button>
+                <button type="submit" disabled={isCreating}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-brand-600 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
+                  {isCreating ? 'Creating...' : 'Finish & Add Employee'}
+                </button>
+              </>
+            )}
           </div>
         </form>
       </Modal>
 
-      {/* ═══ HR: Add Team Manager Modal ═══ */}
+      {/* ═══ HR: Add Team Manager Wizard ═══ */}
       <Modal
         isOpen={showManagerModal}
-        onClose={() => { setShowManagerModal(false); setHrError(''); }}
-        title="Add Team Manager"
+        onClose={() => { setShowManagerModal(false); setHrError(''); setWizardStep(1); }}
+        title={wizardStep === 1 ? "Add Team Manager: Account Info" : "Add Team Manager: Contract details"}
         maxWidth="max-w-md"
       >
-        <form onSubmit={handleAddManager} className="space-y-4">
-          {/* Role badge */}
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-secondary">
-            <Shield size={14} className="text-text-tertiary" />
-            <span className="text-xs font-medium text-text-secondary">Account role:</span>
-            <StatusBadge variant="warning" size="sm">Team Manager</StatusBadge>
+        <form onSubmit={wizardStep === 1 ? (e) => { e.preventDefault(); nextStep(); } : handleAddManager} className="space-y-4">
+          <div className="flex gap-2 items-center mb-4">
+            <div className={`h-1.5 flex-1 rounded-full ${wizardStep >= 1 ? 'bg-violet-500' : 'bg-surface-tertiary'}`} />
+            <div className={`h-1.5 flex-1 rounded-full ${wizardStep >= 2 ? 'bg-violet-500' : 'bg-surface-tertiary'}`} />
           </div>
 
-          <div>
-            <label className={labelClassName}>Full Name *</label>
-            <input
-              type="text" required
-              value={hrForm.fullName}
-              onChange={e => setHrForm(f => ({ ...f, fullName: e.target.value }))}
-              placeholder="e.g. Fatima Zahra"
-              className={inputClassName}
-            />
-          </div>
+          {wizardStep === 1 && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-secondary">
+                <Shield size={14} className="text-text-tertiary" />
+                <span className="text-xs font-medium text-text-secondary">Account role:</span>
+                <StatusBadge variant="warning" size="sm">Team Manager</StatusBadge>
+              </div>
 
-          <div>
-            <label className={labelClassName}>Email *</label>
-            <input
-              type="email" required
-              value={hrForm.email}
-              onChange={e => setHrForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="e.g. fatima.z@company.com"
-              className={inputClassName}
-            />
-          </div>
+              <div>
+                <label className={labelClassName}>Full Name *</label>
+                <input type="text" required value={hrForm.fullName}
+                  onChange={e => setHrForm(f => ({ ...f, fullName: e.target.value }))}
+                  placeholder="e.g. Fatima Zahra" className={inputClassName} />
+              </div>
 
-          {/* Password notice */}
-          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
-            <Lock size={14} className="text-amber-500 shrink-0" />
-            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-              Password is automatically set to <span className="font-bold tracking-widest">000000</span>
-            </span>
-          </div>
+              <div>
+                <label className={labelClassName}>Email *</label>
+                <input type="email" required value={hrForm.email}
+                  onChange={e => setHrForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="e.g. fatima.z@company.com" className={inputClassName} />
+              </div>
+
+              {/* Password notice */}
+              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <Lock size={14} className="text-amber-500 shrink-0" />
+                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  Password is automatically set to <span className="font-bold tracking-widest">000000</span>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 2 && (
+            <div className="space-y-4 animate-fade-in">
+              <div>
+                <label className={labelClassName}>Base Salary (Monthly) *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary font-bold">MAD</span>
+                  <input type="number" required min="0" step="0.01" value={hrForm.baseSalary}
+                    onChange={e => setHrForm(f => ({ ...f, baseSalary: e.target.value }))}
+                    placeholder="e.g. 20000" className={inputClassName + ' pl-12'} />
+                </div>
+                <p className="text-[10px] text-text-tertiary mt-1">Visible only to HR and Company Admins. Added securely.</p>
+              </div>
+              <div>
+                <label className={labelClassName}>Bank Account (RIB / IBAN)</label>
+                <input type="text" value={hrForm.rib}
+                  onChange={e => setHrForm(f => ({ ...f, rib: e.target.value }))}
+                  placeholder="24-digit RIB" className={inputClassName} maxLength={24} />
+              </div>
+              <div>
+                <label className={labelClassName}>Hire Date / Contract Start *</label>
+                <input type="date" required value={hrForm.startDate}
+                  onChange={e => setHrForm(f => ({ ...f, startDate: e.target.value }))}
+                  className={inputClassName} />
+              </div>
+            </div>
+          )}
 
           {hrError && (
             <div className="px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium">
@@ -1072,21 +1285,25 @@ export default function UserManagement() {
           )}
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-secondary">
-            <button type="button"
-              onClick={() => { setShowManagerModal(false); setHrError(''); }}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary
-                         hover:bg-surface-tertiary border border-border-secondary
-                         transition-all duration-200 cursor-pointer">Cancel</button>
-            <button type="submit" disabled={isCreating}
-              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
-                         bg-gradient-to-r from-violet-500 to-purple-600
-                         shadow-md hover:shadow-lg hover:-translate-y-0.5
-                         active:translate-y-0 transition-all duration-200 cursor-pointer
-                         disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
-              {isCreating ? (
-                <><svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Creating...</>
-              ) : 'Add Team Manager'}
-            </button>
+            {wizardStep === 1 && (
+              <button type="submit"
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-violet-500 to-purple-600 shadow-md hover:shadow-lg cursor-pointer">
+                Next: Contract Info
+              </button>
+            )}
+
+            {wizardStep === 2 && (
+              <>
+                <button type="button" onClick={() => setWizardStep(1)}
+                  className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:bg-surface-tertiary border border-border-secondary transition-all duration-200 cursor-pointer">
+                  Back
+                </button>
+                <button type="submit" disabled={isCreating}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-violet-500 to-purple-600 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
+                  {isCreating ? 'Creating...' : 'Finish & Add Manager'}
+                </button>
+              </>
+            )}
           </div>
         </form>
       </Modal>
@@ -1445,9 +1662,75 @@ export default function UserManagement() {
 
       />
 
+      {/* ═══ Bulk Import Modal ═══ */}
+      <Modal
+        isOpen={showBulkImportModal}
+        onClose={() => setShowBulkImportModal(false)}
+        title="Bulk Import Employees"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+            <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-2">Instructions</h4>
+            <ul className="text-xs text-text-secondary space-y-1 list-disc list-inside">
+              <li>Format: CSV (Comma Separated Values)</li>
+              <li>Required columns: <span className="font-bold">Name, Email</span></li>
+              <li>Optional columns: <span className="font-bold">Role, Salary, RIB, Department</span></li>
+              <li>Passwords will be set to <span className="font-bold">000000</span></li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border-secondary rounded-xl cursor-pointer bg-surface-secondary hover:bg-surface-tertiary hover:border-brand-500 transition-colors">
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                {importLoading ? (
+                  <Loader2 className="w-8 h-8 text-text-tertiary animate-spin mb-2" />
+                ) : (
+                  <Upload className="w-8 h-8 text-text-tertiary mb-2" />
+                )}
+                <p className="mb-2 text-sm text-text-secondary font-medium">
+                  {importLoading ? "Processing import..." : "Click to upload your CSV file"}
+                </p>
+                <p className="text-xs text-text-tertiary">Max size: 5MB</p>
+              </div>
+              <input type="file" className="hidden" accept=".csv" onChange={handleBulkImport} disabled={importLoading} />
+            </label>
+          </div>
+
+          {hrError && (
+            <div className="px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium flex items-start gap-2">
+              <AlertCircle size={14} className="shrink-0 mt-0.5 text-red-500" />
+              <span>{hrError}</span>
+            </div>
+          )}
+
+          {importResults && (
+            <div className="p-4 rounded-xl border border-border-secondary bg-surface-secondary">
+              <h4 className="text-sm font-bold text-text-primary mb-2 flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-emerald-500" /> Import Summary
+              </h4>
+              <div className="flex gap-4 text-xs font-medium mb-3">
+                <span className="text-emerald-500">Success: {importResults.success}</span>
+                <span className="text-red-500">Failed: {importResults.failed}</span>
+              </div>
+
+              {importResults.errors.length > 0 && (
+                <div className="mt-2 max-h-32 overflow-y-auto pr-2 space-y-1 text-xs text-red-500">
+                  <p className="font-semibold text-text-primary mb-1">Errors:</p>
+                  {importResults.errors.map((err, i) => <div key={i}>• {err}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end pt-4 border-t border-border-secondary">
+            <button type="button" onClick={() => setShowBulkImportModal(false)}
+              className="px-4 py-2.5 rounded-xl text-sm font-medium text-text-secondary hover:bg-surface-tertiary border border-border-secondary transition-all cursor-pointer">
+              Close
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
-
   );
-
 }
-

@@ -137,6 +137,120 @@ export async function fetchTeamPayrolls(managerUserId, startDate, endDate) {
     return data || [];
 }
 
+/**
+ * Update a payroll record with new deductions and bonuses,
+ * and calculate the new net salary.
+ */
+export async function updatePayrollAmounts(payrollId, baseSalary, overtimePay, bonuses, deductions) {
+    if (!isSupabaseReady) return false;
+
+    // Calculate new net salary
+    const netSalary = Number(baseSalary || 0) + Number(overtimePay || 0) + Number(bonuses || 0) - Number(deductions || 0);
+
+    const { error } = await supabase
+        .from('payrolls')
+        .update({
+            bonuses: Number(bonuses || 0),
+            deductions: Number(deductions || 0),
+            net_salary: netSalary
+        })
+        .eq('id', payrollId);
+
+    if (error) {
+        console.error('updatePayrollAmounts error:', error.message);
+        return false;
+    }
+    return { netSalary };
+}
+
+/**
+ * Automatically fetch all active employees in an entreprise, 
+ * calculate their base salaries, and create blank payrolls.
+ */
+export async function generateTeamPayrolls(entrepriseId, periodStart, periodEnd) {
+    if (!isSupabaseReady || !entrepriseId) return false;
+
+    try {
+        // 1. Fetch all active employees in the company
+        const { data: employees, error: empError } = await supabase
+            .from('employees')
+            .select('id, salary_base')
+            .eq('entreprise_id', entrepriseId)
+            .eq('status', 'active');
+
+        if (empError) throw empError;
+        if (!employees || employees.length === 0) return true;
+
+        // 2. Fetch existing payrolls for the period to avoid duplicates
+        const { data: existingPayrolls, error: existingError } = await supabase
+            .from('payrolls')
+            .select('employee_id')
+            .in('employee_id', employees.map(e => e.id))
+            .gte('period_start', periodStart)
+            .lte('period_end', periodEnd);
+
+        if (existingError) throw existingError;
+
+        const existingEmpIds = new Set(existingPayrolls?.map(p => p.employee_id) || []);
+
+        // 3. Filter employees that don't have a payroll yet
+        const newPayrolls = employees
+            .filter(emp => !existingEmpIds.has(emp.id))
+            .map(emp => ({
+                employee_id: emp.id,
+                period_start: periodStart,
+                period_end: periodEnd,
+                salary_base: emp.salary_base || 0,
+                net_salary: emp.salary_base || 0,
+                status: 'draft'
+            }));
+
+        // 4. Bulk insert if there are any new to create
+        if (newPayrolls.length > 0) {
+            const { error: insertError } = await supabase
+                .from('payrolls')
+                .insert(newPayrolls);
+
+            if (insertError) throw insertError;
+        }
+
+        return true;
+    } catch (err) {
+        console.error('generateTeamPayrolls error:', err.message);
+        return false;
+    }
+}
+
+/**
+ * Submit all 'draft' payrolls in a period to 'pending'
+ */
+export async function submitPayrollBatch(entrepriseId, periodStart, periodEnd) {
+    if (!isSupabaseReady || !entrepriseId) return false;
+
+    // We update all payrolls that belong to employees in the entreprise for the period
+    const { data: employees, error: empError } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('entreprise_id', entrepriseId);
+
+    if (empError || !employees || employees.length === 0) return false;
+
+    const empIds = employees.map(e => e.id);
+
+    const { error } = await supabase
+        .from('payrolls')
+        .update({ status: 'pending' })
+        .in('employee_id', empIds)
+        .gte('period_start', periodStart)
+        .lte('period_end', periodEnd)
+        .eq('status', 'draft');
+
+    if (error) {
+        console.error('submitPayrollBatch error:', error.message);
+        return false;
+    }
+    return true;
+}
 
 // ── PDF Payslip Generator ───────────────────────────────
 
