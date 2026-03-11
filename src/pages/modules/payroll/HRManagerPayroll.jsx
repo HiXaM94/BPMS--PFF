@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
     Calculator, Send, DollarSign, Clock, CheckCircle2, FileText,
-    Loader2, Download, Receipt, Users, Edit3, X, Save, FilePlus
+    Loader2, Download, Receipt, Users, Edit3, X, Save, FilePlus,
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -20,6 +21,52 @@ export default function HRManagerPayroll() {
 
     const [payrolls, setPayrolls] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Pagination State
+    const ITEMS_PER_PAGE = 6;
+    const [breakdownPage, setBreakdownPage] = useState(1);
+    const [whoGetsWhatPage, setWhoGetsWhatPage] = useState(1);
+
+    const PaginationControls = ({ currentPage, totalItems, onPageChange, itemsPerPage }) => {
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        if (totalPages <= 1) return null;
+
+        return (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border-secondary bg-surface-primary/50">
+                <div className="text-xs text-text-tertiary">
+                    Showing <span className="font-bold text-text-secondary">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-bold text-text-secondary">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of <span className="font-bold text-text-secondary">{totalItems}</span> results
+                </div>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="p-1.5 rounded-lg border border-border-secondary hover:bg-surface-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-text-secondary cursor-pointer"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <button
+                            key={page}
+                            onClick={() => onPageChange(page)}
+                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                ? 'bg-brand-500 text-white shadow-sm'
+                                : 'text-text-secondary hover:bg-surface-secondary border border-transparent hover:border-border-secondary cursor-pointer'
+                                }`}
+                        >
+                            {page}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                        className="p-1.5 rounded-lg border border-border-secondary hover:bg-surface-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-text-secondary cursor-pointer"
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     const fetchPayrollStats = async () => {
         setLoading(true);
@@ -268,7 +315,7 @@ export default function HRManagerPayroll() {
                             </tr>
                         </thead>
                         <tbody className="text-text-primary divide-y divide-border-secondary">
-                            {payrolls.map((row) => {
+                            {payrolls.slice((breakdownPage - 1) * ITEMS_PER_PAGE, breakdownPage * ITEMS_PER_PAGE).map((row) => {
                                 const empName = row.employees?.users?.name || 'Employee';
                                 const position = row.employees?.position || '-';
                                 const rowStatus = row.status || 'draft';
@@ -335,6 +382,12 @@ export default function HRManagerPayroll() {
                         </tfoot>
                     </table>
                 </div>
+                <PaginationControls
+                    currentPage={breakdownPage}
+                    totalItems={payrolls.length}
+                    onPageChange={setBreakdownPage}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                />
             </div>
 
             {/* ── Payroll Intelligence ── */}
@@ -368,7 +421,7 @@ export default function HRManagerPayroll() {
                                 <Users size={13} /> Who gets what
                             </h4>
                             <div className="space-y-3">
-                                {payrolls.map((row, idx) => {
+                                {payrolls.slice((whoGetsWhatPage - 1) * ITEMS_PER_PAGE, whoGetsWhatPage * ITEMS_PER_PAGE).map((row, idx) => {
                                     const empName = row.employees?.users?.name || 'Employee';
                                     const initials = empName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                                     const position = row.employees?.position || '-';
@@ -397,6 +450,14 @@ export default function HRManagerPayroll() {
                                         </div>
                                     );
                                 })}
+                            </div>
+                            <div className="mt-4">
+                                <PaginationControls
+                                    currentPage={whoGetsWhatPage}
+                                    totalItems={payrolls.length}
+                                    onPageChange={setWhoGetsWhatPage}
+                                    itemsPerPage={ITEMS_PER_PAGE}
+                                />
                             </div>
                         </div>
 
