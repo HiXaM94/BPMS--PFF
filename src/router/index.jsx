@@ -49,6 +49,8 @@ const QRKiosk = lazy(() => import('../pages/modules/attendance/qrcode/QRKiosk'))
 const Notifications = lazy(() => import('../pages/modules/Notifications'));
 const CompleteProfile = lazy(() => import('../pages/modules/CompleteProfile'));
 const Tickets = lazy(() => import('../pages/modules/Tickets'));
+const JobBoard = lazy(() => import('../pages/JobBoard'));
+const JobDetail = lazy(() => import('../pages/JobDetail'));
 
 const LoadableRegister = Loadable(Register);
 const LoadableForgotPassword = Loadable(ForgotPassword);
@@ -74,6 +76,8 @@ const LoadableQRKiosk = Loadable(QRKiosk);
 const LoadableNotifications = Loadable(Notifications);
 const LoadableCompleteProfile = Loadable(CompleteProfile);
 const LoadableTickets = Loadable(Tickets);
+const LoadableJobBoard = Loadable(JobBoard);
+const LoadableJobDetail = Loadable(JobDetail);
 
 const router = createBrowserRouter([
   // ── Public auth routes ──
@@ -82,6 +86,8 @@ const router = createBrowserRouter([
   { path: '/forgot-password', element: <LoadableForgotPassword /> },
   { path: '/reset-password', element: <LoadableResetPassword /> },
   { path: '/kiosk', element: <LoadableQRKiosk /> },
+  { path: '/jobs', element: <LoadableJobBoard /> },
+  { path: '/jobs/:id', element: <LoadableJobDetail /> },
 
   // ── Protected app routes ──
   {
