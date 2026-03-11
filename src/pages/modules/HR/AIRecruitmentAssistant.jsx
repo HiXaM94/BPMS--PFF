@@ -9,8 +9,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import PageHeader from '../../../components/ui/PageHeader';
 import { openRouterService } from '../../../services/OpenRouterService';
 
-// Set up pdfjs worker (using unpkg CDN for simplicity in this React setup)
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set up pdfjs worker (using unpkg CDN for PDF.js 5.x compatibility)
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 export default function AIRecruitmentAssistant() {
     // Step 1 State
@@ -566,17 +566,20 @@ export default function AIRecruitmentAssistant() {
                     )}
 
                     {analysisResult && (
-                        <div className="mt-6 p-5 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/40 dark:to-purple-950/40 border border-indigo-100 dark:border-indigo-500/20 rounded-2xl animate-fade-in relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/40 dark:bg-brand-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                        <div className="mt-6 p-6 bg-surface-secondary dark:bg-surface-tertiary border border-border-primary rounded-2xl animate-fade-in relative overflow-hidden shadow-sm">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
                             <div className="relative z-10">
-                                <div className="flex flex-col mb-4">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <CheckCircle2 size={18} className="text-emerald-500" />
-                                        <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider">AI Recommendation</h3>
+                                <div className="flex items-center gap-2.5 mb-5">
+                                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                                        <CheckCircle2 size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-text-primary uppercase tracking-tight">AI Recommendation Result</h3>
+                                        <p className="text-[10px] text-text-tertiary font-bold uppercase tracking-wider mt-0.5">Based on analyzed candidate data</p>
                                     </div>
                                 </div>
 
-                                <div className="bg-white/60 dark:bg-surface-secondary/50 rounded-xl p-4 text-sm text-indigo-950 dark:text-indigo-100 whitespace-pre-wrap leading-relaxed border border-white/50 dark:border-indigo-500/20 shadow-sm font-medium">
+                                <div className="bg-surface-primary dark:bg-surface-secondary rounded-xl p-6 text-sm text-text-primary whitespace-pre-wrap leading-relaxed border border-border-secondary shadow-sm font-medium">
                                     {analysisResult}
                                 </div>
                             </div>

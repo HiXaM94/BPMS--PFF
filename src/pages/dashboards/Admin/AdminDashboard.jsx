@@ -33,6 +33,7 @@ import { adminData } from '../../../data/mockData';
 import { supabase, isSupabaseReady } from '../../../services/supabase';
 import { cacheService } from '../../../services/CacheService';
 import { aiHealthCheckService } from '../../../services/AIHealthCheckService';
+import FloatingAIButton from '../../../components/ui/FloatingAIButton';
 
 /* ─── Asset-style cards with colored backgrounds matching template ─── */
 const assetCards = [
@@ -911,6 +912,8 @@ export default function AdminDashboard() {
                     </form>
                 )}
             </Modal>
+            {/* Floating AI Assistant Button */}
+            <FloatingAIButton />
         </div>
     );
 }

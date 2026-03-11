@@ -120,6 +120,8 @@ import PasswordChangeModal from '../../../components/ui/PasswordChangeModal';
 import { useDefaultPasswordCheck } from '../../../hooks/useDefaultPasswordCheck';
 
 
+import FloatingAIButton from '../../../components/ui/FloatingAIButton';
+
 export default function HRDashboard() {
     const { profile, session } = useAuth();
     const [stats, setStats] = useState(hrData.stats);
@@ -456,6 +458,9 @@ export default function HRDashboard() {
                 </div>
                 <DataTable columns={leaveColumns} data={leaveRequests} />
             </div>
+
+            {/* Floating AI Assistant Button */}
+            <FloatingAIButton />
         </div>
     );
 }

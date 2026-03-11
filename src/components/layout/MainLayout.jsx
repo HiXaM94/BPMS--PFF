@@ -46,9 +46,6 @@ export default function MainLayout() {
           </footer>
         </div>
       </div>
-
-      {/* Floating AI Assistant — Hidden for Admin & Manager as per request */}
-      {!isRestrictedRole && <AIAssistant />}
     </div>
   );
 }
