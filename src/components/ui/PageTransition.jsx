@@ -8,28 +8,20 @@ import { useLocation } from 'react-router-dom';
 export default function PageTransition({ children }) {
   const { pathname } = useLocation();
   const [isVisible, setIsVisible] = useState(false);
-  const [currentPath, setCurrentPath] = useState(pathname);
-  const [displayChildren, setDisplayChildren] = useState(children);
 
   useEffect(() => {
-    if (pathname !== currentPath) {
-      // Exit animation
-      setIsVisible(false);
+    // Reset animation on route change
+    setIsVisible(false);
+    const timeout = setTimeout(() => {
+      setIsVisible(true);
+    }, 50);
 
-      const timeout = setTimeout(() => {
-        setCurrentPath(pathname);
-        setDisplayChildren(children);
-        // Enter animation
-        requestAnimationFrame(() => setIsVisible(true));
-      }, 150); // match CSS transition duration
-
-      return () => clearTimeout(timeout);
-    }
-  }, [pathname, children, currentPath]);
+    return () => clearTimeout(timeout);
+  }, [pathname]);
 
   // Initial mount
   useEffect(() => {
-    requestAnimationFrame(() => setIsVisible(true));
+    setIsVisible(true);
   }, []);
 
   return (
@@ -40,7 +32,7 @@ export default function PageTransition({ children }) {
         transform: isVisible ? 'translateY(0)' : 'translateY(12px)',
       }}
     >
-      {displayChildren}
+      {children}
     </div>
   );
 }
