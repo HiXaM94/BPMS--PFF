@@ -137,11 +137,8 @@ export default function EmployeeDocuments() {
             }
             
             console.log('Signed URL:', signedData.signedUrl);
-            // Clear preview first to force refresh
-            setPreviewFile(null);
-            setTimeout(() => {
-                setPreviewFile({ url: signedData.signedUrl, name: rec.fileName });
-            }, 100);
+            // Update preview with new data
+            setPreviewFile({ url: signedData.signedUrl, name: rec.fileName });
         } catch (error) {
             console.error('Preview error:', error);
             flash('Failed to load preview: ' + error.message, 'error');
