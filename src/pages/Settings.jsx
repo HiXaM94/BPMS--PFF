@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
+  Settings as SettingsIcon, Save, Bell, Shield, Palette, Globe,
+  Database, Zap, Mail, Smartphone, Lock, Key, Users, Building2,
   AlertCircle, CheckCircle2, Loader2, QrCode, Download, Share2,
   ExternalLink, Info
 } from 'lucide-react';
@@ -159,6 +161,10 @@ export default function Settings() {
   };
 
   const tabs = [
+    { id: 'general', label: t('settings.general'), icon: SettingsIcon },
+    { id: 'notifications', label: t('settings.notificationSettings'), icon: Bell },
+    { id: 'security', label: t('settings.security'), icon: Shield },
+    { id: 'ai', label: t('settings.aiFeatures'), icon: Zap },
     { id: 'integrations', label: t('settings.integrations'), icon: Database },
     { id: 'mobile', label: 'Mobile App', icon: Smartphone }
   ];
