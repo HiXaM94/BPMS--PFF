@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Test Documents</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .button { 
+            background: #6366f1; 
+            color: white; 
+            padding: 15px 30px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px;
+            margin: 10px;
+        }
+        .button:hover { background: #4f46e5; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .doc-item { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 8px; 
+            border-left: 4px solid #6366f1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Flowly HR - Test Document Generator</h1>
+        <p>Click the buttons below to generate test documents for the employee onboarding process.</p>
+        
+        <div class="doc-item">
+            <h3>📄 CNSS Card</h3>
+            <p>Required: Social security card document</p>
+            <button class="button" onclick="generateCNSS()">Generate CNSS Card</button>
+        </div>
+        
+        <div class="doc-item">
+            <h3>🆔 National ID (CIN)</h3>
+            <p>Required: Moroccan national identity card</p>
+            <button class="button" onclick="generateCIN()">Generate CIN Card</button>
+        </div>
+        
+        <div class="doc-item">
+            <h3>🎓 Diploma Certificate</h3>
+            <p>Required: Educational diploma/certificate</p>
+            <button class="button" onclick="generateDiploma()">Generate Diploma</button>
+        </div>
+        
+        <div class="doc-item">
+            <h3>🏦 Bank RIB Statement</h3>
+            <p>Required: Bank account details (RIB)</p>
+            <button class="button" onclick="generateRIB()">Generate RIB</button>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <button class="button" style="background: #10b981;" onclick="generateAll()">
+                🚀 Generate All Documents
+            </button>
+        </div>
+        
+        <div id="status" style="margin-top: 20px; font-weight: bold;"></div>
+    </div>
+
+    <script>
+        const { jsPDF } = window.jspdf;
+        
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML = message;
+        }
+        
+        function generateCNSS() {
+            const pdf = new jsPDF();
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('CAISSE NATIONALE DE SÉCURITÉ SOCIALE', 20, 20);
+            pdf.text('CARTE D\'IMMATRICULATION', 20, 35);
+            
+            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('Nom: TEST USER', 20, 60);
+            pdf.text('Numéro: 1234567890123', 20, 75);
+            pdf.text('Valide jusqu\'au: 31/12/2025', 20, 90);
+            pdf.text('Adresse: 123 Rue Test, Casablanca', 20, 105);
+            
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'italic');
+            pdf.text('Generated for Flowly HR System Testing', 20, 270);
+            pdf.text(`Created: ${new Date().toLocaleString()}`, 20, 275);
+            
+            pdf.save('cnss_card.pdf');
+            updateStatus('✅ CNSS Card generated successfully!');
+        }
+        
+        function generateCIN() {
+            const pdf = new jsPDF();
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('ROYAUME DU MAROC', 20, 20);
+            pdf.text('CARTE NATIONALE D\'IDENTITÉ', 20, 35);
+            
+            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('Nom: TEST', 20, 60);
+            pdf.text('Prénom: USER', 20, 75);
+            pdf.text('Date de naissance: 01/01/1990', 20, 90);
+            pdf.text('Lieu de naissance: CASABLANCA', 20, 105);
+            pdf.text('CIN: AB123456', 20, 120);
+            pdf.text('Sexe: M', 20, 135);
+            pdf.text('Adresse: 123 Rue Test, Casablanca', 20, 150);
+            
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'italic');
+            pdf.text('Generated for Flowly HR System Testing', 20, 270);
+            pdf.text(`Created: ${new Date().toLocaleString()}`, 20, 275);
+            
+            pdf.save('cin_card.pdf');
+            updateStatus('✅ CIN Card generated successfully!');
+        }
+        
+        function generateDiploma() {
+            const pdf = new jsPDF();
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('UNIVERSITÉ TEST', 20, 20);
+            pdf.text('DIPLOME DE LICENCE', 20, 35);
+            
+            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('Spécialité: INFORMATIQUE', 20, 60);
+            pdf.text('Conféré à: TEST USER', 20, 75);
+            pdf.text('Né(e) le: 01/01/1990 à CASABLANCA', 20, 90);
+            pdf.text('Session: JUIN 2024', 20, 105);
+            pdf.text('Mention: BIEN', 20, 120);
+            pdf.text('Durée: 3 ans', 20, 135);
+            
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'italic');
+            pdf.text('Generated for Flowly HR System Testing', 20, 270);
+            pdf.text(`Created: ${new Date().toLocaleString()}`, 20, 275);
+            
+            pdf.save('diploma_certificate.pdf');
+            updateStatus('✅ Diploma Certificate generated successfully!');
+        }
+        
+        function generateRIB() {
+            const pdf = new jsPDF();
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('RELEVÉ D\'IDENTITÉ BANCAIRE', 20, 20);
+            
+            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('Banque: BANQUE TEST', 20, 50);
+            pdf.text('Agence: CASABLANCA CENTRE', 20, 65);
+            pdf.text('Compte: 12345678901234567890', 20, 80);
+            pdf.text('Clé: 18', 20, 95);
+            pdf.text('IBAN: MA000000000000000000000000', 20, 110);
+            pdf.text('Titulaire: TEST USER', 20, 125);
+            pdf.text('Domiciliation: Casablanca', 20, 140);
+            
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'italic');
+            pdf.text('Generated for Flowly HR System Testing', 20, 270);
+            pdf.text(`Created: ${new Date().toLocaleString()}`, 20, 275);
+            
+            pdf.save('bank_rib.pdf');
+            updateStatus('✅ Bank RIB generated successfully!');
+        }
+        
+        function generateAll() {
+            updateStatus('🔄 Generating all documents...');
+            setTimeout(() => generateCNSS(), 100);
+            setTimeout(() => generateCIN(), 500);
+            setTimeout(() => generateDiploma(), 900);
+            setTimeout(() => generateRIB(), 1300);
+            setTimeout(() => updateStatus('🎉 All documents generated successfully!'), 1700);
+        }
+    </script>
+</body>
+</html>

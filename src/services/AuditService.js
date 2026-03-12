@@ -7,6 +7,14 @@ import { supabase } from './supabase';
 
 class AuditService {
   /**
+   * Check if a value is a valid UUID format
+   */
+  _isValidUUID(value) {
+    if (!value || typeof value !== 'string') return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  /**
    * Log an audit event
    */
   async log(action, entityType, entityId, oldValues = null, newValues = null, metadata = {}) {
@@ -20,6 +28,13 @@ class AuditService {
         .eq('id', user?.id)
         .single();
 
+      // If entity_id is not a valid UUID, move it to metadata to avoid DB type error
+      let safeEntityId = entityId;
+      if (entityId && !this._isValidUUID(entityId)) {
+        metadata = { ...metadata, entity_ref: entityId };
+        safeEntityId = null;
+      }
+
       const { data, error } = await supabase
         .from('audit_logs')
         .insert({
@@ -27,7 +42,7 @@ class AuditService {
           entreprise_id: profile?.entreprise_id,
           action,
           entity_type: entityType,
-          entity_id: entityId,
+          entity_id: safeEntityId,
           old_values: oldValues,
           new_values: newValues,
           ip_address: metadata.ip_address,

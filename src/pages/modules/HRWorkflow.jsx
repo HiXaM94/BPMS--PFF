@@ -26,54 +26,92 @@ import { auditService } from '../../services/AuditService';
 /* ─── Custom Node Components ─── */
 
 function StartNode({ data }) {
+  const isExecuting = data?.executing;
   return (
-    <div className="px-5 py-3 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg border-2 border-emerald-400 min-w-[140px] text-center">
+    <div className={`px-5 py-3 rounded-xl text-white shadow-lg border-2 min-w-[140px] text-center transition-all duration-300 ${
+      isExecuting 
+        ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 border-emerald-500 shadow-emerald-300 scale-110' 
+        : 'bg-gradient-to-br from-emerald-500 to-emerald-600 border-emerald-400'
+    }`}>
       <div className="flex items-center justify-center gap-2">
-        <Play size={16} />
+        <Play size={16} className={isExecuting ? 'animate-pulse' : ''} />
         <span className="font-bold text-sm">{data.label}</span>
+        {isExecuting && <Loader2 size={12} className="animate-spin" />}
       </div>
     </div>
   );
 }
 
 function EndNode({ data }) {
+  const isExecuting = data?.executing;
   return (
-    <div className="px-5 py-3 rounded-xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg border-2 border-red-400 min-w-[140px] text-center">
+    <div className={`px-5 py-3 rounded-xl text-white shadow-lg border-2 min-w-[140px] text-center transition-all duration-300 ${
+      isExecuting 
+        ? 'bg-gradient-to-br from-red-600 to-red-700 border-red-500 shadow-red-300 scale-110' 
+        : 'bg-gradient-to-br from-red-500 to-red-600 border-red-400'
+    }`}>
       <div className="flex items-center justify-center gap-2">
-        <Square size={16} />
+        <Square size={16} className={isExecuting ? 'animate-pulse' : ''} />
         <span className="font-bold text-sm">{data.label}</span>
+        {isExecuting && <Loader2 size={12} className="animate-spin" />}
       </div>
     </div>
   );
 }
 
-function ActionNode({ data }) {
+function ActionNode({ data, selected }) {
+  const isExecuting = data?.executing;
   return (
-    <div className="px-5 py-3 rounded-xl bg-white shadow-lg border-2 border-brand-300 min-w-[180px]">
+    <div className={`px-5 py-3 rounded-xl shadow-lg border-2 min-w-[180px] transition-all duration-300 ${
+      isExecuting 
+        ? 'bg-emerald-50 border-emerald-500 shadow-emerald-200 animate-pulse' 
+        : selected 
+          ? 'bg-brand-50 border-brand-500' 
+          : 'bg-white border-brand-300'
+    }`}>
       <div className="flex items-center gap-2 mb-1">
-        <div className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center">
-          <ArrowRight size={14} className="text-brand-600" />
+        <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+          isExecuting ? 'bg-emerald-500' : 'bg-brand-100'
+        }`}>
+          <ArrowRight size={14} className={isExecuting ? 'text-white' : 'text-brand-600'} />
         </div>
-        <span className="font-bold text-sm text-gray-900">{data.label}</span>
+        <span className={`font-bold text-sm ${isExecuting ? 'text-emerald-700' : 'text-gray-900'}`}>
+          {data.label}
+        </span>
+        {isExecuting && <Loader2 size={12} className="animate-spin text-emerald-600" />}
       </div>
       {data.description && (
-        <p className="text-[11px] text-gray-500 ml-8">{data.description}</p>
+        <p className={`text-[11px] ml-8 ${isExecuting ? 'text-emerald-600' : 'text-gray-500'}`}>
+          {data.description}
+        </p>
       )}
     </div>
   );
 }
 
 function ApprovalNode({ data }) {
+  const isExecuting = data?.executing;
   return (
-    <div className="px-5 py-3 rounded-xl bg-white shadow-lg border-2 border-amber-300 min-w-[180px]">
+    <div className={`px-5 py-3 rounded-xl shadow-lg border-2 min-w-[180px] transition-all duration-300 ${
+      isExecuting 
+        ? 'bg-amber-50 border-amber-500 shadow-amber-200 animate-pulse' 
+        : 'bg-white border-amber-300'
+    }`}>
       <div className="flex items-center gap-2 mb-1">
-        <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center">
-          <CheckCircle2 size={14} className="text-amber-600" />
+        <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+          isExecuting ? 'bg-amber-500' : 'bg-amber-100'
+        }`}>
+          <CheckCircle2 size={14} className={isExecuting ? 'text-white' : 'text-amber-600'} />
         </div>
-        <span className="font-bold text-sm text-gray-900">{data.label}</span>
+        <span className={`font-bold text-sm ${isExecuting ? 'text-amber-700' : 'text-gray-900'}`}>
+          {data.label}
+        </span>
+        {isExecuting && <Loader2 size={12} className="animate-spin text-amber-600" />}
       </div>
       {data.approver && (
-        <p className="text-[11px] text-gray-500 ml-8">Approver: {data.approver}</p>
+        <p className={`text-[11px] ml-8 ${isExecuting ? 'text-amber-600' : 'text-gray-500'}`}>
+          Approver: {data.approver}
+        </p>
       )}
     </div>
   );
@@ -283,6 +321,9 @@ export default function HRWorkflow() {
   const { profile } = useAuth();
   const [activeWorkflow, setActiveWorkflow] = useState('onboarding');
   const [saved, setSaved] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [executionLog, setExecutionLog] = useState([]);
+  const [currentNode, setCurrentNode] = useState(null);
 
   // Execution State
   const [mode, setMode] = useState('builder'); // 'builder' or 'execution'
@@ -509,6 +550,17 @@ export default function HRWorkflow() {
           </div>
 
           {mode === 'builder' ? (
+            <button
+              onClick={handleExecute}
+              disabled={executing}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all
+                         ${executing
+                           ? 'bg-gray-400 text-white cursor-not-allowed'
+                           : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg'}`}
+            >
+              {executing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+              {executing ? 'Executing...' : 'Execute Workflow'}
+            </button>
             <button
               onClick={handleSave}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all

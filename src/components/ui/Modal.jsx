@@ -58,6 +58,9 @@ export default function Modal({
 
   if (!isOpen) return null;
 
+  const modalRoot = document.body;
+  if (!modalRoot) return null;
+
   return createPortal(
     <div
       ref={overlayRef}
@@ -104,6 +107,6 @@ export default function Modal({
         )}
       </div>
     </div>,
-    document.body
+    modalRoot
   );
 }

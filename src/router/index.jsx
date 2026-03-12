@@ -79,6 +79,9 @@ const LoadableTickets = Loadable(Tickets);
 const LoadableJobBoard = Loadable(JobBoard);
 const LoadableJobDetail = Loadable(JobDetail);
 
+// Public pages
+import Careers from '../pages/public/Careers';
+
 const router = createBrowserRouter([
   // ── Public auth routes ──
   { path: '/login', element: <Login /> },

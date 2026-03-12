@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+
 import {
     FileCheck, Download, UploadCloud, AlertCircle, FileText, Send, Clock,
     CheckCircle2, Loader2, History, Eye, Trash2, X, File, RefreshCw, XCircle
@@ -77,8 +78,8 @@ export default function EmployeeDocuments() {
                 const { data: onboardingDocs } = await supabase
                     .from('documents')
                     .select('*')
-                    .eq('user_id', profile.id)
-                    .eq('doc_type', 'onboarding')
+                    .eq('employee_id', profile.id)
+                    .eq('type', 'onboarding')
                     .order('created_at', { ascending: false });
 
                 if (onboardingDocs?.length) {
@@ -101,8 +102,8 @@ export default function EmployeeDocuments() {
                 const { data: requests } = await supabase
                     .from('documents')
                     .select('*')
-                    .eq('user_id', profile.id)
-                    .in('doc_type', ['official_request', 'salary_certificate'])
+                    .eq('employee_id', profile.id)
+                    .in('type', ['official_request', 'salary_certificate'])
                     .order('created_at', { ascending: false });
                 if (requests) setRequestHistory(requests);
             } catch (err) {
@@ -117,9 +118,31 @@ export default function EmployeeDocuments() {
         const rec = docRecords[docKey];
         if (!rec?.file_url) { flash('File not found', 'error'); return; }
         try {
-            const { data } = await supabase.storage.from('documents').getPublicUrl(rec.file_url);
-            setPreviewFile({ url: data.publicUrl, name: rec.fileName });
-        } catch { flash('Failed to load preview', 'error'); }
+            // Fix old paths that have duplicate documents/ prefix
+            const cleanPath = rec.file_url.replace(/^documents\//, '');
+            console.log('Preview path:', cleanPath);
+
+            // Try public URL first
+            const { data } = await supabase.storage.from('documents').getPublicUrl(cleanPath);
+            console.log('Public URL:', data.publicUrl);
+
+            // If public URL fails, try signed URL
+            const { data: signedData, error: signedError } = await supabase.storage
+                .from('documents')
+                .createSignedUrl(cleanPath, 60); // 60 seconds expiry
+
+            if (signedError) {
+                console.log('Signed URL error:', signedError);
+                throw signedError;
+            }
+
+            console.log('Signed URL:', signedData.signedUrl);
+            // Update preview with new data
+            setPreviewFile({ url: signedData.signedUrl, name: rec.fileName });
+        } catch (error) {
+            console.error('Preview error:', error);
+            flash('Failed to load preview: ' + error.message, 'error');
+        }
     }, [docRecords]);
 
     // ── Delete / remove uploaded doc ──
@@ -131,7 +154,10 @@ export default function EmployeeDocuments() {
             return;
         }
         try {
-            if (rec?.file_url) await supabase.storage.from('documents').remove([rec.file_url]);
+            if (rec?.file_url) {
+                const cleanPath = rec.file_url.replace(/^documents\//, '');
+                await supabase.storage.from('documents').remove([cleanPath]);
+            }
             if (rec?.id) await supabase.from('documents').delete().eq('id', rec.id);
             setDocRecords(prev => { const n = { ...prev }; delete n[docKey]; return n; });
             flash(`${docKey} removed`);
@@ -166,11 +192,12 @@ export default function EmployeeDocuments() {
             // If replacing a rejected doc, delete old file first
             const existing = docRecords[docKey];
             if (existing?.file_url) {
-                await supabase.storage.from('documents').remove([existing.file_url]);
+                const cleanPath = existing.file_url.replace(/^documents\//, '');
+                await supabase.storage.from('documents').remove([cleanPath]);
                 if (existing.id) await supabase.from('documents').delete().eq('id', existing.id);
             }
 
-            const path = `documents/${profile.id}/${docKey}_${Date.now()}_${file.name}`;
+            const path = `${profile.id}/${docKey}_${Date.now()}_${file.name}`;
             const { error: upErr } = await supabase.storage.from('documents').upload(path, file);
             if (upErr) throw upErr;
 
@@ -179,7 +206,7 @@ export default function EmployeeDocuments() {
                 entreprise_id: profile.entreprise_id || profile.entreprise?.id,
                 title: docKey,
                 file_url: path,
-                doc_type: 'onboarding',
+                type: 'onboarding',
                 status: 'pending',
                 uploaded_by: profile.id
             }).select().single();
@@ -219,6 +246,7 @@ export default function EmployeeDocuments() {
 
         setSubmitting(true);
         if (isSupabaseReady && profile?.id) {
+
             const { error } = await supabase
                 .from('documents')
                 .update({
@@ -257,97 +285,248 @@ export default function EmployeeDocuments() {
             const periodLabel = periodLabels[certPeriod] || certPeriod;
             const empName = profile?.name || profile?.email || 'Employee';
             const now = new Date();
+            const docRef = 'CERT-' + now.getFullYear().toString().slice(-2) + String(now.getMonth() + 1).padStart(2, '0') + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+            const verifyCode = 'FLW-' + now.getTime().toString(36).toUpperCase().substring(0, 8);
 
             const doc = new jsPDF();
-            // Header
-            doc.setFillColor(59, 130, 246);
-            doc.rect(0, 0, 210, 35, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(20);
-            doc.setFont('helvetica', 'bold');
-            doc.text('SALARY CERTIFICATE', 105, 18, { align: 'center' });
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.text('Official Document — Flowly Business Suite', 105, 28, { align: 'center' });
+            const w = doc.internal.pageSize.getWidth();
+            const h = doc.internal.pageSize.getHeight();
 
-            // Watermark
-            doc.setTextColor(230, 230, 250);
-            doc.setFontSize(50);
-            doc.setFont('helvetica', 'bold');
-            doc.text('CERTIFIED', 105, 160, { align: 'center', angle: 45 });
-
-            // Body
-            doc.setTextColor(30, 30, 30);
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'normal');
-            let y = 50;
-            const line = (label, value) => {
-                doc.setFont('helvetica', 'bold');
-                doc.text(label, 20, y);
-                doc.setFont('helvetica', 'normal');
-                doc.text(String(value), 80, y);
-                y += 8;
+            // ── Helper: Draw Flowly Logo ──
+            const drawLogo = (x, y, s = 0.55, color = [255, 255, 255]) => {
+                doc.setFillColor(...color);
+                doc.setDrawColor(...color);
+                doc.setLineWidth(0.3 * s);
+                doc.roundedRect(x, y, 2.5 * s, 10 * s, 0.8 * s, 0.8 * s, 'F');
+                doc.circle(x + 5 * s, y + 10 * s, 3 * s, 'F');
+                doc.setFillColor(42, 133, 255);
+                doc.circle(x + 5 * s, y + 10 * s, 1.2 * s, 'F');
+                doc.setFillColor(...color);
+                doc.roundedRect(x + 7.5 * s, y + 2 * s, 2 * s, 6 * s, 0.6 * s, 0.6 * s, 'F');
+                doc.circle(x + 12 * s, y + 8 * s, 2.5 * s, 'F');
+                doc.setFillColor(42, 133, 255);
+                doc.circle(x + 12 * s, y + 8 * s, 1 * s, 'F');
+                doc.setFillColor(...color);
+                doc.roundedRect(x + 14.5 * s, y, 2.5 * s, 7 * s, 0.8 * s, 0.8 * s, 'F');
             };
 
-            doc.setFontSize(13);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Employee Information', 20, y); y += 10;
-            doc.setFontSize(11);
-            line('Full Name:', empName);
-            line('Employee ID:', profile?.id?.substring(0, 8)?.toUpperCase() || 'N/A');
-            line('Department:', profile?.department || 'General');
-            line('Position:', profile?.position || 'Employee');
-            line('Hire Date:', profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A');
-            y += 6;
+            // ── Professional Header ──
+            doc.setFillColor(24, 100, 220);
+            doc.rect(0, 0, w, 40, 'F');
+            doc.setFillColor(42, 133, 255);
+            doc.rect(0, 0, w, 36, 'F');
+            doc.setFillColor(255, 255, 255);
+            doc.rect(0, 36, w, 0.5, 'F');
 
-            doc.setFontSize(13);
+            // Logo
+            drawLogo(14, 7, 0.55, [255, 255, 255]);
+
+            // Flowly text
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(16);
             doc.setFont('helvetica', 'bold');
-            doc.text('Salary Details', 20, y); y += 10;
-            doc.setFontSize(11);
-            line('Period:', periodLabel);
-            line('Base Salary:', '8,500.00 MAD');
-            line('Allowances:', '1,200.00 MAD');
-            line('Deductions:', '-850.00 MAD');
+            doc.text('Flowly', 26, 17);
+
+            // Certificate title
+            doc.setFontSize(12);
+            doc.text('SALARY CERTIFICATE', 26, 27);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Official Business Document', 26, 33);
+
+            // Company name right
+            doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
-            line('Net Salary:', '8,850.00 MAD');
-            y += 6;
+            doc.text('Flowly Business Suite', w - 14, 18, { align: 'right' });
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text('www.flowly.io', w - 14, 26, { align: 'right' });
+
+            let y = 48;
+
+            // ── Document Reference Bar ──
+            doc.setFillColor(248, 250, 254);
+            doc.setDrawColor(230, 235, 245);
+            doc.setLineWidth(0.2);
+            doc.roundedRect(14, y, w - 28, 10, 2, 2, 'FD');
+            doc.setFontSize(7);
+            doc.setTextColor(100, 110, 130);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Document Ref: ${docRef}`, 20, y + 6.5);
+            doc.text(`Issue Date: ${now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, w / 2, y + 6.5, { align: 'center' });
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(16, 150, 72);
+            doc.text('Status: CERTIFIED', w - 20, y + 6.5, { align: 'right' });
+
+            y += 16;
+
+            // ── Watermark (behind content) ──
+            doc.setTextColor(240, 243, 255);
+            doc.setFontSize(45);
+            doc.setFont('helvetica', 'bold');
+            doc.text('CERTIFIED', 105, 175, { align: 'center', angle: 40 });
+
+            // ── Employee Information Box ──
+            doc.setFillColor(248, 250, 254);
+            doc.setDrawColor(220, 228, 242);
+            doc.setLineWidth(0.3);
+            doc.roundedRect(14, y, w - 28, 38, 3, 3, 'FD');
+
+            // Section label
+            doc.setFillColor(42, 133, 255);
+            doc.roundedRect(14, y, 55, 7, 3, 3, 'F');
+            doc.rect(14, y + 3, 55, 4, 'F');
+            doc.setFontSize(7);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('EMPLOYEE INFORMATION', 18, y + 5.5);
+
+            y += 12;
+
+            const infoLine = (label, value, xPos, yPos) => {
+                doc.setFontSize(7);
+                doc.setTextColor(130, 140, 160);
+                doc.setFont('helvetica', 'normal');
+                doc.text(label, xPos, yPos);
+                doc.setFontSize(9);
+                doc.setTextColor(30, 35, 50);
+                doc.setFont('helvetica', 'bold');
+                doc.text(String(value || '-'), xPos, yPos + 5);
+            };
+
+            infoLine('Full Name', empName, 20, y);
+            infoLine('Employee ID', profile?.id?.substring(0, 8)?.toUpperCase() || 'N/A', 20, y + 13);
+            infoLine('Department', profile?.department || 'General', w / 2 + 5, y);
+            infoLine('Position', profile?.position || 'Employee', w / 2 + 5, y + 13);
+
+            y += 32;
+
+            // ── Salary Details Section ──
+            doc.setFillColor(42, 133, 255);
+            doc.roundedRect(14, y, w - 28, 9, 2, 2, 'F');
+            doc.rect(14, y + 4, w - 28, 5, 'F');
+            doc.setFontSize(8);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('SALARY DETAILS', 20, y + 6.5);
+            doc.text('AMOUNT (MAD)', w - 20, y + 6.5, { align: 'right' });
+            y += 12;
+
+            const drawDetailRow = (label, value, isBold = false, colorOverride = null, highlight = false) => {
+                if (highlight) {
+                    doc.setFillColor(245, 248, 255);
+                    doc.rect(14, y - 4, w - 28, 10, 'F');
+                }
+                doc.setFontSize(9);
+                doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+                doc.setTextColor(colorOverride ? colorOverride[0] : 50, colorOverride ? colorOverride[1] : 55, colorOverride ? colorOverride[2] : 70);
+                doc.text(label, 22, y);
+                doc.text(value, w - 22, y, { align: 'right' });
+                doc.setDrawColor(235, 238, 248);
+                doc.setLineWidth(0.15);
+                doc.line(14, y + 4, w - 14, y + 4);
+                y += 10;
+            };
+
+            drawDetailRow('Certificate Period', periodLabel);
+            drawDetailRow('Base Salary', '8,500.00 MAD');
+            drawDetailRow('Allowances', '1,200.00 MAD', false, [16, 150, 72]);
+            drawDetailRow('Deductions', '-850.00 MAD', false, [220, 50, 50]);
+            drawDetailRow('NET SALARY', '8,850.00 MAD', true, null, true);
 
             if (certPurpose) {
-                doc.setFont('helvetica', 'normal');
-                line('Purpose:', certPurpose);
-                y += 4;
+                y += 2;
+                drawDetailRow('Purpose of Certificate', certPurpose);
             }
 
-            // Separator
-            doc.setDrawColor(200, 200, 200);
-            doc.line(20, y, 190, y); y += 10;
+            y += 4;
 
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'italic');
-            doc.setTextColor(100, 100, 100);
-            doc.text('This document is system-generated and does not require a physical signature.', 20, y); y += 6;
-            doc.text(`Generated on: ${now.toLocaleString()}`, 20, y); y += 6;
-            doc.text(`Document ID: CERT-${Date.now().toString(36).toUpperCase()}`, 20, y);
+            // ── Hire Date Info ──
+            doc.setFillColor(248, 250, 254);
+            doc.setDrawColor(220, 228, 242);
+            doc.setLineWidth(0.2);
+            doc.roundedRect(14, y, w - 28, 10, 2, 2, 'FD');
+            doc.setFontSize(7);
+            doc.setTextColor(100, 110, 130);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Employment Start Date: ${profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}`, 20, y + 6.5);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(42, 133, 255);
+            doc.text(`Employment Status: Active`, w - 20, y + 6.5, { align: 'right' });
 
-            // Footer
-            doc.setFillColor(245, 245, 250);
-            doc.rect(0, 275, 210, 22, 'F');
-            doc.setTextColor(120, 120, 140);
+            y += 16;
+
+            // ── Digital Signature Block ──
+            doc.setFillColor(250, 251, 254);
+            doc.setDrawColor(200, 210, 230);
+            doc.setLineWidth(0.3);
+            doc.roundedRect(14, y, w - 28, 34, 3, 3, 'FD');
+
+            doc.setFontSize(7);
+            doc.setTextColor(120, 130, 150);
+            doc.setFont('helvetica', 'bold');
+            doc.text('DIGITAL SIGNATURE & VERIFICATION', 20, y + 7);
+
+            doc.setDrawColor(42, 133, 255);
+            doc.setLineWidth(0.4);
+            doc.line(20, y + 19, 70, y + 19);
+
             doc.setFontSize(8);
-            doc.text('Flowly Business Suite — Confidential', 105, 283, { align: 'center' });
-            doc.text(`© ${now.getFullYear()} All rights reserved`, 105, 288, { align: 'center' });
+            doc.setTextColor(42, 133, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Flowly Business Suite — HR Department', 20, y + 17);
+
+            doc.setFontSize(7);
+            doc.setTextColor(100, 110, 130);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Authorized Digital Signature', 20, y + 25);
+            doc.text(`Signed: ${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`, 20, y + 30);
+
+            // Verification code on the right
+            doc.setFontSize(7);
+            doc.setTextColor(120, 130, 150);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Verification Code:', w - 64, y + 12);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(42, 133, 255);
+            doc.text(verifyCode, w - 64, y + 19);
+
+            // Small logo mark
+            drawLogo(w - 34, y + 6, 0.35, [42, 133, 255]);
+
+            doc.setFontSize(6);
+            doc.setTextColor(160, 168, 180);
+            doc.setFont('helvetica', 'normal');
+            doc.text('This document is digitally signed and verified.', w - 64, y + 26);
+            doc.text('Tamper-evident · Electronically sealed', w - 64, y + 30);
+
+            // ── Footer ──
+            doc.setFillColor(245, 247, 252);
+            doc.rect(0, h - 16, w, 16, 'F');
+            doc.setDrawColor(220, 225, 240);
+            doc.setLineWidth(0.3);
+            doc.line(0, h - 16, w, h - 16);
+
+            doc.setFontSize(6.5);
+            doc.setTextColor(140, 150, 170);
+            doc.setFont('helvetica', 'normal');
+            doc.text('CONFIDENTIAL — This document is intended solely for the named recipient. Unauthorized distribution is prohibited.', w / 2, h - 10, { align: 'center' });
+            doc.setFontSize(6);
+            doc.text(`© ${now.getFullYear()} Flowly Business Process Management Suite — www.flowly.io`, w / 2, h - 5.5, { align: 'center' });
 
             doc.save(`salary_certificate_${certPeriod}_${Date.now()}.pdf`);
 
             // Record in DB + notify
             if (isSupabaseReady && profile?.id) {
                 const { data: rec } = await supabase.from('documents').insert({
-                    user_id: profile.id,
+                    employee_id: profile.id,
                     entreprise_id: profile.entreprise_id || null,
                     title: `Salary Certificate (${periodLabel})`,
-                    doc_type: 'salary_certificate',
+                    type: 'salary_certificate',
                     status: 'approved',
                     notes: certPurpose || null,
+                    uploaded_by: profile.id,
                 }).select().single();
                 if (rec) setRequestHistory(prev => [rec, ...prev]);
                 cacheService.invalidatePattern('^doc');
@@ -367,7 +546,7 @@ export default function EmployeeDocuments() {
         if (!isSupabaseReady || !profile?.id) {
             setTimeout(() => {
                 setReqLoading(false);
-                setRequestHistory(prev => [{ id: Date.now(), title: reqDocType, doc_type: 'official_request', status: 'pending', urgency: reqUrgency, notes: reqNotes, created_at: new Date().toISOString() }, ...prev]);
+                setRequestHistory(prev => [{ id: Date.now(), title: reqDocType, type: 'official_request', status: 'pending', urgency: reqUrgency, notes: reqNotes, created_at: new Date().toISOString() }, ...prev]);
                 flash('Document request submitted to HR!');
                 setReqNotes('');
             }, 800);
@@ -375,13 +554,14 @@ export default function EmployeeDocuments() {
         }
         try {
             const { data: rec } = await supabase.from('documents').insert({
-                user_id: profile.id,
+                employee_id: profile.id,
                 entreprise_id: profile.entreprise_id || null,
                 title: reqDocType,
-                doc_type: 'official_request',
+                type: 'official_request',
                 status: 'pending',
                 notes: reqNotes,
                 urgency: reqUrgency,
+                uploaded_by: profile.id,
             }).select().single();
             if (rec) setRequestHistory(prev => [rec, ...prev]);
             flash('Document request submitted to HR!');
