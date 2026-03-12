@@ -13,7 +13,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import {
   Play, Square, CheckCircle2, AlertTriangle, Bell, ArrowRight,
-  RotateCcw, Save, Users, Briefcase, Palmtree, Target,
+  RotateCcw, Save, Users, Briefcase, Palmtree, Target, Loader2, Zap,
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -46,17 +46,31 @@ function EndNode({ data }) {
   );
 }
 
-function ActionNode({ data }) {
+function ActionNode({ data, selected }) {
+  const isExecuting = data?.executing;
   return (
-    <div className="px-5 py-3 rounded-xl bg-white shadow-lg border-2 border-brand-300 min-w-[180px]">
+    <div className={`px-5 py-3 rounded-xl shadow-lg border-2 min-w-[180px] transition-all duration-300 ${
+      isExecuting 
+        ? 'bg-emerald-50 border-emerald-500 shadow-emerald-200 animate-pulse' 
+        : selected 
+          ? 'bg-brand-50 border-brand-500' 
+          : 'bg-white border-brand-300'
+    }`}>
       <div className="flex items-center gap-2 mb-1">
-        <div className="w-6 h-6 rounded-lg bg-brand-100 flex items-center justify-center">
-          <ArrowRight size={14} className="text-brand-600" />
+        <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+          isExecuting ? 'bg-emerald-500' : 'bg-brand-100'
+        }`}>
+          <ArrowRight size={14} className={isExecuting ? 'text-white' : 'text-brand-600'} />
         </div>
-        <span className="font-bold text-sm text-gray-900">{data.label}</span>
+        <span className={`font-bold text-sm ${isExecuting ? 'text-emerald-700' : 'text-gray-900'}`}>
+          {data.label}
+        </span>
+        {isExecuting && <Loader2 size={12} className="animate-spin text-emerald-600" />}
       </div>
       {data.description && (
-        <p className="text-[11px] text-gray-500 ml-8">{data.description}</p>
+        <p className={`text-[11px] ml-8 ${isExecuting ? 'text-emerald-600' : 'text-gray-500'}`}>
+          {data.description}
+        </p>
       )}
     </div>
   );
@@ -247,6 +261,9 @@ export default function HRWorkflow() {
   const { profile } = useAuth();
   const [activeWorkflow, setActiveWorkflow] = useState('onboarding');
   const [saved, setSaved] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [executionLog, setExecutionLog] = useState([]);
+  const [currentNode, setCurrentNode] = useState(null);
 
   const workflows = useMemo(() => buildWorkflows(t), [t]);
   const wf = workflows[activeWorkflow];
@@ -290,6 +307,141 @@ export default function HRWorkflow() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleExecute = async () => {
+    setExecuting(true);
+    setExecutionLog([]);
+    setCurrentNode(null);
+
+    // Find start node
+    const startNode = nodes.find(n => n.type === 'start');
+    if (!startNode) {
+      setExecutionLog([{ type: 'error', message: 'No start node found in workflow' }]);
+      setExecuting(false);
+      return;
+    }
+
+    // Log workflow execution start
+    await auditService.log('WORKFLOW_EXECUTION_STARTED', 'hr_workflow', null, null, { 
+      workflow_key: activeWorkflow,
+      started_by: profile.id
+    });
+
+    // Execute workflow nodes
+    const executedNodes = new Set();
+    const nodeQueue = [startNode];
+
+    while (nodeQueue.length > 0) {
+      const currentNode = nodeQueue.shift();
+      if (executedNodes.has(currentNode.id)) continue;
+      
+      executedNodes.add(currentNode.id);
+      setCurrentNode(currentNode.id);
+
+      // Update node to show it's executing
+      setNodes(prevNodes => 
+        prevNodes.map(node => 
+          node.id === currentNode.id 
+            ? { ...node, data: { ...node.data, executing: true } }
+            : node
+        )
+      );
+
+      // Add execution log
+      const logEntry = {
+        type: 'info',
+        timestamp: new Date().toLocaleTimeString(),
+        message: `Executing: ${currentNode.data.label}`,
+        nodeType: currentNode.type
+      };
+      setExecutionLog(prev => [...prev, logEntry]);
+
+      // Simulate node execution with delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Reset node executing state
+      setNodes(prevNodes => 
+        prevNodes.map(node => 
+          node.id === currentNode.id 
+            ? { ...node, data: { ...node.data, executing: false } }
+            : node
+        )
+      );
+
+      // Handle different node types
+      switch (currentNode.type) {
+        case 'action':
+          // Execute action
+          setExecutionLog(prev => [...prev, {
+            type: 'success',
+            timestamp: new Date().toLocaleTimeString(),
+            message: `✓ Action completed: ${currentNode.data.label}`
+          }]);
+          break;
+
+        case 'approval':
+          // Simulate approval
+          setExecutionLog(prev => [...prev, {
+            type: 'warning',
+            timestamp: new Date().toLocaleTimeString(),
+            message: `⏳ Awaiting approval: ${currentNode.data.approver || 'Manager'}`
+          }]);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          setExecutionLog(prev => [...prev, {
+            type: 'success',
+            timestamp: new Date().toLocaleTimeString(),
+            message: `✓ Approved by: ${currentNode.data.approver || 'Manager'}`
+          }]);
+          break;
+
+        case 'condition':
+          // Simulate condition evaluation
+          setExecutionLog(prev => [...prev, {
+            type: 'info',
+            timestamp: new Date().toLocaleTimeString(),
+            message: `🔍 Evaluating: ${currentNode.data.condition}`
+          }]);
+          break;
+
+        case 'notification':
+          // Send notification
+          setExecutionLog(prev => [...prev, {
+            type: 'success',
+            timestamp: new Date().toLocaleTimeString(),
+            message: `📧 Notification sent: ${currentNode.data.label}`
+          }]);
+          break;
+
+        case 'end':
+          // Workflow completed
+          setExecutionLog(prev => [...prev, {
+            type: 'success',
+            timestamp: new Date().toLocaleTimeString(),
+            message: `🎉 Workflow completed successfully!`
+          }]);
+          break;
+      }
+
+      // Find next nodes
+      const nextEdges = edges.filter(e => e.source === currentNode.id);
+      for (const edge of nextEdges) {
+        const nextNode = nodes.find(n => n.id === edge.target);
+        if (nextNode && !executedNodes.has(nextNode.id)) {
+          nodeQueue.push(nextNode);
+        }
+      }
+    }
+
+    // Log workflow execution completion
+    await auditService.log('WORKFLOW_EXECUTION_COMPLETED', 'hr_workflow', null, null, { 
+      workflow_key: activeWorkflow,
+      executed_by: profile.id,
+      nodes_executed: executedNodes.size
+    });
+
+    setCurrentNode(null);
+    setExecuting(false);
+  };
+
   const tabs = [
     { key: 'onboarding', label: t('workflow.onboarding'), icon: Users },
     { key: 'leaveApproval', label: t('workflow.leaveApproval'), icon: Palmtree },
@@ -305,6 +457,17 @@ export default function HRWorkflow() {
         icon={Target}
         actions={
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleExecute}
+              disabled={executing}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all
+                         ${executing
+                           ? 'bg-gray-400 text-white cursor-not-allowed'
+                           : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg'}`}
+            >
+              {executing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+              {executing ? 'Executing...' : 'Execute Workflow'}
+            </button>
             <button
               onClick={handleSave}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all
@@ -379,6 +542,48 @@ export default function HRWorkflow() {
           </Panel>
         </ReactFlow>
       </div>
+
+      {/* Execution Log Panel */}
+      {(executing || executionLog.length > 0) && (
+        <div className="bg-surface-primary rounded-2xl border border-border-secondary p-4 max-h-64 overflow-hidden">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <Zap size={16} className={executing ? 'text-emerald-500 animate-pulse' : 'text-gray-400'} />
+              Execution Log
+            </h3>
+            {executionLog.length > 0 && (
+              <button
+                onClick={() => setExecutionLog([])}
+                className="text-xs text-text-secondary hover:text-text-primary"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="space-y-1 max-h-48 overflow-y-auto font-mono text-xs">
+            {executionLog.map((log, index) => (
+              <div
+                key={index}
+                className={`flex items-start gap-2 p-2 rounded ${
+                  log.type === 'error' ? 'bg-red-50 text-red-700' :
+                  log.type === 'warning' ? 'bg-amber-50 text-amber-700' :
+                  log.type === 'success' ? 'bg-emerald-50 text-emerald-700' :
+                  'bg-gray-50 text-gray-700'
+                }`}
+              >
+                <span className="text-gray-400 mt-0.5">{log.timestamp}</span>
+                <span className="flex-1">{log.message}</span>
+              </div>
+            ))}
+            {executing && (
+              <div className="flex items-center gap-2 p-2 rounded bg-blue-50 text-blue-700">
+                <Loader2 size={12} className="animate-spin" />
+                <span>Executing workflow...</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
