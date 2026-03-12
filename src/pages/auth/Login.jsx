@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { supabase } from '../../services/supabase';
 import {
   Workflow, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle,
   Globe, Phone, MapPin, ArrowRight, Sparkles, Shield, Zap,
@@ -48,6 +49,20 @@ export default function AuthPage() {
   const [regError, setRegError] = useState('');
   const [regSuccess, setRegSuccess] = useState(false);
 
+  // super‑admin flag – when true we will also insert into owners table
+  const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
+  const [ownerExists, setOwnerExists] = useState(false);
+
+  // fetch whether there is already a super-admin/owner in the database;
+  // hide the creation button once one exists.
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from('owners').select('id', { count: 'exact', head: true })
+      .then(({ count, error }) => {
+        if (!error && count > 0) setOwnerExists(true);
+      });
+  }, []);
+
   // Google OAuth state
   const [googleLoading, setGoogleLoading] = useState(false);
 
@@ -63,6 +78,10 @@ export default function AuthPage() {
     setRegError('');
     setTimeout(() => {
       setIsRegister(prev => !prev);
+      // if we switch back to login we should clear any super‑admin mode
+      if (isRegister) {
+        setIsSuperAdminMode(false);
+      }
       // Update URL without reload
       window.history.replaceState(null, '', isRegister ? '/login' : '/register');
       setTimeout(() => setAnimating(false), 50);
@@ -97,7 +116,20 @@ export default function AuthPage() {
     if (regForm.password.length < 8) { setRegError(t('auth.passwordMinLength')); return; }
     setRegLoading(true);
     try {
+      // create the auth user first
       await signUp(regForm.email, regForm.password, { full_name: regForm.name });
+
+      // if we were in super‑admin mode also create the owners row
+      if (isSuperAdminMode) {
+        const { error: rpcErr } = await supabase.rpc('create_super_admin', {
+          p_email: regForm.email,
+          p_name: regForm.name,
+          p_password: regForm.password,
+        });
+        if (rpcErr) throw rpcErr;
+        setOwnerExists(true);
+      }
+
       setRegSuccess(true);
     } catch (err) {
       setRegError(err.message || 'Registration failed.');
@@ -125,7 +157,7 @@ export default function AuthPage() {
           <p className="text-text-secondary mb-6">
             We sent a confirmation link to <strong className="text-text-primary">{regForm.email}</strong>.
           </p>
-          <button onClick={() => { setRegSuccess(false); setIsRegister(false); window.history.replaceState(null, '', '/login'); }}
+          <button onClick={() => { setRegSuccess(false); setIsRegister(false); setIsSuperAdminMode(false); window.history.replaceState(null, '', '/login'); }}
             className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-500 text-white font-semibold text-sm
               shadow-lg shadow-brand-500/20 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
             {t('auth.backToLogin')}
@@ -272,6 +304,23 @@ export default function AuthPage() {
                   {loading ? t('common.loading') : t('auth.login')}
                   {!loading && <ArrowRight size={16} />}
                 </button>
+
+              {/* super‑admin creation link – only show if no owner in database yet */}
+              {!ownerExists && (
+                <div className="mt-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegister(true);
+                      setIsSuperAdminMode(true);
+                      setRegForm({ name: '', email: '', password: '', confirm: '' });
+                    }}
+                    className="text-sm text-brand-500 hover:underline"
+                  >
+                    Create super admin account
+                  </button>
+                </div>
+              )}
               </form>
 
               {/* Divider */}
@@ -345,6 +394,11 @@ export default function AuthPage() {
           ) : (
             /* ════════ REGISTER FORM ════════ */
             <>
+              {isSuperAdminMode && (
+                <div className="mb-4 p-3 rounded-lg bg-yellow-100 text-yellow-800 text-sm">
+                  Creating <strong>Super Admin</strong> account – this can only be done once.
+                </div>
+              )}
               <h1 className="text-2xl font-bold text-text-primary mb-1">{t('auth.registerTitle')}</h1>
               <p className="text-sm text-text-secondary mb-5">Join your company's Flowly workspace</p>
 
