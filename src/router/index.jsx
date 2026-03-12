@@ -30,6 +30,9 @@ import RealAnalyticsRouter from '../pages/modules/RealAnalyticsRouter';
 import QRKiosk from '../pages/modules/attendance/qrcode/QRKiosk';
 import Notifications from '../pages/modules/Notifications';
 
+// Public pages
+import Careers from '../pages/public/Careers';
+
 const router = createBrowserRouter([
   // ── Public auth routes ──
   { path: '/login', element: <Login /> },
@@ -37,6 +40,7 @@ const router = createBrowserRouter([
   { path: '/forgot-password', element: <ForgotPassword /> },
   { path: '/reset-password', element: <ResetPassword /> },
   { path: '/kiosk', element: <QRKiosk /> },
+  { path: '/careers', element: <Careers /> },
 
   // ── Protected app routes ──
   {
