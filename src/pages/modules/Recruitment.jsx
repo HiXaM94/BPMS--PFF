@@ -78,11 +78,16 @@ export default function Recruitment() {
     setLoading(true);
     const [jobsData, candsData] = await Promise.all([
       cacheService.getOrSet('recruit:jobs', async () => {
-        const { data } = await supabase.from('recrutements').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('recrutements').select('*').order('created_at', { ascending: false });
+        if (error) console.error('Jobs fetch error:', error);
         return data;
       }, 120),
       cacheService.getOrSet('recruit:candidates', async () => {
-        const { data } = await supabase.from('candidates').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('candidates').select('*').order('created_at', { ascending: false });
+        if (error) {
+          console.error('Candidates fetch error:', error);
+          return [];
+        }
         return data;
       }, 120),
     ]);
