@@ -2,11 +2,14 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 import { useSidebar } from '../../contexts/SidebarContext';
+import { useRole } from '../../contexts/RoleContext';
 import AIAssistant from '../ui/AIAssistant';
 import PageTransition from '../ui/PageTransition';
 
 export default function MainLayout() {
   const { isCollapsed } = useSidebar();
+  const { currentRole } = useRole();
+  const isRestrictedRole = currentRole?.id === 'company_admin' || currentRole?.id === 'manager';
 
   return (
     <div className="min-h-screen bg-sidebar-bg transition-colors duration-300">
@@ -43,9 +46,6 @@ export default function MainLayout() {
           </footer>
         </div>
       </div>
-
-      {/* Floating AI Assistant */}
-      <AIAssistant />
     </div>
   );
 }

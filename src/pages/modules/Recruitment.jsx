@@ -32,11 +32,11 @@ const pipelineData = [
 ];
 
 const depts = ['Engineering', 'Product', 'Design', 'Analytics', 'Marketing', 'HR', 'Finance', 'Operations'];
-const locs  = ['Casablanca', 'Rabat', 'Marrakech', 'Fes', 'Remote'];
+const locs = ['Casablanca', 'Rabat', 'Marrakech', 'Fes', 'Remote'];
 const types = ['Full-time', 'Part-time', 'Contract', 'Internship'];
-const stageColors  = { 'HR Screen': 'neutral', 'Portfolio Review': 'info', 'Technical Interview': 'brand', 'Final Interview': 'brand', 'Offer': 'success', 'Rejected': 'danger' };
+const stageColors = { 'HR Screen': 'neutral', 'Portfolio Review': 'info', 'Technical Interview': 'brand', 'Final Interview': 'brand', 'Offer': 'success', 'Rejected': 'danger' };
 const candColors = { 'in-progress': 'brand', offer: 'success', rejected: 'danger', pending: 'neutral' };
-const jobColors  = { open: 'success', closed: 'danger', draft: 'neutral' };
+const jobColors = { open: 'success', closed: 'danger', draft: 'neutral' };
 
 const inp = 'w-full px-3 py-2.5 rounded-xl text-sm bg-surface-secondary border border-border-secondary focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition-all duration-200 text-text-primary placeholder:text-text-tertiary';
 const lbl = 'block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider';
@@ -50,23 +50,26 @@ function fmtDate(d) {
 }
 
 export default function Recruitment() {
-  const [jobs, setJobs]         = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [candidates, setCandidates] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [showNew, setShowNew]   = useState(false);
-  const [viewJob, setViewJob]   = useState(null);
-  const [editJob, setEditJob]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
+  const [viewJob, setViewJob] = useState(null);
+  const [editJob, setEditJob] = useState(null);
   const [viewCand, setViewCand] = useState(null);
-  const [form, setForm]         = useState(emptyForm);
+  const [form, setForm] = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
-  const [toast, setToast]       = useState('');
-  const [saving, setSaving]     = useState(false);
+  const [toast, setToast] = useState('');
+  const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
   const [aiScoring, setAiScoring] = useState(false);
+
+  const [depts, setDepts] = useState(['Engineering', 'Product', 'Design', 'Analytics', 'Marketing', 'HR', 'Finance', 'Operations']);
+  const [fetchingDepts, setFetchingDepts] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!isSupabaseReady) {
@@ -76,32 +79,36 @@ export default function Recruitment() {
       return;
     }
     setLoading(true);
-    const [jobsData, candsData] = await Promise.all([
+    setFetchingDepts(true);
+
+    const [jobsData, candsData, deptsData] = await Promise.all([
       cacheService.getOrSet('recruit:jobs', async () => {
-        const { data, error } = await supabase.from('recrutements').select('*').order('created_at', { ascending: false });
-        if (error) console.error('Jobs fetch error:', error);
+        const { data } = await supabase.from('recrutements').select('*, departments(name)').order('created_at', { ascending: false });
         return data;
       }, 120),
       cacheService.getOrSet('recruit:candidates', async () => {
-        const { data, error } = await supabase.from('candidates').select('*').order('created_at', { ascending: false });
-        if (error) {
-          console.error('Candidates fetch error:', error);
-          return [];
-        }
+        const { data } = await supabase.from('candidates').select('*').order('applied_at', { ascending: false });
         return data;
       }, 120),
+      supabase.from('departments').select('*')
     ]);
+
+    if (deptsData.data && deptsData.data.length > 0) {
+      setDepts(deptsData.data);
+    }
+
     setJobs((jobsData || []).map(j => ({
       id: j.id,
-      title: j.position,
-      department: j.department || '-',
+      title: j.title || j.position,
+      department: j.departments?.name || j.department || '-',
+      department_id: j.department_id,
       location: j.location || '-',
-      type: j.contract_type || 'Full-time',
+      type: j.employment_type || j.contract_type || 'full_time',
       applicants: j.applicants_count ?? 0,
       shortlisted: j.shortlisted_count ?? 0,
       status: j.status || 'draft',
       postedDate: fmtDate(j.created_at),
-      salary: j.salary_range || 'Negotiable',
+      salary: j.salary_range || (j.salary_min && j.salary_max ? `${j.salary_min / 1000}K-${j.salary_max / 1000}K MAD` : 'Negotiable'),
       description: j.description || '',
       closing_date: j.closing_date,
     })));
@@ -110,20 +117,27 @@ export default function Recruitment() {
       name: c.name,
       position: c.applied_position || '-',
       stage: c.stage || 'HR Screen',
-      rating: c.score ? (c.score / 20).toFixed(1) : '-',
-      appliedDate: fmtDate(c.created_at),
-      status: c.status || 'pending',
+      rating: c.rating ?? '-',
+      appliedDate: fmtDate(c.applied_at),
+      status: c.status || 'new',
       email: c.email || '-',
       phone: c.phone || '-',
       cv_url: c.cv_url,
     })));
     setLoading(false);
+    setFetchingDepts(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const openCount  = jobs.filter(j => j.status === 'open').length;
-  const totalApps  = jobs.reduce((s, j) => s + (j.applicants || 0), 0);
+  const copyJobLink = (id) => {
+    const url = `${window.location.origin}/jobs/${id}`;
+    navigator.clipboard.writeText(url);
+    flash('Public link copied to clipboard!');
+  };
+
+  const openCount = jobs.filter(j => j.status === 'open').length;
+  const totalApps = jobs.reduce((s, j) => s + (j.applicants || 0), 0);
   const totalShort = jobs.reduce((s, j) => s + (j.shortlisted || 0), 0);
 
   const handlePost = async (e) => {
@@ -140,23 +154,39 @@ export default function Recruitment() {
       flash('Job posted successfully!');
       return;
     }
-    const { error } = await supabase.from('recrutements').insert({
-      position: form.title,
-      department: form.department,
-      location: form.location,
-      contract_type: form.type,
-      salary_range: form.salaryMin && form.salaryMax ? `${form.salaryMin}K-${form.salaryMax}K MAD` : null,
-      description: form.description,
-      status: 'open',
-      is_public: true,
-    });
-    setSaving(false);
-    if (error) { flash('Error: ' + error.message); return; }
-    setForm(emptyForm); setShowNew(false);
-    flash('Job posted successfully!');
-    cacheService.invalidatePattern('^recruit:');
-    cacheService.invalidatePattern('^hr:');
-    fetchData();
+
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from('users').select('entreprise_id').eq('id', userData.user.id).single();
+
+      const { error } = await supabase.from('recrutements').insert({
+        entreprise_id: profile.entreprise_id,
+        title: form.title,
+        department_id: form.department_id || null,
+        location: form.location,
+        employment_type: form.type.toLowerCase().replace('-', '_'),
+        salary_min: form.salaryMin ? parseFloat(form.salaryMin) * 1000 : null,
+        salary_max: form.salaryMax ? parseFloat(form.salaryMax) * 1000 : null,
+        description: form.description,
+        requirements: form.requirements,
+        status: 'open',
+        created_by: userData.user.id
+      });
+
+      if (error) throw error;
+
+      setShowNew(false);
+      setForm(emptyForm);
+      flash('Job posted successfully!');
+      cacheService.invalidatePattern('^recruit:');
+      cacheService.invalidatePattern('^hr:');
+      fetchData();
+    } catch (err) {
+      console.error('Job Post Error:', err);
+      flash('Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleEditSave = async (e) => {
@@ -169,10 +199,10 @@ export default function Recruitment() {
       return;
     }
     const { error } = await supabase.from('recrutements').update({
-      position: editForm.title,
-      department: editForm.department,
+      title: editForm.title,
+      department_id: null,
       location: editForm.location,
-      contract_type: editForm.type,
+      employment_type: editForm.type.toLowerCase().replace('-', '_'),
       description: editForm.description,
     }).eq('id', editJob.id);
     if (error) { flash('Error: ' + error.message); return; }
@@ -232,48 +262,59 @@ export default function Recruitment() {
   };
 
   const jobCols = [
-    { key: 'title', label: 'Position', render: (val, row) => (
-      <div>
-        <span className="font-semibold text-text-primary block text-sm">{val}</span>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[11px] text-text-tertiary flex items-center gap-1"><Building2 size={10}/>{row.department}</span>
-          <span className="text-[11px] text-text-tertiary flex items-center gap-1"><MapPin size={10}/>{row.location}</span>
+    {
+      key: 'title', label: 'Position', render: (val, row) => (
+        <div>
+          <span className="font-semibold text-text-primary block text-sm">{val}</span>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[11px] text-text-tertiary flex items-center gap-1"><Building2 size={10} />{row.department}</span>
+            <span className="text-[11px] text-text-tertiary flex items-center gap-1"><MapPin size={10} />{row.location}</span>
+          </div>
         </div>
-      </div>
-    )},
+      )
+    },
     { key: 'type', label: 'Type', render: (val) => <StatusBadge variant={val === 'Full-time' ? 'brand' : 'info'} size="sm">{val}</StatusBadge> },
     { key: 'salary', label: 'Salary', cellClassName: 'text-text-secondary text-xs font-medium' },
     { key: 'applicants', label: 'Applicants', cellClassName: 'font-semibold text-text-primary text-center' },
     { key: 'shortlisted', label: 'Shortlisted', cellClassName: 'text-text-secondary font-medium text-center' },
     { key: 'status', label: 'Status', render: (val) => <StatusBadge variant={jobColors[val]} dot size="sm">{val}</StatusBadge> },
-    { key: 'actions', label: '', render: (_, row) => (
-      <div className="flex items-center gap-1">
-        <button onClick={() => setViewJob(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary"/></button>
-        <button onClick={() => { setEditJob(row); setEditForm({ title: row.title, department: row.department, location: row.location, type: row.type, salaryMin: '', salaryMax: '', description: row.description || '' }); }} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit"><Edit size={14} className="text-text-tertiary"/></button>
-        <button onClick={() => setDeleteTarget({ ...row, _type: 'job' })} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400"/></button>
-      </div>
-    )},
+    {
+      key: 'actions', label: '', render: (_, row) => (
+        <div className="flex items-center gap-1">
+          <button onClick={() => copyJobLink(row.id)} className="p-1.5 rounded-lg hover:bg-brand-500/10 transition-colors cursor-pointer" title="Copy Public Link"><ArrowUpRight size={14} className="text-brand-500" /></button>
+          <button onClick={() => setViewJob(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary" /></button>
+          <button onClick={() => { setEditJob(row); setEditForm({ title: row.title, department: row.department, location: row.location, type: row.type, salaryMin: '', salaryMax: '', description: row.description || '', requirements: row.requirements || '' }); }} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="Edit"><Edit size={14} className="text-text-tertiary" /></button>
+          <button onClick={() => setDeleteTarget({ ...row, _type: 'job' })} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400" /></button>
+        </div>
+      )
+    },
   ];
 
   const candCols = [
-    { key: 'name', label: 'Candidate', render: (val, row) => (
-      <div>
-        <span className="font-semibold text-text-primary block text-sm">{val}</span>
-        <span className="text-[11px] text-text-tertiary">{row.position}</span>
-      </div>
-    )},
+    {
+      key: 'name', label: 'Candidate', render: (val, row) => (
+        <div>
+          <span className="font-semibold text-text-primary block text-sm">{val}</span>
+          <span className="text-[11px] text-text-tertiary">{row.position}</span>
+        </div>
+      )
+    },
     { key: 'stage', label: 'Stage', render: (val) => <StatusBadge variant={stageColors[val] || 'neutral'} size="sm">{val}</StatusBadge> },
-    { key: 'rating', label: 'Rating', render: (val) => (
-      <div className="flex items-center gap-1"><Star size={12} className="text-amber-500"/><span className="font-bold text-text-primary text-sm">{val}</span></div>
-    )},
+    {
+      key: 'rating', label: 'Rating', render: (val) => (
+        <div className="flex items-center gap-1"><Star size={12} className="text-amber-500" /><span className="font-bold text-text-primary text-sm">{val}</span></div>
+      )
+    },
     { key: 'appliedDate', label: 'Applied', cellClassName: 'text-text-tertiary text-xs' },
     { key: 'status', label: 'Status', render: (val) => <StatusBadge variant={candColors[val]} dot size="sm">{val}</StatusBadge> },
-    { key: 'actions', label: '', render: (_, row) => (
-      <div className="flex items-center gap-1">
-        <button onClick={() => setViewCand(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary"/></button>
-        <button onClick={() => setDeleteTarget({ ...row, _type: 'candidate' })} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400"/></button>
-      </div>
-    )},
+    {
+      key: 'actions', label: '', render: (_, row) => (
+        <div className="flex items-center gap-1">
+          <button onClick={() => setViewCand(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title="View"><Eye size={14} className="text-text-tertiary" /></button>
+          <button onClick={() => setDeleteTarget({ ...row, _type: 'candidate' })} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete"><Trash2 size={14} className="text-red-400" /></button>
+        </div>
+      )
+    },
   ];
 
   return (
@@ -285,20 +326,20 @@ export default function Recruitment() {
 
       {toast && (
         <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-fade-in">
-          <CheckCircle2 size={16}/> {toast}
+          <CheckCircle2 size={16} /> {toast}
         </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Open Positions" value={openCount.toString()} icon={Briefcase} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" delay={0}/>
-        <StatCard title="Total Applicants" value={totalApps.toString()} icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" change="+28%" changeType="positive" delay={80}/>
-        <StatCard title="Shortlisted" value={totalShort.toString()} icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-600" delay={160}/>
-        <StatCard title="Avg Time to Hire" value="18 days" icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" change="-3d" changeType="positive" delay={240}/>
+        <StatCard title="Open Positions" value={openCount.toString()} icon={Briefcase} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" delay={0} />
+        <StatCard title="Total Applicants" value={totalApps.toString()} icon={Users} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" change="+28%" changeType="positive" delay={80} />
+        <StatCard title="Shortlisted" value={totalShort.toString()} icon={CheckCircle2} iconColor="bg-gradient-to-br from-emerald-500 to-teal-600" delay={160} />
+        <StatCard title="Avg Time to Hire" value="18 days" icon={Clock} iconColor="bg-gradient-to-br from-amber-500 to-orange-500" change="-3d" changeType="positive" delay={240} />
       </div>
 
       <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5 animate-fade-in" style={{ animationDelay: '350ms' }}>
         <h2 className="text-sm font-semibold text-text-primary mb-4">Recruitment Pipeline</h2>
-        <MiniChart data={pipelineData} label="Candidates at each stage" height={110} colorFrom="oklch(0.48 0.18 280)" colorTo="oklch(0.62 0.16 280)"/>
+        <MiniChart data={pipelineData} label="Candidates at each stage" height={110} colorFrom="oklch(0.48 0.18 280)" colorTo="oklch(0.62 0.16 280)" />
       </div>
 
       <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in" style={{ animationDelay: '450ms' }}>
@@ -306,7 +347,7 @@ export default function Recruitment() {
           <h2 className="text-sm font-semibold text-text-primary">Job Postings</h2>
           <StatusBadge variant="success" size="sm" dot>{openCount} open</StatusBadge>
         </div>
-        <DataTable columns={jobCols} data={jobs}/>
+        <DataTable columns={jobCols} data={jobs} />
       </div>
 
       <div className="bg-surface-primary rounded-2xl border border-border-secondary overflow-hidden animate-fade-in" style={{ animationDelay: '550ms' }}>
@@ -318,9 +359,9 @@ export default function Recruitment() {
               disabled={aiScoring || candidates.length === 0}
               className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {aiScoring ? <><Loader2 size={12} className="animate-spin"/>Scoring...</> : <><Star size={12}/>AI Score</>}
+              {aiScoring ? <><Loader2 size={12} className="animate-spin" />Scoring...</> : <><Star size={12} />AI Score</>}
             </button>
-            <button className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors cursor-pointer flex items-center gap-1">View All <ArrowUpRight size={12}/></button>
+            <button className="text-xs font-medium text-brand-500 hover:text-brand-600 transition-colors cursor-pointer flex items-center gap-1">View All <ArrowUpRight size={12} /></button>
           </div>
         </div>
         {loading ? (
@@ -328,7 +369,7 @@ export default function Recruitment() {
             <Loader2 size={24} className="animate-spin text-text-tertiary" />
           </div>
         ) : (
-          <DataTable columns={candCols} data={candidates}/>
+          <DataTable columns={candCols} data={candidates} />
         )}
       </div>
 
@@ -338,20 +379,21 @@ export default function Recruitment() {
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setShowNew(false)} className={btnSecondary}>Cancel</button>
             <button type="submit" form="job-form" disabled={saving} className={btnPrimary() + ' disabled:opacity-60'}>
-              {saving ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>Posting...</> : <><Briefcase size={14}/>Post Job</>}
+              {saving ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Posting...</> : <><Briefcase size={14} />Post Job</>}
             </button>
           </div>
         }>
         <form id="job-form" onSubmit={handlePost} className="space-y-4">
           <div>
             <label className={lbl}>Job Title *</label>
-            <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Senior React Developer" className={inp}/>
+            <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Senior React Developer" className={inp} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={lbl}>Department *</label>
-              <select required value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} className={inp + ' cursor-pointer'}>
-                {depts.map(d => <option key={d}>{d}</option>)}
+              <select required value={form.department_id} onChange={e => setForm(f => ({ ...f, department_id: e.target.value }))} className={inp + ' cursor-pointer'}>
+                <option value="">Select Department</option>
+                {depts.map(d => <option key={d.id || d} value={d.id || d}>{d.name || d}</option>)}
               </select>
             </div>
             <div>
@@ -370,16 +412,20 @@ export default function Recruitment() {
             </div>
             <div>
               <label className={lbl}>Min Salary (K)</label>
-              <input type="number" value={form.salaryMin} onChange={e => setForm(f => ({ ...f, salaryMin: e.target.value }))} placeholder="15" className={inp}/>
+              <input type="number" value={form.salaryMin} onChange={e => setForm(f => ({ ...f, salaryMin: e.target.value }))} placeholder="15" className={inp} />
             </div>
             <div>
               <label className={lbl}>Max Salary (K)</label>
-              <input type="number" value={form.salaryMax} onChange={e => setForm(f => ({ ...f, salaryMax: e.target.value }))} placeholder="22" className={inp}/>
+              <input type="number" value={form.salaryMax} onChange={e => setForm(f => ({ ...f, salaryMax: e.target.value }))} placeholder="22" className={inp} />
             </div>
           </div>
           <div>
             <label className={lbl}>Description *</label>
-            <textarea required rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the role and responsibilities..." className={inp + ' resize-none'}/>
+            <textarea required rows={3} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the role and responsibilities..." className={inp + ' resize-none'} />
+          </div>
+          <div>
+            <label className={lbl}>Requirements</label>
+            <textarea rows={2} value={form.requirements} onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))} placeholder="List key requirements (skills, experience...)" className={inp + ' resize-none'} />
           </div>
         </form>
       </Modal>
@@ -431,7 +477,7 @@ export default function Recruitment() {
           <form id="edit-job-form" onSubmit={handleEditSave} className="space-y-4">
             <div>
               <label className={lbl}>Job Title *</label>
-              <input required value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} className={inp}/>
+              <input required value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} className={inp} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -455,7 +501,7 @@ export default function Recruitment() {
             </div>
             <div>
               <label className={lbl}>Description</label>
-              <textarea rows={3} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} className={inp + ' resize-none'}/>
+              <textarea rows={3} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} className={inp + ' resize-none'} />
             </div>
           </form>
         )}
@@ -474,7 +520,7 @@ export default function Recruitment() {
                 <p className="font-bold text-text-primary">{viewCand.name}</p>
                 <p className="text-xs text-text-tertiary">{viewCand.position}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <Star size={12} className="text-amber-500"/>
+                  <Star size={12} className="text-amber-500" />
                   <span className="text-sm font-bold text-text-primary">{viewCand.rating}</span>
                   <StatusBadge variant={stageColors[viewCand.stage] || 'neutral'} size="sm">{viewCand.stage}</StatusBadge>
                 </div>

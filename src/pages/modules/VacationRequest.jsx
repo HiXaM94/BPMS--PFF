@@ -8,9 +8,14 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useRole } from '../../contexts/RoleContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { vacationController } from '../../controllers/VacationController';
-import { LeaveBalance } from '../../models/Vacation';
-import { hrData } from '../../data/mockData';
+import { supabase } from '../../services/supabase';
+import {
+  fetchLeaveBalances,
+  fetchLeaveRequests,
+  submitLeaveRequest,
+  updateLeaveStatus,
+  generateAIRecommendations
+} from './vacation/vacationUtils';
 
 // Role-specific views
 import EmployeeVacationView from './vacation/EmployeeVacationView';
@@ -38,7 +43,7 @@ export default function VacationRequest() {
   const { profile } = useAuth();
 
   const [requests, setRequests] = useState([]);
-  const [leaveBalance, setLeaveBalance] = useState(new LeaveBalance());
+  const [leaveBalance, setLeaveBalance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
   const [viewRequest, setViewRequest] = useState(null);
@@ -48,6 +53,7 @@ export default function VacationRequest() {
   const [actionModal, setActionModal] = useState({ isOpen: false, type: '', requestId: null, reason: '' });
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const [aiRecommendation, setAiRecommendation] = useState(null);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
@@ -57,31 +63,35 @@ export default function VacationRequest() {
     try {
       setLoading(true);
       const isManager = currentRole.id === 'manager';
-      const isEmployee = currentRole.id === 'employee';
 
-      const [personalReqs, bal, allReqs] = await Promise.all([
-        vacationController.getRequests({ userId: profile?.id }),
-        vacationController.getBalance(profile?.id),
-        (isManager || currentRole.id === 'hr' || currentRole.id === 'company_admin')
-          ? vacationController.getRequests({})
-          : Promise.resolve([])
-      ]);
+      // Load balances
+      const bal = await fetchLeaveBalances(profile?.id);
+      if (bal) setLeaveBalance(bal);
 
+      // Load personal requests
+      const personalReqs = await fetchLeaveRequests({ userId: profile?.id });
       setRequests(personalReqs);
-      setLeaveBalance(bal);
 
-      // Inject demo data if no real requests exist (for demo purposes)
-      if (allReqs.length === 0 && (currentRole.id === 'hr' || currentRole.id === 'manager' || currentRole.id === 'company_admin')) {
-        setTeamRequests(hrData.leaveRequests);
-      } else {
-        setTeamRequests(allReqs);
+      // Load team/company requests depending on role
+      let allReqs = [];
+      if (isManager) {
+        allReqs = await fetchLeaveRequests({ managerId: profile?.id });
+      } else if (currentRole.id === 'hr' || currentRole.id === 'company_admin') {
+        allReqs = await fetchLeaveRequests({ entrepriseId: profile?.entreprise_id });
       }
+      setTeamRequests(allReqs);
+
+      // Generate AI Recommendations for Team Workload / Absence Overlap
+      if (allReqs.length > 0) {
+        setAiRecommendation(generateAIRecommendations(allReqs));
+      }
+
     } catch (err) {
       console.error('Error fetching vacation data:', err);
     } finally {
       setLoading(false);
     }
-  }, [profile?.id, currentRole.id]);
+  }, [profile?.id, profile?.entreprise_id, currentRole.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -91,13 +101,23 @@ export default function VacationRequest() {
     setSubmitting(true);
     try {
       const days = calcDays(form.startDate, form.endDate);
-      await vacationController.submitRequest({
-        userId: profile?.id,
-        entrepriseId: profile?.entreprise_id,
-        ...form,
-        daysCount: days
-      });
-      // Close modal first for better UX
+
+      // Basic validation: AI check if enough balance
+      const typeMap = {
+        'Annual Leave': 'annual',
+        'Sick Leave': 'sick',
+        'Remote Work': 'remote_work',
+        'Unpaid Leave': 'unpaid'
+      };
+      const bType = typeMap[form.type] || 'annual';
+      if (leaveBalance && leaveBalance[bType] && leaveBalance[bType].remaining < days) {
+        showToast(`Error: Insufficient balance for ${form.type}. You only have ${leaveBalance[bType].remaining} days left.`);
+        setSubmitting(false);
+        return;
+      }
+
+      await submitLeaveRequest(profile?.id, { ...form, daysCount: days });
+
       setShowNewModal(false);
       setForm(emptyForm);
       showToast('Leave request submitted successfully!');
@@ -118,20 +138,14 @@ export default function VacationRequest() {
   };
 
   const confirmAction = async () => {
-    const { type, requestId, reason } = actionModal;
-    if (type === 'reject' && !reason) {
-      showToast('Rejection reason is required.');
-      return;
-    }
-
+    const { type, requestId } = actionModal;
     try {
       setSubmitting(true);
-      const approverName = profile?.name || 'HR';
       if (type === 'approve') {
-        await vacationController.approveRequest(requestId, reason, approverName);
+        await updateLeaveStatus(requestId, 'approved');
         showToast('Request approved.');
       } else {
-        await vacationController.rejectRequest(requestId, reason, approverName);
+        await updateLeaveStatus(requestId, 'rejected'); // Rejection reasons will be stored if schema supports it later
         showToast('Request rejected.');
       }
       setActionModal({ isOpen: false, type: '', requestId: null, reason: '' });
@@ -149,7 +163,7 @@ export default function VacationRequest() {
     if (!cancelTarget) return;
     setCancelling(true);
     try {
-      await vacationController.cancelRequest(cancelTarget.id);
+      await updateLeaveStatus(cancelTarget.id, 'cancelled');
       showToast('Leave request cancelled.');
       fetchData();
     } catch (err) {
@@ -165,7 +179,7 @@ export default function VacationRequest() {
       case 'super_admin':
         return <SuperAdminVacationView />;
       case 'company_admin':
-        return <AdminVacationView />;
+        return <AdminVacationView requests={teamRequests} />;
       case 'hr':
         return (
           <HRVacationView
@@ -225,10 +239,30 @@ export default function VacationRequest() {
       />
 
       {toast && (
-        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-slide-up ${
-          toast.startsWith('Error') ? 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-        }`}>
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-slide-up ${toast.startsWith('Error') ? 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+          }`}>
           <CheckCircle2 size={16} /> {toast}
+        </div>
+      )}
+
+      {/* AI Automation Engine Insights */}
+      {aiRecommendation && (currentRole.id === 'manager' || currentRole.id === 'hr') && (
+        <div className="bg-brand-500/10 border border-brand-500/20 rounded-2xl p-5 flex gap-4 items-start relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Sparkles size={80} className="text-brand-500" />
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-brand-500/20 flex items-center justify-center text-brand-600 shrink-0">
+            <Sparkles size={20} />
+          </div>
+          <div className="relative z-10">
+            <h3 className="text-sm font-bold text-brand-700 dark:text-brand-400 mb-1">AI Supervisor Intelligence</h3>
+            <p className="text-sm text-text-secondary mb-2">{aiRecommendation.message}</p>
+            {aiRecommendation.tasksTip && (
+              <p className="text-sm font-medium text-brand-600 dark:text-brand-400 flex items-center gap-2">
+                <CheckCircle2 size={14} /> {aiRecommendation.tasksTip}
+              </p>
+            )}
+          </div>
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { supabase } from '../../services/supabase';
 import {
   Workflow, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle,
   Globe, Phone, MapPin, ArrowRight, Sparkles, Shield, Zap,
@@ -9,15 +10,17 @@ import {
 } from 'lucide-react';
 
 const DEMO_ACCOUNTS = [
-  { role: 'Admin',    email: 'admin@techcorp.ma' },
-  { role: 'HR',       email: 'hr@techcorp.ma' },
-  { role: 'Manager',  email: 'manager@techcorp.ma' },
+  { role: 'Super Admin', email: 'super.admin@gmail.com' },
+  { role: 'Admin', email: 'admin@techcorp.ma' },
+  { role: 'HR', email: 'hr@techcorp.ma' },
+  { role: 'Manager', email: 'manager@techcorp.ma' },
   { role: 'Employee', email: 'employee@techcorp.ma' },
 ];
 const DEMO_PASSWORD = 'Demo@123456';
+const SUPER_ADMIN_PASSWORD = 'Team-E@2026';
 
 const inputCls = `w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200
-                  bg-gray-50/50 text-text-primary text-sm placeholder:text-text-tertiary
+                  bg-gray-50/50 text-gray-900 text-sm placeholder:text-gray-400
                   focus:bg-white focus:border-gray-400 focus:ring-2 focus:ring-brand-500/10
                   transition-all duration-200`;
 
@@ -30,21 +33,35 @@ export default function AuthPage() {
 
   // Determine initial mode from URL
   const [isRegister, setIsRegister] = useState(location.pathname === '/register');
-  const [animating, setAnimating]   = useState(false);
+  const [animating, setAnimating] = useState(false);
 
   // Login state
-  const [email, setEmail]       = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw]     = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Register state
-  const [regForm, setRegForm]       = useState({ name: '', email: '', password: '', confirm: '' });
-  const [regShowPw, setRegShowPw]   = useState(false);
+  const [regForm, setRegForm] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [regShowPw, setRegShowPw] = useState(false);
   const [regLoading, setRegLoading] = useState(false);
-  const [regError, setRegError]     = useState('');
+  const [regError, setRegError] = useState('');
   const [regSuccess, setRegSuccess] = useState(false);
+
+  // super‑admin flag – when true we will also insert into owners table
+  const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
+  const [ownerExists, setOwnerExists] = useState(false);
+
+  // fetch whether there is already a super-admin/owner in the database;
+  // hide the creation button once one exists.
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from('owners').select('id', { count: 'exact', head: true })
+      .then(({ count, error }) => {
+        if (!error && count > 0) setOwnerExists(true);
+      });
+  }, []);
 
   // Google OAuth state
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -61,6 +78,10 @@ export default function AuthPage() {
     setRegError('');
     setTimeout(() => {
       setIsRegister(prev => !prev);
+      // if we switch back to login we should clear any super‑admin mode
+      if (isRegister) {
+        setIsSuperAdminMode(false);
+      }
       // Update URL without reload
       window.history.replaceState(null, '', isRegister ? '/login' : '/register');
       setTimeout(() => setAnimating(false), 50);
@@ -95,7 +116,20 @@ export default function AuthPage() {
     if (regForm.password.length < 8) { setRegError(t('auth.passwordMinLength')); return; }
     setRegLoading(true);
     try {
+      // create the auth user first
       await signUp(regForm.email, regForm.password, { full_name: regForm.name });
+
+      // if we were in super‑admin mode also create the owners row
+      if (isSuperAdminMode) {
+        const { error: rpcErr } = await supabase.rpc('create_super_admin', {
+          p_email: regForm.email,
+          p_name: regForm.name,
+          p_password: regForm.password,
+        });
+        if (rpcErr) throw rpcErr;
+        setOwnerExists(true);
+      }
+
       setRegSuccess(true);
     } catch (err) {
       setRegError(err.message || 'Registration failed.');
@@ -106,7 +140,7 @@ export default function AuthPage() {
 
   const fillDemo = (acct) => {
     setEmail(acct.email);
-    setPassword(DEMO_PASSWORD);
+    setPassword(acct.role === 'Super Admin' ? SUPER_ADMIN_PASSWORD : DEMO_PASSWORD);
     setCopiedIdx(acct.email);
     setTimeout(() => setCopiedIdx(null), 1500);
   };
@@ -123,7 +157,7 @@ export default function AuthPage() {
           <p className="text-text-secondary mb-6">
             We sent a confirmation link to <strong className="text-text-primary">{regForm.email}</strong>.
           </p>
-          <button onClick={() => { setRegSuccess(false); setIsRegister(false); window.history.replaceState(null, '', '/login'); }}
+          <button onClick={() => { setRegSuccess(false); setIsRegister(false); setIsSuperAdminMode(false); window.history.replaceState(null, '', '/login'); }}
             className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-500 text-white font-semibold text-sm
               shadow-lg shadow-brand-500/20 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
             {t('auth.backToLogin')}
@@ -146,8 +180,8 @@ export default function AuthPage() {
       <div className="relative z-10">
         <div className="flex items-center gap-3 mb-10">
           <svg viewBox="0 0 30.54 21.4" xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 shrink-0">
-              <path fill="#231f20" stroke="#231f20" strokeMiterlimit="10" strokeWidth="2" d="M26.58,1v6.31c0,1.84-1.49,3.32-3.32,3.32s-3.32-1.49-3.32-3.32v-1.81c0-1.12-.41-2.14-1.08-2.93-.82-.96-2.05-1.57-3.42-1.57-1.87,0-3.47,1.14-4.15,2.75-.2.46-.32.96-.35,1.49,0,.09,0,.17,0,.26s0,.17,0,.26v8.47c-.22,1.62-1.61,2.86-3.29,2.86-1.83,0-3.32-1.49-3.32-3.32V1H1v12.94c0,3.57,2.9,6.47,6.47,6.47s6.47-2.9,6.47-6.47c0-.22-.01-.43-.03-.64v-3.56s.02,0,.03.01v-4.66c0-.74.6-1.34,1.34-1.34s1.34.6,1.34,1.34v2.38c0,.79.14,1.55.4,2.25.92,2.46,3.29,4.22,6.07,4.22,3.44,0,6.26-2.69,6.46-6.09h.01V1h-2.96Z"/>
-            </svg>
+            <path fill="#231f20" stroke="#231f20" strokeMiterlimit="10" strokeWidth="2" d="M26.58,1v6.31c0,1.84-1.49,3.32-3.32,3.32s-3.32-1.49-3.32-3.32v-1.81c0-1.12-.41-2.14-1.08-2.93-.82-.96-2.05-1.57-3.42-1.57-1.87,0-3.47,1.14-4.15,2.75-.2.46-.32.96-.35,1.49,0,.09,0,.17,0,.26s0,.17,0,.26v8.47c-.22,1.62-1.61,2.86-3.29,2.86-1.83,0-3.32-1.49-3.32-3.32V1H1v12.94c0,3.57,2.9,6.47,6.47,6.47s6.47-2.9,6.47-6.47c0-.22-.01-.43-.03-.64v-3.56s.02,0,.03.01v-4.66c0-.74.6-1.34,1.34-1.34s1.34.6,1.34,1.34v2.38c0,.79.14,1.55.4,2.25.92,2.46,3.29,4.22,6.07,4.22,3.44,0,6.26-2.69,6.46-6.09h.01V1h-2.96Z" />
+          </svg>
           <div>
             <span className="text-xl font-bold tracking-tight">Flowly</span>
             <span className="block text-xs text-gray-900/50 font-medium tracking-wide">Business Suite</span>
@@ -215,7 +249,7 @@ export default function AuthPage() {
           {/* Mobile-only logo */}
           <div className="flex items-center gap-3 mb-6 md:hidden">
             <svg viewBox="0 0 30.54 21.4" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 shrink-0">
-              <path className="fill-[#231f20] stroke-[#231f20] dark:fill-white dark:stroke-white" strokeMiterlimit="10" strokeWidth="2" d="M26.58,1v6.31c0,1.84-1.49,3.32-3.32,3.32s-3.32-1.49-3.32-3.32v-1.81c0-1.12-.41-2.14-1.08-2.93-.82-.96-2.05-1.57-3.42-1.57-1.87,0-3.47,1.14-4.15,2.75-.2.46-.32.96-.35,1.49,0,.09,0,.17,0,.26s0,.17,0,.26v8.47c-.22,1.62-1.61,2.86-3.29,2.86-1.83,0-3.32-1.49-3.32-3.32V1H1v12.94c0,3.57,2.9,6.47,6.47,6.47s6.47-2.9,6.47-6.47c0-.22-.01-.43-.03-.64v-3.56s.02,0,.03.01v-4.66c0-.74.6-1.34,1.34-1.34s1.34.6,1.34,1.34v2.38c0,.79.14,1.55.4,2.25.92,2.46,3.29,4.22,6.07,4.22,3.44,0,6.26-2.69,6.46-6.09h.01V1h-2.96Z"/>
+              <path className="fill-[#231f20] stroke-[#231f20] dark:fill-white dark:stroke-white" strokeMiterlimit="10" strokeWidth="2" d="M26.58,1v6.31c0,1.84-1.49,3.32-3.32,3.32s-3.32-1.49-3.32-3.32v-1.81c0-1.12-.41-2.14-1.08-2.93-.82-.96-2.05-1.57-3.42-1.57-1.87,0-3.47,1.14-4.15,2.75-.2.46-.32.96-.35,1.49,0,.09,0,.17,0,.26s0,.17,0,.26v8.47c-.22,1.62-1.61,2.86-3.29,2.86-1.83,0-3.32-1.49-3.32-3.32V1H1v12.94c0,3.57,2.9,6.47,6.47,6.47s6.47-2.9,6.47-6.47c0-.22-.01-.43-.03-.64v-3.56s.02,0,.03.01v-4.66c0-.74.6-1.34,1.34-1.34s1.34.6,1.34,1.34v2.38c0,.79.14,1.55.4,2.25.92,2.46,3.29,4.22,6.07,4.22,3.44,0,6.26-2.69,6.46-6.09h.01V1h-2.96Z" />
             </svg>
             <span className="text-lg font-bold text-text-primary tracking-tight">Flowly</span>
           </div>
@@ -245,7 +279,7 @@ export default function AuthPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-sm font-medium text-text-secondary">{t('auth.password')}</label>
-                    <Link to="/forgot-password" className="text-xs text-brand-500 hover:text-brand-400 font-medium transition-colors">
+                    <Link to="/forgot-password" className="text-xs text-gray-900 hover:text-black font-medium transition-colors">
                       {t('auth.forgotPassword')}
                     </Link>
                   </div>
@@ -262,14 +296,31 @@ export default function AuthPage() {
 
                 <button type="submit" disabled={loading}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
-                             bg-brand-500 text-white font-semibold text-sm shadow-lg shadow-brand-500/20
-                             hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:shadow-md
+                             bg-gray-900 text-white font-semibold text-sm shadow-lg shadow-black/10
+                             hover:bg-black hover:-translate-y-0.5 active:translate-y-0 active:shadow-md
                              disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none
                              transition-all duration-200 cursor-pointer">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : null}
                   {loading ? t('common.loading') : t('auth.login')}
                   {!loading && <ArrowRight size={16} />}
                 </button>
+
+              {/* super‑admin creation link – only show if no owner in database yet */}
+              {!ownerExists && (
+                <div className="mt-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegister(true);
+                      setIsSuperAdminMode(true);
+                      setRegForm({ name: '', email: '', password: '', confirm: '' });
+                    }}
+                    className="text-sm text-brand-500 hover:underline"
+                  >
+                    Create super admin account
+                  </button>
+                </div>
+              )}
               </form>
 
               {/* Divider */}
@@ -294,7 +345,7 @@ export default function AuthPage() {
                 }}
                 disabled={googleLoading || loading}
                 className="w-full flex items-center justify-center gap-3 py-3 rounded-xl
-                           bg-white border border-gray-200 text-text-primary font-semibold text-sm
+                           bg-white border border-gray-200 text-gray-900 font-semibold text-sm
                            hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm
                            disabled:opacity-60 disabled:cursor-not-allowed
                            transition-all duration-200 cursor-pointer">
@@ -302,10 +353,10 @@ export default function AuthPage() {
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                   </svg>
                 )}
                 {googleLoading ? 'Redirecting…' : 'Continue with Google'}
@@ -313,10 +364,10 @@ export default function AuthPage() {
 
               <p className="text-center text-sm text-text-secondary mt-5">
                 {t('auth.noAccount')}{' '}
-                <button type="button" onClick={toggleMode}
-                  className="text-brand-500 hover:text-brand-400 font-semibold transition-colors cursor-pointer bg-transparent border-none p-0">
+                <a href="https://landing-page-bpms.vercel.app/"
+                  className="text-gray-900 hover:text-black font-semibold transition-colors cursor-pointer">
                   {t('auth.register')}
-                </button>
+                </a>
               </p>
 
               {/* Demo credentials */}
@@ -343,6 +394,11 @@ export default function AuthPage() {
           ) : (
             /* ════════ REGISTER FORM ════════ */
             <>
+              {isSuperAdminMode && (
+                <div className="mb-4 p-3 rounded-lg bg-yellow-100 text-yellow-800 text-sm">
+                  Creating <strong>Super Admin</strong> account – this can only be done once.
+                </div>
+              )}
               <h1 className="text-2xl font-bold text-text-primary mb-1">{t('auth.registerTitle')}</h1>
               <p className="text-sm text-text-secondary mb-5">Join your company's Flowly workspace</p>
 

@@ -1,630 +1,2206 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+
+import { useSearchParams } from 'react-router-dom';
+
 import {
-  User, Mail, Phone, MapPin, Calendar, Briefcase, Award,
+
+  User, Users, Mail, Phone, MapPin, Calendar, Briefcase, Award,
+
   Edit, Building2, Clock, Star, GraduationCap, FileText, ShieldAlert,
+
   Search, CreditCard, Landmark, Hash, Camera, Upload, Loader2, CheckCircle2,
+
+  LayoutGrid, Move, Save, X, Settings2
+
 } from 'lucide-react';
+
 import PageHeader from '../../components/ui/PageHeader';
+
 import StatusBadge from '../../components/ui/StatusBadge';
+
 import Modal from '../../components/ui/Modal';
+
 import { useRole } from '../../contexts/RoleContext';
+
 import { useLanguage } from '../../contexts/LanguageContext';
+
 import { useAuth } from '../../contexts/AuthContext';
+
 import { supabase, isSupabaseReady } from '../../services/supabase';
+
 import { cacheService } from '../../services/CacheService';
 
+
+
 /**
+
  * All mock employees — each has the card fields (name, email, phone, cnss, rib, department)
+
  * plus full detail fields shown inside the modal.
+
  */
+
 const allEmployees = [
+
   {
+
     id: 1,
+
     name: 'Ibrahim Rouass',
+
     email: 'ibrahim.rouass@flowly.io',
+
     phone: '+212 661 123 456',
+
     cnss: '1234567890',
+
     rib: 'MA76 0011 1110 0000 0123 4567 890',
+
     department: 'Engineering',
+
     title: 'Senior Full Stack Developer',
+
     location: 'Casablanca, Morocco',
+
     manager: 'Mohamed Amine Mounzih',
+
     joinDate: 'Jan 15, 2025',
+
     employeeId: 'EMP-2025-001',
+
     status: 'active',
+
     avatar: 'IR',
+
     bio: 'Experienced full-stack developer specializing in React, Node.js, and cloud architecture. Passionate about building scalable SaaS platforms.',
+
     skills: [
+
       { name: 'React.js', level: 95 },
+
       { name: 'Node.js', level: 88 },
+
       { name: 'TypeScript', level: 82 },
+
       { name: 'PostgreSQL', level: 78 },
+
     ],
+
     certifications: [
+
       { name: 'AWS Solutions Architect', issuer: 'Amazon', date: 'Mar 2025', status: 'active' },
+
       { name: 'React Advanced Patterns', issuer: 'Ynov Campus', date: 'Sep 2025', status: 'active' },
+
     ],
+
   },
+
   {
+
     id: 2,
+
     name: 'Sarah Martinez',
+
     email: 'sarah.m@flowly.io',
+
     phone: '+212 662 234 567',
+
     cnss: '2345678901',
+
     rib: 'MA76 0022 2220 0000 0234 5678 901',
+
     department: 'Marketing',
+
     title: 'Marketing Manager',
+
     location: 'Rabat, Morocco',
+
     manager: 'Ibrahim Rouass',
+
     joinDate: 'Mar 1, 2025',
+
     employeeId: 'EMP-2025-002',
+
     status: 'active',
+
     avatar: 'SM',
+
     bio: 'Creative marketing professional with 5+ years of experience in digital campaigns and brand strategy.',
+
     skills: [
+
       { name: 'SEO/SEM', level: 92 },
+
       { name: 'Content Strategy', level: 88 },
+
       { name: 'Google Analytics', level: 85 },
+
       { name: 'Social Media', level: 90 },
+
     ],
+
     certifications: [
+
       { name: 'Google Analytics Certified', issuer: 'Google', date: 'Jun 2025', status: 'active' },
+
     ],
+
   },
+
   {
+
     id: 3,
+
     name: 'Ahmed Hassan',
+
     email: 'ahmed.h@flowly.io',
+
     phone: '+212 663 345 678',
+
     cnss: '3456789012',
+
     rib: 'MA76 0033 3330 0000 0345 6789 012',
+
     department: 'Engineering',
+
     title: 'Data Analyst',
+
     location: 'Casablanca, Morocco',
+
     manager: 'Ibrahim Rouass',
+
     joinDate: 'Feb 10, 2025',
+
     employeeId: 'EMP-2025-003',
+
     status: 'active',
+
     avatar: 'AH',
+
     bio: 'Data analyst specializing in business intelligence and reporting. Focused on turning data into actionable insights.',
+
     skills: [
+
       { name: 'Python', level: 90 },
+
       { name: 'SQL', level: 85 },
+
       { name: 'Power BI', level: 80 },
+
       { name: 'Excel', level: 92 },
+
     ],
+
     certifications: [
+
       { name: 'Google Data Analytics', issuer: 'Google', date: 'Jun 2025', status: 'active' },
+
       { name: 'Power BI Data Analyst', issuer: 'Microsoft', date: 'Oct 2025', status: 'active' },
+
     ],
+
   },
+
   {
+
     id: 4,
+
     name: 'Clara Dupont',
+
     email: 'clara.d@flowly.io',
+
     phone: '+212 664 456 789',
+
     cnss: '4567890123',
+
     rib: 'MA76 0044 4440 0000 0456 7890 123',
+
     department: 'Human Resources',
+
     title: 'HR Coordinator',
+
     location: 'Marrakech, Morocco',
+
     manager: 'Sarah Martinez',
+
     joinDate: 'Apr 5, 2025',
+
     employeeId: 'EMP-2025-004',
+
     status: 'active',
+
     avatar: 'CD',
+
     bio: 'HR professional experienced in talent acquisition, onboarding, and employee engagement programs.',
+
     skills: [
+
       { name: 'Recruitment', level: 88 },
+
       { name: 'Employee Relations', level: 82 },
+
       { name: 'HRIS Systems', level: 75 },
+
       { name: 'Payroll', level: 70 },
+
     ],
+
     certifications: [
+
       { name: 'SHRM-CP', issuer: 'SHRM', date: 'Aug 2025', status: 'active' },
+
     ],
+
   },
+
   {
+
     id: 5,
+
     name: 'John Chen',
+
     email: 'john.c@flowly.io',
+
     phone: '+212 665 567 890',
+
     cnss: '5678901234',
+
     rib: 'MA76 0055 5550 0000 0567 8901 234',
+
     department: 'Design',
+
     title: 'UI/UX Designer',
+
     location: 'Tangier, Morocco',
+
     manager: 'Ibrahim Rouass',
+
     joinDate: 'May 20, 2025',
+
     employeeId: 'EMP-2025-005',
+
     status: 'inactive',
+
     avatar: 'JC',
+
     bio: 'Product designer passionate about crafting user-centered experiences. Expertise in Figma, prototyping, and design systems.',
+
     skills: [
+
       { name: 'Figma', level: 95 },
+
       { name: 'Prototyping', level: 88 },
+
       { name: 'Design Systems', level: 82 },
+
       { name: 'User Research', level: 78 },
+
     ],
+
     certifications: [
+
       { name: 'Google UX Design', issuer: 'Google', date: 'Jul 2025', status: 'active' },
+
     ],
+
   },
+
   {
+
     id: 6,
+
     name: 'Fatima Zahra',
+
     email: 'fatima.z@flowly.io',
+
     phone: '+212 666 678 901',
+
     cnss: '6789012345',
+
     rib: 'MA76 0066 6660 0000 0678 9012 345',
+
     department: 'QA',
+
     title: 'QA Engineer',
+
     location: 'Fes, Morocco',
+
     manager: 'Ibrahim Rouass',
+
     joinDate: 'Jun 12, 2025',
+
     employeeId: 'EMP-2025-006',
+
     status: 'active',
+
     avatar: 'FZ',
+
     bio: 'Quality assurance engineer focused on automated testing and continuous integration pipelines.',
+
     skills: [
+
       { name: 'Selenium', level: 90 },
+
       { name: 'Jest', level: 85 },
+
       { name: 'Cypress', level: 80 },
+
       { name: 'CI/CD', level: 75 },
+
     ],
+
     certifications: [
+
       { name: 'ISTQB Foundation', issuer: 'ISTQB', date: 'Sep 2025', status: 'active' },
+
     ],
+
   },
+
   {
+
     id: 7,
+
     name: 'Bob Tanaka',
+
     email: 'bob.t@flowly.io',
+
     phone: '+212 667 789 012',
+
     cnss: '7890123456',
+
     rib: 'MA76 0077 7770 0000 0789 0123 456',
+
     department: 'Engineering',
+
     title: 'Backend Developer',
+
     location: 'Agadir, Morocco',
+
     manager: 'Ibrahim Rouass',
+
     joinDate: 'Jul 3, 2025',
+
     employeeId: 'EMP-2025-007',
+
     status: 'active',
+
     avatar: 'BT',
+
     bio: 'Backend developer specializing in microservices, APIs, and database architecture.',
+
     skills: [
+
       { name: 'Node.js', level: 88 },
+
       { name: 'PostgreSQL', level: 85 },
+
       { name: 'Docker', level: 80 },
+
       { name: 'Redis', level: 72 },
+
     ],
+
     certifications: [],
+
   },
+
   {
+
     id: 8,
+
     name: 'Amira Belkacem',
+
     email: 'amira.b@flowly.io',
+
     phone: '+212 668 890 123',
+
     cnss: '8901234567',
+
     rib: 'MA76 0088 8880 0000 0890 1234 567',
+
     department: 'Finance',
+
     title: 'Financial Analyst',
+
     location: 'Kenitra, Morocco',
+
     manager: 'Sarah Martinez',
+
     joinDate: 'Aug 18, 2025',
+
     employeeId: 'EMP-2025-008',
+
     status: 'active',
+
     avatar: 'AB',
+
     bio: 'Financial analyst with strong background in budgeting, forecasting, and financial modeling.',
+
     skills: [
+
       { name: 'Financial Modeling', level: 92 },
+
       { name: 'Excel', level: 95 },
+
       { name: 'SAP', level: 78 },
+
       { name: 'Power BI', level: 80 },
+
     ],
+
     certifications: [
+
       { name: 'CFA Level I', issuer: 'CFA Institute', date: 'Nov 2025', status: 'active' },
+
     ],
+
   },
+
 ];
+
+
 
 const avatarColors = [
+
   'from-brand-500 to-brand-600',
+
   'from-brand-500 to-brand-600',
+
   'from-pink-500 to-rose-600',
+
   'from-amber-500 to-orange-600',
+
   'from-emerald-500 to-teal-600',
+
   'from-blue-500 to-indigo-600',
+
   'from-red-500 to-rose-600',
+
   'from-cyan-500 to-blue-600',
+
 ];
 
+
+
 function InfoItem({ icon: Icon, label, value }) {
+
   return (
+
     <div className="flex items-start gap-3 py-2.5">
+
       <Icon size={16} className="text-text-tertiary mt-0.5 shrink-0" />
+
       <div>
+
         <span className="text-[11px] text-text-tertiary uppercase tracking-wider block">{label}</span>
+
         <span className="text-sm font-medium text-text-primary">{value}</span>
+
       </div>
+
     </div>
+
   );
+
 }
+
+
 
 // Inline profile image upload for employee's own profile
+
 function AvatarUpload({ initials, colorClass, imageUrl, onImageChange }) {
+
   const [preview, setPreview] = useState(imageUrl || null);
+
   const [uploading, setUploading] = useState(false);
 
+
+
   const handleFile = (e) => {
+
     const file = e.target.files?.[0];
+
     if (!file) return;
+
     setUploading(true);
+
     const reader = new FileReader();
+
     reader.onloadend = () => {
+
       setPreview(reader.result);
+
       setUploading(false);
+
       if (onImageChange) onImageChange(reader.result);
+
     };
+
     reader.readAsDataURL(file);
+
   };
 
+
+
   return (
+
     <div className="relative inline-block">
+
       <div className={`flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br ${colorClass} text-white text-2xl font-bold shadow-lg shrink-0 overflow-hidden`}>
+
         {preview ? (
+
           <img src={preview} alt="Profile" className="w-full h-full object-cover" />
+
         ) : (
+
           initials
+
         )}
+
       </div>
+
       <label className="absolute -bottom-1 -right-1 p-1.5 bg-white border-2 border-gray-200 rounded-full shadow-md hover:bg-brand-50 hover:border-brand-500 transition-colors cursor-pointer">
+
         {uploading
+
           ? <Loader2 size={14} className="text-brand-600 animate-spin" />
+
           : <Camera size={14} className="text-gray-600" />}
+
         <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
+
       </label>
+
     </div>
+
   );
+
 }
 
+
+
+// Team Assignment Tool Component
+
+function TeamAssignmentTool({ employees, onClose, onSave, entrepriseId }) {
+
+  const [assignments, setAssignments] = useState({ unassigned: [] });
+
+  const [saving, setSaving] = useState(false);
+
+  const [draggedItem, setDraggedItem] = useState(null);
+
+
+
+  useEffect(() => {
+
+    // Initialize assignments from employees state
+
+    const initial = { unassigned: [] };
+
+    const managers = employees.filter(e =>
+
+      e.role?.toUpperCase() === 'TEAM_MANAGER' ||
+
+      e.role?.toLowerCase() === 'manager'
+
+    );
+
+
+
+    managers.forEach(m => {
+
+      initial[m.id] = [];
+
+    });
+
+
+
+    employees.filter(e => e.role?.toLowerCase() === 'employee').forEach(emp => {
+
+      const managerId = emp.reports_to;
+
+      if (managerId && initial[managerId]) {
+
+        initial[managerId].push(emp);
+
+      } else {
+
+        initial['unassigned'].push(emp);
+
+      }
+
+    });
+
+    setAssignments(initial);
+
+  }, [employees]);
+
+
+
+  const managers = employees.filter(e =>
+
+    e.role?.toUpperCase() === 'TEAM_MANAGER' ||
+
+    e.role?.toLowerCase() === 'manager'
+
+  );
+
+
+
+  const onDragStart = (e, employee, sourceId) => {
+
+    setDraggedItem({ employee, sourceId });
+
+    e.dataTransfer.setData('text/plain', employee.id);
+
+    e.dataTransfer.effectAllowed = 'move';
+
+  };
+
+
+
+  const onDragOver = (e) => {
+
+    e.preventDefault();
+
+    e.dataTransfer.dropEffect = 'move';
+
+  };
+
+
+
+  const onDrop = (e, targetManagerId) => {
+
+    e.preventDefault();
+
+    if (!draggedItem) return;
+
+
+
+    const { employee, sourceId } = draggedItem;
+
+    if (sourceId === targetManagerId) return;
+
+
+
+    setAssignments(prev => {
+
+      const newAssignments = { ...prev };
+
+      // Remove from source
+
+      newAssignments[sourceId] = newAssignments[sourceId].filter(id => id.id !== employee.id);
+
+      // Add to target
+
+      newAssignments[targetManagerId] = [...(newAssignments[targetManagerId] || []), employee];
+
+      return newAssignments;
+
+    });
+
+    setDraggedItem(null);
+
+  };
+
+
+
+  const handleSave = async () => {
+
+    setSaving(true);
+
+    try {
+
+      const updates = [];
+
+      Object.entries(assignments).forEach(([managerId, emps]) => {
+
+        const reportsTo = managerId === 'unassigned' ? null : managerId;
+
+        emps.forEach(emp => {
+
+          updates.push({
+
+            id_user: emp.id,
+
+            reports_to: reportsTo,
+
+            entreprise_id: entrepriseId
+
+          });
+
+        });
+
+      });
+
+
+
+      console.log('Applying team assignment updates:', updates.length);
+
+
+
+      // Use upsert to create rows if they don't exist in user_details
+
+      const results = await Promise.all(updates.map(update =>
+
+        supabase
+
+          .from('user_details')
+
+          .upsert({
+
+            id_user: update.id_user,
+
+            reports_to: update.reports_to,
+
+            entreprise_id: update.entreprise_id
+
+          }, { onConflict: 'id_user' })
+
+      ));
+
+
+
+      const errors = results.filter(r => r.error);
+
+      if (errors.length > 0) {
+
+        console.error('Some updates failed:', errors);
+
+        alert('Some assignments could not be saved. Please check console for details.');
+
+      }
+
+
+
+      onSave();
+
+      onClose();
+
+    } catch (err) {
+
+      console.error('Save assignments error:', err);
+
+      alert('An error occurred while saving assignments.');
+
+    } finally {
+
+      setSaving(false);
+
+    }
+
+  };
+
+
+
+  return (
+
+    <div className="flex flex-col h-[80vh]">
+
+      <div className="flex flex-1 overflow-hidden min-h-0">
+
+        {/* Fixed Unassigned Sidebar */}
+
+        <div
+
+          className="w-80 h-full bg-surface-secondary/50 rounded-2xl border-2 border-dashed border-border-secondary flex flex-col mr-6"
+
+          onDragOver={onDragOver}
+
+          onDrop={(e) => onDrop(e, 'unassigned')}
+
+        >
+
+          <div className="p-4 border-b border-border-secondary flex items-center justify-between bg-surface-primary/50 rounded-t-2xl sticky top-0 z-10 backdrop-blur-sm">
+
+            <h4 className="text-sm font-bold text-text-primary flex items-center gap-2">
+
+              <Users size={16} className="text-text-tertiary" />
+
+              Unassigned ({assignments.unassigned?.length || 0})
+
+            </h4>
+
+          </div>
+
+          <div className="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar">
+
+            {assignments.unassigned?.map(emp => (
+
+              <div
+
+                key={emp.id}
+
+                draggable
+
+                onDragStart={(e) => onDragStart(e, emp, 'unassigned')}
+
+                className="p-3 bg-surface-primary rounded-xl border border-border-secondary shadow-sm cursor-move hover:border-brand-500/50 hover:shadow-md transition-all group"
+
+              >
+
+                <div className="flex items-center gap-3">
+
+                  <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-600 font-bold text-xs uppercase">
+
+                    {emp.avatar}
+
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+
+                    <p className="text-xs font-bold text-text-primary truncate">{emp.name}</p>
+
+                    <p className="text-[10px] text-text-tertiary truncate">{emp.department}</p>
+
+                  </div>
+
+                  <Move size={12} className="text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                </div>
+
+              </div>
+
+            ))}
+
+            {(!assignments.unassigned || assignments.unassigned.length === 0) && (
+
+              <div className="h-24 flex items-center justify-center text-center p-4 border-2 border-dashed border-border-secondary/30 rounded-xl">
+
+                <p className="text-[11px] text-text-tertiary">All employees are assigned.</p>
+
+              </div>
+
+            )}
+
+          </div>
+
+        </div>
+
+
+
+        {/* Scrollable Manager Grid */}
+
+        <div className="flex-1 overflow-y-auto pb-4 pr-1 custom-scrollbar">
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 p-1">
+
+            {/* Manager Columns */}
+
+            {managers.map(manager => (
+
+              <div
+
+                key={manager.id}
+
+                className="bg-surface-secondary/50 rounded-2xl border-2 border-border-secondary flex flex-col h-[400px]"
+
+                onDragOver={onDragOver}
+
+                onDrop={(e) => onDrop(e, manager.id)}
+
+              >
+
+                <div className="p-4 border-b border-border-secondary bg-surface-primary/50 rounded-t-2xl sticky top-0 z-10 backdrop-blur-sm">
+
+                  <div className="flex items-center gap-3">
+
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white font-bold text-xs">
+
+                      {manager.avatar}
+
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+
+                      <h4 className="text-sm font-bold text-text-primary truncate">{manager.name}</h4>
+
+                      <p className="text-[11px] text-text-tertiary">Team Manager</p>
+
+                    </div>
+
+                    <StatusBadge size="sm" variant="brand">{assignments[manager.id]?.length || 0}</StatusBadge>
+
+                  </div>
+
+                </div>
+
+                <div className="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar">
+
+                  {assignments[manager.id]?.map(emp => (
+
+                    <div
+
+                      key={emp.id}
+
+                      draggable
+
+                      onDragStart={(e) => onDragStart(e, emp, manager.id)}
+
+                      className="p-3 bg-surface-primary rounded-xl border border-border-secondary shadow-sm cursor-move hover:border-brand-500/50 hover:shadow-md transition-all group"
+
+                    >
+
+                      <div className="flex items-center gap-3">
+
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-bold text-xs">
+
+                          {emp.avatar}
+
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+
+                          <p className="text-xs font-bold text-text-primary truncate">{emp.name}</p>
+
+                          <p className="text-[10px] text-text-tertiary truncate">{emp.department}</p>
+
+                        </div>
+
+                        <Move size={12} className="text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                      </div>
+
+                    </div>
+
+                  ))}
+
+                  {(!assignments[manager.id] || assignments[manager.id].length === 0) && (
+
+                    <div className="h-24 flex items-center justify-center text-center p-4 border-2 border-dashed border-border-secondary/50 rounded-xl">
+
+                      <p className="text-[11px] text-text-tertiary">Drag employees here to assign to {manager.name.split(' ')[0]}</p>
+
+                    </div>
+
+                  )}
+
+                </div>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+
+      <div className="mt-6 pt-6 border-t border-border-secondary flex items-center justify-between">
+
+        <p className="text-xs text-text-tertiary italic">
+
+          <Settings2 size={12} className="inline mr-1" />
+
+          Drag and drop employees between columns to reassign. Click Save to apply changes to the database.
+
+        </p>
+
+        <div className="flex items-center gap-3">
+
+          <button
+
+            onClick={onClose}
+
+            className="px-5 py-2.5 text-sm font-semibold text-text-secondary hover:bg-surface-secondary rounded-xl transition-colors"
+
+          >
+
+            Cancel
+
+          </button>
+
+          <button
+
+            onClick={handleSave}
+
+            disabled={saving}
+
+            className="flex items-center gap-2 px-6 py-2.5 bg-brand-500 text-white text-sm font-bold rounded-xl hover:bg-brand-600 shadow-lg shadow-brand-500/20 transition-all active:scale-95 disabled:opacity-50"
+
+          >
+
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+
+            Save Team Assignments
+
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  );
+
+}
+
+
+
 export default function EmployeeProfile() {
+
   const { currentRole } = useRole();
+
   const { t } = useLanguage();
+
   const { profile: authProfile } = useAuth();
+
   const [search, setSearch] = useState('');
+
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+
   const [deptFilter, setDeptFilter] = useState('all');
+
   const [avatarImages, setAvatarImages] = useState({});
+
   const [employees, setEmployees] = useState(isSupabaseReady ? [] : allEmployees);
+
+  const [showAssignmentTool, setShowAssignmentTool] = useState(false);
+
+  const [editForm, setEditForm] = useState(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const [editError, setEditError] = useState('');
+
+  const [editSuccess, setEditSuccess] = useState(false);
+
+
 
   const isEmployee = currentRole.id === 'employee';
 
-  useEffect(() => {
+
+
+  const fetchProfiles = useCallback(async () => {
+
     if (!isSupabaseReady || !authProfile?.entreprise_id) return;
 
-    const fetchProfiles = async () => {
-      try {
-        // Query all users of this company (employees, HR, managers)
-        const { data: usersData, error: usersError } = await supabase.from('users')
-          .select('*')
-          .eq('entreprise_id', authProfile.entreprise_id)
-          .neq('role', 'ADMIN')
-          .order('created_at', { ascending: false });
+    try {
 
-        if (usersError) {
-          console.error('Fetch profiles error (users query):', usersError);
-          return;
-        }
+      // Query all users of this company (employees, HR, managers)
 
-        const validUsers = usersData || [];
+      const { data: usersData, error: usersError } = await supabase.from('users')
 
-        // Fetch employee details for those users
-        let empMap = {};
-        if (validUsers.length > 0) {
-          const userIds = validUsers.map(u => u.id);
-          const { data: empData, error: empError } = await supabase
-            .from('user_details')
-            .select('*')
-            .in('id_user', userIds);
+        .select('*')
 
-          if (!empError && empData) {
-            empData.forEach(e => {
-              if (e.id_user) empMap[e.id_user] = e;
-            });
-          }
-        }
+        .eq('entreprise_id', authProfile.entreprise_id)
 
-        setEmployees(validUsers.map((u, idx) => {
-          const e = empMap[u.id] || {};
-          const name = u.name || u.email?.split('@')[0] || `User ${idx + 1}`;
-          return {
-            id: u.id,
-            name,
-            email: u.email || '-',
-            phone: e?.phone || '-',
-            cnss: e?.cnss || '-',
-            rib: e?.rib || '-',
-            department: e?.department || '-',
-            title: e?.position || (u.role === 'HR' ? 'HR Manager' : u.role === 'TEAM_MANAGER' ? 'Team Manager' : 'Employee'),
-            location: e?.location || 'Morocco',
-            manager: '-',
-            joinDate: e?.join_date ? new Date(e.join_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
-            employeeId: `EMP-${u.id?.toString().slice(0, 8)}`,
-            status: u.status || 'active',
-            avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-            bio: e?.bio || '',
-            skills: [],
-            certifications: [],
-            user_id: u.id,
-            role: u.role,
-          };
-        }));
-      } catch (err) {
-        console.error('Fetch profiles catch error:', err);
+        .neq('role', 'ADMIN')
+
+        .order('created_at', { ascending: false });
+
+
+
+      if (usersError) {
+
+        console.error('Fetch profiles error (users query):', usersError);
+
+        return;
+
       }
-    };
 
-    fetchProfiles();
+
+
+      const validUsers = usersData || [];
+
+
+
+      // Fetch employee details and user_details for those users
+
+      let detailMap = {};
+
+      let employeeRecordMap = {};
+
+      if (validUsers.length > 0) {
+
+        const userIds = validUsers.map(u => u.id);
+
+        const [detailsRes, employeesRes] = await Promise.all([
+
+          supabase
+
+            .from('user_details')
+
+            .select('*')
+
+            .in('id_user', userIds),
+
+          supabase
+
+            .from('employees')
+
+            .select('id, user_id, phone, location, cnss, rib, bio, position, status, hire_date, employee_code')
+
+            .in('user_id', userIds),
+
+        ]);
+
+
+
+        if (!detailsRes.error && detailsRes.data) {
+
+          detailsRes.data.forEach(e => {
+
+            if (e.id_user) detailMap[e.id_user] = e;
+
+          });
+
+        }
+
+
+
+        if (!employeesRes.error && employeesRes.data) {
+
+          employeesRes.data.forEach(e => {
+
+            if (e.user_id) employeeRecordMap[e.user_id] = e;
+
+          });
+
+        }
+
+      }
+
+
+
+      setEmployees(validUsers.map((u, idx) => {
+
+        const userDetails = detailMap[u.id] || {};
+
+        const employeeRecord = employeeRecordMap[u.id] || {};
+
+        const name = u.name || u.email?.split('@')[0] || `User ${idx + 1}`;
+
+        return {
+
+          id: u.id,
+
+          name,
+
+          email: u.email || '-',
+
+          phone: employeeRecord.phone || userDetails?.phone || '-',
+
+          cnss: employeeRecord.cnss || userDetails?.cnss || '-',
+
+          rib: employeeRecord.rib || userDetails?.rib || '-',
+
+          department: userDetails?.department || '-',
+
+          title: employeeRecord.position || userDetails?.position || (u.role === 'HR' ? 'HR Manager' : u.role === 'TEAM_MANAGER' ? 'Team Manager' : 'Employee'),
+
+          location: employeeRecord.location || userDetails?.adresse || 'Morocco',
+
+          manager: '-',
+
+          reports_to: userDetails?.reports_to,
+
+          joinDate: userDetails?.join_date ? new Date(userDetails.join_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-',
+
+          employeeId: employeeRecord.employee_code || `EMP-${u.id?.toString().slice(0, 8)}`,
+
+          status: employeeRecord.status || u.status || 'active',
+
+          avatar: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+
+          bio: employeeRecord.bio || userDetails?.bio || u.bio || '',
+
+          skills: [],
+
+          certifications: [],
+
+          user_id: u.id,
+
+          role: u.role,
+
+          employeeRecordId: employeeRecord.id || null,
+
+        };
+
+      }));
+
+    } catch (err) {
+
+      console.error('Fetch profiles catch error:', err);
+
+    }
+
   }, [authProfile?.entreprise_id]);
 
 
-  const visibleEmployees = isEmployee
-    ? employees.filter(e => e.user_id === authProfile?.id || e.email === authProfile?.email)
-    : employees;
 
-  // Fallback: if employee role but no match found, show first mock
-  const effectiveVisible = isEmployee && visibleEmployees.length === 0
-    ? allEmployees.filter(e => e.id === 3)
-    : visibleEmployees;
+  useEffect(() => {
+
+    fetchProfiles();
+
+  }, [fetchProfiles]);
+
+
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+
+
+  useEffect(() => {
+
+    const openSelf = searchParams.get('openSelf');
+
+    if (openSelf === 'true' && employees.length > 0 && authProfile?.id) {
+
+      const self = employees.find(e => e.id === authProfile.id);
+
+      if (self) {
+
+        setSelectedEmployee(self);
+
+        // Clear param after opening
+
+        const newParams = new URLSearchParams(searchParams);
+
+        newParams.delete('openSelf');
+
+        setSearchParams(newParams, { replace: true });
+
+      }
+
+    }
+
+  }, [searchParams, employees, authProfile?.id, setSearchParams]);
+
+
+
+  useEffect(() => {
+
+    if (!selectedEmployee) {
+
+      setEditForm(null);
+
+      setIsEditing(false);
+
+      setEditError('');
+
+      setEditSuccess(false);
+
+      return;
+
+    }
+
+    setEditForm({
+
+      email: selectedEmployee.email || '',
+
+      phone: selectedEmployee.phone === '-' ? '' : (selectedEmployee.phone || ''),
+
+      location: selectedEmployee.location === '-' ? '' : (selectedEmployee.location || ''),
+
+      cnss: selectedEmployee.cnss === '-' ? '' : (selectedEmployee.cnss || ''),
+
+      rib: selectedEmployee.rib === '-' ? '' : (selectedEmployee.rib || ''),
+
+      bio: selectedEmployee.bio || '',
+
+    });
+
+    setIsEditing(false);
+
+    setEditError('');
+
+    setEditSuccess(false);
+
+  }, [selectedEmployee]);
+
+
+
+
+
+  const isManager = currentRole.id === 'manager' || currentRole.id?.toLowerCase() === 'team_manager';
+
+
+
+  const visibleEmployees = isEmployee
+
+    ? employees.filter(e => e.user_id === authProfile?.id || e.email === authProfile?.email)
+
+    : isManager
+
+      ? employees.filter(e => e.reports_to === authProfile?.id || e.user_id === authProfile?.id)
+
+      : employees;
+
+
+
+  // Final check: if we have zero employees after filtering, we show an empty list
+
+  // instead of falling back to mock data which can be confusing.
+
+  const effectiveVisible = visibleEmployees;
+
+
 
   const departments = [...new Set(employees.map(e => e.department))];
 
+
+
   const filtered = effectiveVisible.filter(e => {
+
     const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) ||
+
       e.email.toLowerCase().includes(search.toLowerCase()) ||
+
       e.department.toLowerCase().includes(search.toLowerCase());
+
     const matchDept = deptFilter === 'all' || e.department === deptFilter;
+
     return matchSearch && matchDept;
+
+  }).sort((a, b) => {
+
+    if (a.id === authProfile?.id) return -1;
+
+    if (b.id === authProfile?.id) return 1;
+
+    return 0;
+
   });
 
+
+
+  const roleId = typeof currentRole?.id === 'string'
+
+    ? currentRole.id.toLowerCase()
+
+    : currentRole?.id || '';
+
+  const canManageOrgProfiles = ['company_admin', 'hr', 'manager', 'team_manager'].includes(roleId);
+
+  const canEditSelected = selectedEmployee && (selectedEmployee.user_id === authProfile?.id || canManageOrgProfiles);
+
+
+
+  const handleEditChange = (field) => (event) => {
+
+    const value = event.target.value;
+
+    setEditForm(prev => ({ ...(prev || {}), [field]: value }));
+
+  };
+
+
+
+  const handleSaveProfile = async () => {
+
+    if (!isSupabaseReady || !selectedEmployee || !editForm) return;
+
+    setSavingProfile(true);
+
+    setEditError('');
+
+    setEditSuccess(false);
+
+    try {
+
+      const userId = selectedEmployee.user_id;
+
+      const employeePayload = {
+
+        phone: editForm.phone || null,
+
+        location: editForm.location || null,
+
+        cnss: editForm.cnss || null,
+
+        rib: editForm.rib || null,
+
+        bio: editForm.bio || null,
+
+      };
+
+
+
+      if (selectedEmployee.employeeRecordId) {
+
+        const { error: empError } = await supabase
+
+          .from('employees')
+
+          .update(employeePayload)
+
+          .eq('id', selectedEmployee.employeeRecordId);
+
+        if (empError) throw empError;
+
+      } else {
+
+        const insertPayload = {
+
+          ...employeePayload,
+
+          user_id: userId,
+
+          entreprise_id: authProfile?.entreprise_id || null,
+
+          position: selectedEmployee.title || 'Employee',
+
+        };
+
+        const { error: insertError, data: inserted } = await supabase
+
+          .from('employees')
+
+          .insert(insertPayload)
+
+          .select('id')
+
+          .single();
+
+        if (insertError) throw insertError;
+
+        selectedEmployee.employeeRecordId = inserted?.id || selectedEmployee.employeeRecordId;
+
+      }
+
+
+
+      const emailValue = editForm.email?.trim();
+
+      if (emailValue && emailValue !== selectedEmployee.email) {
+
+        const { error: emailError } = await supabase
+
+          .from('users')
+
+          .update({ email: emailValue })
+
+          .eq('id', userId);
+
+        if (emailError) throw emailError;
+
+      }
+
+
+
+      const updatedValues = {
+
+        phone: editForm.phone || '-',
+
+        location: editForm.location || '-',
+
+        cnss: editForm.cnss || '-',
+
+        rib: editForm.rib || '-',
+
+        bio: editForm.bio || '',
+
+        email: emailValue || selectedEmployee.email,
+
+      };
+
+
+
+      setEmployees(prev => prev.map(emp => (
+
+        emp.id === selectedEmployee.id
+
+          ? { ...emp, ...updatedValues }
+
+          : emp
+
+      )));
+
+
+
+      setSelectedEmployee(prev => (prev ? { ...prev, ...updatedValues } : prev));
+
+      setEditSuccess(true);
+
+      setIsEditing(false);
+
+    } catch (err) {
+
+      setEditError(err?.message || 'Failed to update profile.');
+
+    } finally {
+
+      setSavingProfile(false);
+
+    }
+
+  };
+
+
+
   return (
+
     <div className="space-y-6 animate-fade-in">
+
       <PageHeader
+
         title={t('profile.title')}
+
         description={isEmployee
+
           ? t('profile.viewRestrictedMsg')
+
           : `${effectiveVisible.length} ${t('profile.inOrganization')}`}
+
         icon={User}
+
         iconColor="from-brand-500 to-brand-600"
+
+        actionLabel={(currentRole.id === 'hr' || currentRole.id === 'company_admin') ? "Manage Teams" : null}
+
+        actionIcon={LayoutGrid}
+
+        onAction={() => setShowAssignmentTool(true)}
+
       />
 
+
+
       {/* Employee restriction notice */}
+
       {isEmployee && (
+
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/10
+
                         border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm animate-fade-in">
+
           <ShieldAlert size={18} className="shrink-0" />
+
           <span>
+
             <strong>{t('profile.viewRestricted')}</strong> {t('profile.viewRestrictedMsg')}
+
           </span>
+
         </div>
+
       )}
+
+
 
       {/* Search + Filter bar (hidden for employee since they see only 1 card) */}
+
       {!isEmployee && (
+
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 animate-fade-in"
+
           style={{ animationDelay: '100ms' }}>
+
           <div className="relative flex-1 max-w-md">
+
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+
             <input
+
               type="text"
+
               placeholder={t('profile.searchEmployees')}
+
               value={search}
+
               onChange={e => setSearch(e.target.value)}
+
               className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm bg-surface-primary border border-border-secondary
+
                          focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400
+
                          transition-all duration-200 text-text-primary placeholder:text-text-tertiary"
+
             />
+
           </div>
+
           <select
+
             value={deptFilter}
+
             onChange={e => setDeptFilter(e.target.value)}
+
             className="px-3 py-2.5 rounded-xl text-sm bg-surface-primary border border-border-secondary
+
                        focus:outline-none focus:ring-2 focus:ring-brand-500/30 cursor-pointer
+
                        text-text-primary"
+
           >
+
             <option value="all">{t('profile.allDepartments')}</option>
+
             {departments.map(d => <option key={d} value={d}>{d}</option>)}
+
           </select>
+
         </div>
+
       )}
+
+
 
       {/* ═══ Employee Cards Grid ═══ */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+
         {filtered.map((emp, idx) => (
+
           <div
+
             key={emp.id}
+
             onClick={() => setSelectedEmployee(emp)}
+
             className="bg-surface-primary rounded-2xl border border-border-secondary p-5
+
                        hover:shadow-lg hover:border-brand-400/40 hover:-translate-y-0.5
+
                        transition-all duration-300 cursor-pointer group animate-fade-in"
+
             style={{ animationDelay: `${idx * 60}ms` }}
+
           >
+
             {/* Avatar + Status */}
+
             <div className="flex items-start justify-between mb-4">
+
               <div className={`flex items-center justify-center w-12 h-12 rounded-xl
+
                                bg-gradient-to-br ${avatarColors[idx % avatarColors.length]}
+
                                text-white font-bold text-sm shadow-md
+
                                group-hover:scale-110 transition-transform duration-300`}>
+
                 {emp.avatar}
+
               </div>
-              <StatusBadge
-                variant={emp.status === 'active' ? 'success' : emp.status === 'inactive' ? 'danger' : 'warning'}
-                dot size="sm"
-              >
-                {emp.status}
-              </StatusBadge>
+
+              <div className="flex flex-col items-end gap-2">
+
+                <StatusBadge
+
+                  variant={emp.status === 'active' ? 'success' : emp.status === 'inactive' ? 'danger' : 'warning'}
+
+                  dot size="sm"
+
+                >
+
+                  {emp.status}
+
+                </StatusBadge>
+
+                {emp.id === authProfile?.id && (
+
+                  <span className="px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:bg-white dark:text-brand-700 text-[10px] font-bold border border-brand-500/20 dark:border-white shadow-sm">
+
+                    Your Account
+
+                  </span>
+
+                )}
+
+              </div>
+
             </div>
+
+
 
             {/* Name */}
+
             <h3 className="text-sm font-bold text-text-primary truncate group-hover:text-brand-500 transition-colors">
+
               {emp.name}
+
             </h3>
 
+
+
             {/* Department badge */}
+
             <div className="mt-1.5 mb-3">
+
               <StatusBadge variant="brand" size="sm">{emp.department}</StatusBadge>
+
             </div>
+
+
 
             {/* Info rows */}
+
             <div className="space-y-2 text-xs">
+
               <div className="flex items-center gap-2 text-text-secondary">
+
                 <Mail size={12} className="text-text-tertiary shrink-0" />
+
                 <span className="truncate">{emp.email}</span>
+
               </div>
+
               <div className="flex items-center gap-2 text-text-secondary">
+
                 <Phone size={12} className="text-text-tertiary shrink-0" />
+
                 <span>{emp.phone}</span>
+
               </div>
+
               <div className="flex items-center gap-2 text-text-secondary">
+
                 <Hash size={12} className="text-text-tertiary shrink-0" />
+
                 <span>CNSS: {emp.cnss}</span>
+
               </div>
+
               <div className="flex items-center gap-2 text-text-secondary">
+
                 <Landmark size={12} className="text-text-tertiary shrink-0" />
-                <span className="truncate">RIB: {emp.rib.slice(0, 16)}…</span>
+
+                <span className="truncate">RIB: {emp.rib && emp.rib !== '-' ? `${emp.rib.slice(0, 16)}…` : '-'}</span>
+
               </div>
+
             </div>
+
           </div>
+
         ))}
+
       </div>
 
+
+
       {filtered.length === 0 && (
+
         <div className="text-center py-12 text-text-tertiary text-sm animate-fade-in">
+
           {t('profile.noEmployees')}
+
         </div>
+
       )}
 
+
+
       {/* ═══ Employee Detail Modal ═══ */}
+
       <Modal
+
         isOpen={!!selectedEmployee}
+
         onClose={() => setSelectedEmployee(null)}
+
         title={t('profile.employeeDetails')}
+
         maxWidth="max-w-2xl"
+
       >
+
         {selectedEmployee && (
+
           <div className="space-y-6">
+
             {/* Header row */}
+
             <div className="flex items-start gap-4">
+
               {isEmployee ? (
+
                 <AvatarUpload
+
                   initials={selectedEmployee.avatar}
+
                   colorClass={avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
+
                   imageUrl={avatarImages[selectedEmployee.id]}
+
                   onImageChange={(url) => setAvatarImages(prev => ({ ...prev, [selectedEmployee.id]: url }))}
+
                 />
+
               ) : (
+
                 <div className={`flex items-center justify-center w-16 h-16 rounded-2xl
+
                                  bg-gradient-to-br ${avatarColors[allEmployees.findIndex(e => e.id === selectedEmployee.id) % avatarColors.length]}
+
                                  text-white text-xl font-bold shadow-lg shrink-0 overflow-hidden`}>
+
                   {avatarImages[selectedEmployee.id]
+
                     ? <img src={avatarImages[selectedEmployee.id]} alt="" className="w-full h-full object-cover" />
+
                     : selectedEmployee.avatar}
+
                 </div>
+
               )}
+
               <div className="flex-1 min-w-0">
+
                 <h3 className="text-lg font-bold text-text-primary">{selectedEmployee.name}</h3>
+
                 <p className="text-sm text-text-secondary">{selectedEmployee.title}</p>
+
                 <div className="flex items-center gap-2 mt-1.5">
+
                   <StatusBadge
+
                     variant={selectedEmployee.status === 'active' ? 'success' : 'danger'}
+
                     dot size="sm"
+
                   >
+
                     {selectedEmployee.status}
+
                   </StatusBadge>
+
                   <span className="text-[11px] text-text-tertiary">{selectedEmployee.employeeId}</span>
+
                 </div>
+
               </div>
+
             </div>
+
+
+
+            {canEditSelected && (
+
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+
+                <button
+
+                  onClick={() => { setIsEditing(prev => !prev); setEditError(''); setEditSuccess(false); }}
+
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border-secondary text-sm font-semibold text-text-primary hover:border-brand-400 hover:text-brand-600 transition-colors"
+
+                >
+
+                  {isEditing ? <X size={14} /> : <Edit size={14} />}
+
+                  {isEditing ? t('common.cancel') || 'Cancel' : 'Update Profile'}
+
+                </button>
+
+                {isEditing && (
+
+                  <button
+
+                    onClick={handleSaveProfile}
+
+                    disabled={savingProfile}
+
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 text-white text-sm font-semibold hover:bg-brand-400 disabled:opacity-60"
+
+                  >
+
+                    {savingProfile ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+
+                    {savingProfile ? 'Saving…' : 'Save Changes'}
+
+                  </button>
+
+                )}
+
+              </div>
+
+            )}
+
+
+
+            {editError && (
+
+              <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-2 text-sm text-danger-600">
+
+                {editError}
+
+              </div>
+
+            )}
+
+
+
+            {editSuccess && (
+
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+
+                Profile updated successfully.
+
+              </div>
+
+            )}
+
+
+
+            {isEditing && editForm && (
+
+              <div className="bg-surface-secondary rounded-2xl border border-dashed border-border-secondary p-4 space-y-4">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                  <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wide space-y-1">
+
+                    <span>Email</span>
+
+                    <input type="email" value={editForm.email} onChange={handleEditChange('email')} className="w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm" />
+
+                  </label>
+
+                  <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wide space-y-1">
+
+                    <span>Phone</span>
+
+                    <input type="text" value={editForm.phone} onChange={handleEditChange('phone')} className="w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm" />
+
+                  </label>
+
+                  <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wide space-y-1">
+
+                    <span>Location</span>
+
+                    <input type="text" value={editForm.location} onChange={handleEditChange('location')} className="w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm" />
+
+                  </label>
+
+                  <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wide space-y-1">
+
+                    <span>CNSS</span>
+
+                    <input type="text" value={editForm.cnss} onChange={handleEditChange('cnss')} className="w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm" />
+
+                  </label>
+
+                  <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wide space-y-1">
+
+                    <span>RIB</span>
+
+                    <input type="text" value={editForm.rib} onChange={handleEditChange('rib')} className="w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm" />
+
+                  </label>
+
+                </div>
+
+                <label className="text-xs font-semibold text-text-tertiary uppercase tracking-wide space-y-1 block">
+
+                  <span>Bio / Notes</span>
+
+                  <textarea value={editForm.bio} onChange={handleEditChange('bio')} className="w-full rounded-xl border border-border-secondary bg-surface-primary px-3 py-2 text-sm min-h-[100px]"></textarea>
+
+                </label>
+
+              </div>
+
+            )}
+
+
 
             {/* About */}
+
             <div className="bg-surface-secondary rounded-xl p-4 border border-border-secondary">
+
               <p className="text-sm text-text-secondary leading-relaxed">{selectedEmployee.bio}</p>
+
             </div>
+
+
 
             {/* Two-column info */}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5
+
                             divide-y sm:divide-y-0 divide-border-secondary">
+
               <div className="space-y-0.5 divide-y divide-border-secondary">
+
                 <InfoItem icon={Mail} label="Email" value={selectedEmployee.email} />
+
                 <InfoItem icon={Phone} label="Phone" value={selectedEmployee.phone} />
+
                 <InfoItem icon={MapPin} label="Location" value={selectedEmployee.location} />
+
                 <InfoItem icon={Building2} label="Department" value={selectedEmployee.department} />
+
               </div>
+
               <div className="space-y-0.5 divide-y divide-border-secondary">
+
                 <InfoItem icon={Briefcase} label="Position" value={selectedEmployee.title} />
+
                 <InfoItem icon={User} label="Reports To" value={selectedEmployee.manager} />
+
                 <InfoItem icon={Calendar} label="Join Date" value={selectedEmployee.joinDate} />
+
                 <InfoItem icon={Hash} label="CNSS" value={selectedEmployee.cnss} />
+
               </div>
+
             </div>
+
+
 
             {/* RIB — full width */}
+
             <div className="bg-surface-secondary rounded-xl p-4 border border-border-secondary">
+
               <div className="flex items-center gap-2 mb-1">
+
                 <Landmark size={14} className="text-text-tertiary" />
+
                 <span className="text-[11px] text-text-tertiary uppercase tracking-wider font-semibold">RIB</span>
+
               </div>
+
               <span className="text-sm font-mono font-medium text-text-primary tracking-wide">
+
                 {selectedEmployee.rib}
+
               </span>
+
             </div>
 
+
+
             {/* Skills */}
+
             {selectedEmployee.skills?.length > 0 && (
+
               <div>
+
                 <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">{t('profile.skills')}</h4>
+
                 <div className="space-y-2.5">
+
                   {selectedEmployee.skills.map(skill => (
+
                     <div key={skill.name}>
+
                       <div className="flex items-center justify-between mb-1">
+
                         <span className="text-xs font-medium text-text-primary">{skill.name}</span>
+
                         <span className="text-[11px] text-text-tertiary">{skill.level}%</span>
+
                       </div>
+
                       <div className="h-1.5 rounded-full bg-border-secondary overflow-hidden">
+
                         <div
+
                           className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-400 transition-all duration-700"
+
                           style={{ width: `${skill.level}%` }}
+
                         />
+
                       </div>
+
                     </div>
+
                   ))}
+
                 </div>
+
               </div>
+
             )}
 
+
+
             {/* Certifications */}
+
             {selectedEmployee.certifications?.length > 0 && (
+
               <div>
+
                 <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">{t('profile.certifications')}</h4>
+
                 <div className="space-y-2">
+
                   {selectedEmployee.certifications.map(cert => (
+
                     <div key={cert.name} className="flex items-start gap-3 p-3 rounded-xl bg-surface-secondary
+
                                                     border border-border-secondary">
+
                       <Award size={16} className="text-amber-500 mt-0.5 shrink-0" />
+
                       <div className="flex-1 min-w-0">
+
                         <span className="text-sm font-medium text-text-primary block truncate">{cert.name}</span>
+
                         <span className="text-[11px] text-text-tertiary">{cert.issuer} • {cert.date}</span>
+
                       </div>
+
                       <StatusBadge variant="success" size="sm">{cert.status}</StatusBadge>
+
                     </div>
+
                   ))}
+
                 </div>
+
               </div>
+
             )}
+
           </div>
+
         )}
+
       </Modal>
+
+
+
+      {/* ═══ Team Assignment Tool Modal ═══ */}
+
+      <Modal
+
+        isOpen={showAssignmentTool}
+
+        onClose={() => setShowAssignmentTool(false)}
+
+        title="Manage Team Assignments"
+
+        maxWidth="max-w-7xl"
+
+      >
+
+        <TeamAssignmentTool
+
+          employees={employees}
+
+          entrepriseId={authProfile?.entreprise_id}
+
+          onClose={() => setShowAssignmentTool(false)}
+
+          onSave={() => {
+
+            fetchProfiles();
+
+            // Close is handled inside the tool, but we refresh here
+
+          }}
+
+        />
+
+      </Modal>
+
     </div>
+
   );
+
 }
+

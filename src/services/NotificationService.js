@@ -24,13 +24,24 @@ class NotificationService {
   async send(userId, message, type = 'info', metadata = {}) {
     if (!isSupabaseReady || !userId) return;
     try {
-      await supabase.from('notifications').insert({
+      // Maps generic metadata properties to the actual db columns
+      const insertPayload = {
         user_id: userId,
         message,
         type,
-        metadata,
         is_read: false,
-      });
+      };
+
+      if (metadata) {
+        if (metadata.source || metadata.event) {
+          insertPayload.related_entity = metadata.source || metadata.event;
+        }
+        if (metadata.note_id || metadata.entity_id) {
+          insertPayload.related_id = metadata.note_id || metadata.entity_id;
+        }
+      }
+
+      await supabase.from('notifications').insert(insertPayload);
     } catch (err) {
       console.error('[NotificationService] send failed:', err.message);
     }
@@ -42,13 +53,24 @@ class NotificationService {
   async sendBulk(userIds, message, type = 'info', metadata = {}) {
     if (!isSupabaseReady || !userIds?.length) return;
     try {
-      const rows = userIds.map(uid => ({
-        user_id: uid,
-        message,
-        type,
-        metadata,
-        is_read: false,
-      }));
+      const rows = userIds.map(uid => {
+        const payload = {
+          user_id: uid,
+          message,
+          type,
+          is_read: false,
+        };
+
+        if (metadata) {
+          if (metadata.source || metadata.event) {
+            payload.related_entity = metadata.source || metadata.event;
+          }
+          if (metadata.note_id || metadata.entity_id) {
+            payload.related_id = metadata.note_id || metadata.entity_id;
+          }
+        }
+        return payload;
+      });
       await supabase.from('notifications').insert(rows);
     } catch (err) {
       console.error('[NotificationService] sendBulk failed:', err.message);

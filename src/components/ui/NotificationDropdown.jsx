@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Bell, CheckCircle2, AlertCircle, Info, X, Check, ExternalLink, Loader2,
+  Bell, CheckCircle2, AlertCircle, Info, X, Check, ExternalLink, Loader2, Trash2
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import Modal from './Modal';
 
 function typeStyle(type) {
   switch (type) {
@@ -26,7 +27,10 @@ function timeAgo(dateStr) {
 }
 
 export default function NotificationDropdown() {
-  const { notifications, loading, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const {
+    notifications, loading, unreadCount, markAsRead,
+    markAllAsRead, deleteNotification, selectedNotification, setSelectedNotification
+  } = useNotifications();
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -38,6 +42,10 @@ export default function NotificationDropdown() {
     if (isOpen) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [isOpen]);
+
+  const { Icon: SelectedIcon, color: selectedColor, bg: selectedBg } = selectedNotification
+    ? typeStyle(selectedNotification.type)
+    : { Icon: Info, color: '', bg: '' };
 
   return (
     <div ref={dropdownRef} className="relative">
@@ -103,10 +111,11 @@ export default function NotificationDropdown() {
                   key={notif.id}
                   className={`relative flex gap-3 px-4 py-3.5 cursor-pointer group
                              transition-all duration-200 animate-fade-in
-                             ${!notif.is_read ? 'bg-brand-500/3 hover:bg-brand-500/6' : 'hover:bg-surface-secondary/50'}`}
+                             ${!notif.is_read ? 'bg-surface-secondary hover:bg-surface-tertiary' : 'hover:bg-surface-secondary/50'}`}
                   style={{ animationDelay: `${i * 40}ms` }}
                   onClick={() => {
                     markAsRead(notif.id);
+                    setSelectedNotification(notif);
                     setIsOpen(false);
                   }}
                 >
@@ -118,15 +127,41 @@ export default function NotificationDropdown() {
                                   ${bg} transition-transform duration-200 group-hover:scale-105`}>
                     <Icon size={16} className={color} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm leading-tight line-clamp-2
+                  <div className="flex-1 min-w-0 pr-6">
+                    <div className={`text-sm leading-tight
                       ${!notif.is_read ? 'font-semibold text-text-primary' : 'font-medium text-text-secondary'}`}>
-                      {notif.message}
-                    </p>
+                      {notif.message.includes('Reason: ') ? (
+                        <>
+                          <span className="block mb-1.5">{notif.message.split('. Reason: ')[0].trim()}</span>
+                          <span className="block text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 p-2 rounded-lg border border-red-100 dark:border-red-500/30 font-medium line-clamp-3">
+                            <span className="font-bold">Reason:</span> {notif.message.split('. Reason: ')[1]?.trim() || 'No reason provided'}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="line-clamp-2">{notif.message}</span>
+                      )}
+                    </div>
                     <span className="text-[10px] text-text-tertiary mt-1 block">
                       {timeAgo(notif.created_at)}
                     </span>
                   </div>
+
+                  {/* Delete button (excluding profile alerts) */}
+                  {notif?.metadata?.event !== 'complete_profile' && !notif?._synthetic && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        console.log('[NotificationDropdown] Deleting notification:', notif.id);
+                        deleteNotification(notif.id);
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 
+                                 text-text-tertiary hover:text-red-500 hover:bg-red-500/10 
+                                 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               );
             })
@@ -142,6 +177,58 @@ export default function NotificationDropdown() {
           </Link>
         </div>
       </div>
+
+      {/* Detail Modal */}
+      <Modal
+        isOpen={!!selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+        title={t('notifications.details')}
+        maxWidth="max-w-md"
+      >
+        {selectedNotification && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-surface-secondary border border-border-secondary">
+              <div className={`flex items-center justify-center w-12 h-12 rounded-2xl ${selectedBg}`}>
+                <SelectedIcon size={24} className={selectedColor} />
+              </div>
+              <div className="flex-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-text-tertiary mb-1 block">
+                  {selectedNotification.type}
+                </span>
+                <span className="text-[11px] text-text-tertiary">
+                  {new Date(selectedNotification.created_at).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-surface-secondary rounded-2xl p-5 border border-border-secondary">
+              <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
+                {selectedNotification.message}
+              </p>
+            </div>
+
+            {selectedNotification.metadata?.redirectTo && (
+              <Link
+                to={selectedNotification.metadata.redirectTo}
+                onClick={() => setSelectedNotification(null)}
+                className="flex items-center justify-center gap-2 w-full py-3 px-4 
+                           bg-brand-500 hover:bg-brand-600 text-white rounded-xl 
+                           font-semibold text-sm transition-all duration-200 shadow-lg shadow-brand-500/20"
+              >
+                {t('common.viewDetails')} <ExternalLink size={14} />
+              </Link>
+            )}
+
+            <button
+              onClick={() => setSelectedNotification(null)}
+              className="w-full py-3 px-4 border border-border-secondary hover:bg-surface-tertiary 
+                         text-text-secondary rounded-xl font-semibold text-sm transition-all duration-200 mt-2"
+            >
+              {t('common.close')}
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

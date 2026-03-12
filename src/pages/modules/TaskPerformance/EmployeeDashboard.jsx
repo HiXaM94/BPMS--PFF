@@ -1,96 +1,177 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../../contexts/AuthContext';
+import { supabase } from '../../../services/supabase';
 import { useRole } from '../../../contexts/RoleContext';
-import { useController } from '../../../controllers/useController';
-import { taskController } from '../../../controllers/TaskController';
-import { performanceController } from '../../../controllers/PerformanceController';
-import { notificationController } from '../../../controllers/NotificationController';
+import { useNotifications } from '../../../contexts/NotificationContext';
+import NotificationDropdown from '../../../components/ui/NotificationDropdown';
 import PageHeader from '../../../components/ui/PageHeader';
 import StatCard from '../../../components/ui/StatCard';
 import DataTable from '../../../components/ui/DataTable';
 import StatusBadge from '../../../components/ui/StatusBadge';
-import { CheckCircle2, Clock, ListChecks, AlertCircle, PlayCircle, Bell, Trash2 } from 'lucide-react';
+import { CheckCircle2, Clock, ListChecks, AlertCircle, PlayCircle, Bell, Trash2, MessageSquare, XCircle } from 'lucide-react';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
+import { SkeletonPage } from '../../../components/ui/Skeleton';
 
 export default function EmployeeDashboard() {
-    const { currentRole } = useRole();
-    const employeeId = 'employee';
-    const hasCheckedDocs = useRef(false);
+    const { profile } = useAuth();
+    const [tasks, setTasks] = useState([]);
+    const [performance, setPerformance] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const { notifications, unreadCount, markAsRead } = useNotifications();
 
-    // Fetch Tasks
-    const { data: tasks, loading: tasksLoading, refresh: refreshTasks } = useController(
-        (id) => taskController.getByEmployee(id),
-        [employeeId]
-    );
+    // Administrative Notes state
+    const [adminNotes, setAdminNotes] = useState([]);
+    const [notesCurrentPage, setNotesCurrentPage] = useState(1);
+    const [selectedFeedbackNote, setSelectedFeedbackNote] = useState(null);
+    const notesPerPage = 6;
 
-    // Fetch Performance
-    const { data: performance, loading: perfLoading } = useController(
-        (id) => performanceController.getEmployeePerformance(id),
-        [employeeId]
-    );
+    const fetchData = async () => {
+        if (!profile?.id) return;
+        setLoading(true);
+        try {
+            // 1. Fetch Tasks assigned to me
+            const { data: tasksData, error: tasksError } = await supabase
+                .from('tasks')
+                .select('*')
+                .eq('assigned_to', profile.id)
+                .order('created_at', { ascending: false });
 
-    // Fetch Notifications
-    if (!hasCheckedDocs.current) {
-        notificationController.checkDeadlines(employeeId);
-        hasCheckedDocs.current = true;
-    }
-    const { data: notifications, refresh: refreshNotes } = useController(
-        (id) => notificationController.getUnread(id),
-        [employeeId]
-    );
+            if (tasksError) throw tasksError;
+
+            // Normalize tasks for UI
+            const normalizedTasks = (tasksData || []).map(t => ({
+                ...t,
+                deadline: t.due_date ? new Date(t.due_date).toLocaleDateString() : 'No date',
+                priority: t.priority ? t.priority.charAt(0).toUpperCase() + t.priority.slice(1) : 'Medium',
+                completedAt: t.completed_at,
+                // Keep raw status for logic, but maybe capitalize for display if needed
+                // The UI seems to use capitalized strings for status check in some places?
+                // Actually TaskStatusSelect uses 'Completed', 'In Progress' etc.
+                status: t.status === 'in_progress' ? 'In Progress' :
+                    t.status === 'on_hold' ? 'On Hold' :
+                        t.status === 'completed' ? 'Completed' : 'Not Started',
+                validationStatus: t.validated_at ? 'Validated' : (t.status === 'completed' ? 'Pending' : 'None')
+            }));
+
+            setTasks(normalizedTasks);
+
+            // 2. Calculate simple performance metrics
+            const completedCount = normalizedTasks.filter(t => t.validationStatus === 'Validated').length;
+            const totalCount = normalizedTasks.length;
+            setPerformance({
+                completionRate: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0,
+                completedCount,
+                totalCount
+            });
+
+            // 3. Fetch Admin Notes
+            const { data: notesData } = await supabase
+                .from('admin_notes')
+                .select('*')
+                .eq('assigned_to', profile.id)
+                .order('created_at', { ascending: false });
+
+            if (notesData) {
+                setAdminNotes(notesData);
+            }
+
+        } catch (err) {
+            console.error('Error fetching employee dashboard data:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    useEffect(() => {
+        fetchData();
+    }, [profile?.id]);
+
+    const refreshTasks = fetchData;
 
     const [selectedTask, setSelectedTask] = useState(null);
     const [selectedNotification, setSelectedNotification] = useState(null);
     const [activeTab, setActiveTab] = useState('active');
     const [updating, setUpdating] = useState(null);
-    const [deleteTarget, setDeleteTarget] = useState(null);
-    const [deleting, setDeleting] = useState(false);
 
-    const confirmDeleteTask = async () => {
-        if (!deleteTarget) return;
-        setDeleting(true);
-        taskController.delete(deleteTarget.id);
-        await refreshTasks();
-        setDeleting(false);
-        setDeleteTarget(null);
-    };
 
     const getTaskDescription = (task) => task.description || "No additional details provided for this task.";
 
-    const handleNotificationClick = (note) => {
-        setSelectedNotification(note);
+    const handleNotificationClick = async (note) => {
+        setSelectedNotification({
+            ...note,
+            timestamp: note.created_at // Map for existing modal
+        });
+
+        // Mark as read in global context
+        if (!note.is_read) {
+            await markAsRead(note.id);
+        }
     };
+
 
     const handleStatusChange = async (taskId, newStatus) => {
         setUpdating(taskId);
-        await taskController.updateStatus(taskId, newStatus);
-        await refreshTasks();
-        setUpdating(null);
+        try {
+            // Map UI status back to DB enum
+            let dbStatus = newStatus.toLowerCase().replace(' ', '_');
+            if (newStatus === 'Not Started') dbStatus = 'todo';
+
+            const updates = {
+                status: dbStatus,
+                updated_at: new Date().toISOString()
+            };
+
+            // If moving back to work, clear rejection reasons
+            if (newStatus !== 'Completed') {
+                updates.rejection_reason = null;
+            }
+
+            // If status is 'Completed', set completed_at
+            if (newStatus === 'Completed') {
+                updates.completed_at = new Date().toISOString();
+            }
+
+            const { error: updateError } = await supabase
+                .from('tasks')
+                .update(updates)
+                .eq('id', taskId);
+
+            if (updateError) throw updateError;
+            await refreshTasks();
+        } catch (err) {
+            console.error('Error updating task status:', err);
+        } finally {
+            setUpdating(null);
+        }
     };
 
-    // Helper to check if task is locked (Completed > 10 mins ago)
-    const isTaskLocked = (task) => {
-        if (task.status !== 'Completed' || !task.completedAt) return false;
-        const diff = Date.now() - new Date(task.completedAt).getTime();
-        return diff > 10 * 60 * 1000; // 10 minutes
-    };
+    if (loading) {
+        return <SkeletonPage title="Project Workspace" />;
+    }
 
-    if (tasksLoading || perfLoading) {
+    if (error) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+            <div className="flex flex-col items-center justify-center h-64 text-red-500 bg-red-50 rounded-2xl border border-red-100 m-6">
+                <AlertCircle size={32} className="mb-2" />
+                <p className="font-medium">Error loading data</p>
+                <p className="text-sm opacity-70">{error}</p>
+                <button onClick={refreshTasks} className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold">Retry</button>
             </div>
         );
     }
 
     // Filter tasks
     // Current: All active tasks (not completed) + Rejected tasks needing rework
-    const activeTasks = tasks.filter(t => (t.status !== 'Completed' && t.validationStatus !== 'Validated') || t.validationStatus === 'Rejected');
+    const activeTasks = tasks.filter(t => (t.status !== 'Completed' && !t.validated_at));
 
     // Review: Only 'Completed' tasks waiting for validation
-    const reviewTasks = tasks.filter(t => t.status === 'Completed' && t.validationStatus === 'Pending');
-    const historyTasks = tasks.filter(t => t.validationStatus === 'Validated');
+    const reviewTasks = tasks.filter(t => t.status === 'Completed' && !t.validated_at);
+    const historyTasks = tasks.filter(t => t.validated_at);
 
     // Custom Pro Dropdown Component
     // Custom Pro Dropdown Component
@@ -232,7 +313,6 @@ export default function EmployeeDashboard() {
                     </div>
                 ) : (
                     dataSet.map(row => {
-                        const locked = isTaskLocked(row);
                         return (
                             <div key={row.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm space-y-3" onClick={() => setSelectedTask(row)}>
                                 <div className="flex justify-between items-start gap-4">
@@ -255,12 +335,19 @@ export default function EmployeeDashboard() {
 
                                 <div className="pt-3 border-t border-gray-50 mt-1" onClick={e => e.stopPropagation()}>
                                     {showActions ? (
-                                        (row.validationStatus === 'Validated' || (row.status === 'Completed' && locked)) ? (
+                                        (row.validationStatus === 'Validated') ? (
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs font-medium text-gray-500">Status</span>
-                                                <div className="px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-100 inline-flex items-center gap-2 text-xs font-medium text-gray-500">
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${row.validationStatus === 'Validated' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                                    {row.validationStatus === 'Validated' ? 'Validated' : 'Under Review'}
+                                                <div className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100 inline-flex items-center gap-2 text-xs font-medium text-emerald-600">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                    Validated
+                                                </div>
+                                            </div>
+                                        ) : row.status === 'Completed' ? (
+                                            <div className="flex items-center justify-between">
+                                                <div className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-100 inline-flex items-center gap-2 text-xs font-medium text-amber-600">
+                                                    <Clock size={12} />
+                                                    Under Review
                                                 </div>
                                             </div>
                                         ) : (
@@ -316,13 +403,20 @@ export default function EmployeeDashboard() {
                         },
                         ...(showActions ? [{
                             key: 'status', label: 'Action', render: (val, row) => {
-                                const locked = isTaskLocked(row);
-
-                                if (row.validationStatus === 'Validated' || (row.status === 'Completed' && locked)) {
+                                if (row.validationStatus === 'Validated') {
                                     return (
-                                        <div className="px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-100 inline-flex items-center gap-2 text-xs font-medium text-gray-500">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${row.validationStatus === 'Validated' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                            {row.validationStatus === 'Validated' ? 'Validated' : 'Under Review'}
+                                        <div className="px-3 py-1.5 rounded-lg bg-gray-100 border border-gray-100 inline-flex items-center gap-2 text-xs font-medium text-gray-500">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                            Validated
+                                        </div>
+                                    );
+                                }
+
+                                if (row.status === 'Completed') {
+                                    return (
+                                        <div className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-100 inline-flex items-center gap-2 text-xs font-medium text-amber-600 w-fit">
+                                            <Clock size={12} />
+                                            Under Review
                                         </div>
                                     );
                                 }
@@ -342,17 +436,6 @@ export default function EmployeeDashboard() {
                                 )
                             }
                         ]),
-                        ...(showActions ? [{
-                            key: 'delete', label: '', render: (_, row) => (
-                                <button
-                                    onClick={() => setDeleteTarget(row)}
-                                    className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
-                                    title="Delete Task"
-                                >
-                                    <Trash2 size={14} className="text-red-400" />
-                                </button>
-                            )
-                        }] : [])
                     ]}
                     data={dataSet}
                     emptyMessage="No tasks found."
@@ -369,6 +452,8 @@ export default function EmployeeDashboard() {
                 icon={ListChecks}
                 iconColor="from-brand-500 to-blue-600"
             />
+
+
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
                 <StatCard title="Active Tasks" value={activeTasks.length} icon={ListChecks} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" subtitle="To Do & In Progress" />
@@ -377,23 +462,61 @@ export default function EmployeeDashboard() {
                 <StatCard title="Completion Rate" value={`${performance?.completionRate || 0}%`} icon={PlayCircle} iconColor="bg-gradient-to-br from-brand-500 to-brand-600" subtitle="Performance Metric" />
             </div>
 
-            {/* Notifications */}
-            {notifications?.length > 0 && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 shadow-sm">
-                    <h3 className="text-base font-semibold text-blue-900 flex items-center gap-2 mb-4">
-                        <Bell size={18} className="text-blue-600" />
-                        New Notifications
-                    </h3>
-                    <div className="space-y-3">
-                        {notifications.map(note => (
-                            <div key={note.id} onClick={() => handleNotificationClick(note)} className="flex items-start gap-4 bg-white p-4 rounded-xl border border-blue-100 shadow-sm transition-transform hover:scale-[1.01] cursor-pointer">
-                                <span className={`block w-2.5 h-2.5 mt-1.5 rounded-full flex-shrink-0 ${note.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'}`} />
-                                <div className="flex-1">
-                                    <p className="text-sm text-text-primary font-medium">{note.message}</p>
-                                    <p className="text-xs text-text-tertiary mt-1">{new Date(note.timestamp).toLocaleDateString()}</p>
-                                </div>
+
+
+            {/* Admin Feedback */}
+            {adminNotes.length > 0 && (
+                <div className="bg-surface-primary rounded-2xl border border-border-secondary p-6 shadow-sm flex flex-col justify-center animate-fade-in" style={{ animationDelay: '300ms' }}>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                                <MessageSquare size={18} />
                             </div>
-                        ))}
+                            <div>
+                                <h2 className="text-sm font-bold text-text-primary">Administrative Feedback</h2>
+                                <p className="text-xs text-text-tertiary">Notes from Leadership</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col h-full">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                            {adminNotes
+                                .slice((notesCurrentPage - 1) * notesPerPage, notesCurrentPage * notesPerPage)
+                                .map((note) => (
+                                    <div
+                                        key={note.id}
+                                        onClick={() => setSelectedFeedbackNote(note)}
+                                        className="p-4 bg-surface-secondary rounded-xl border border-border-secondary group relative cursor-pointer hover:border-indigo-500/50 hover:shadow-md transition-all flex flex-col justify-between"
+                                        style={{ minHeight: '120px' }}
+                                    >
+                                        <p className="text-sm font-medium text-text-primary italic whitespace-pre-wrap line-clamp-3">"{note.note}"</p>
+                                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-border-secondary/50">
+                                            <div className="flex items-center text-[10px] font-semibold text-text-tertiary">
+                                                <Clock size={10} className="mr-1" /> {new Date(note.created_at).toLocaleDateString()} • {note.author_role === 'HR' ? 'HR Team' : 'Admin'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {Math.ceil(adminNotes.length / notesPerPage) > 1 && (
+                            <div className="flex justify-center items-center gap-2 mt-4 pt-2 border-t border-border-secondary">
+                                {Array.from({ length: Math.ceil(adminNotes.length / notesPerPage) }).map((_, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setNotesCurrentPage(i + 1)}
+                                        className={`w-6 h-6 rounded-md text-[10px] font-bold flex items-center justify-center transition-all ${notesCurrentPage === i + 1
+                                            ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+                                            : 'bg-surface-secondary text-text-tertiary hover:text-text-primary'
+                                            }`}
+                                    >
+                                        {i + 1}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -442,6 +565,19 @@ export default function EmployeeDashboard() {
                                 <h3 className="text-sm font-semibold text-text-primary mb-2">Description</h3>
                                 <p className="text-sm text-text-secondary leading-relaxed bg-surface-secondary p-3 rounded-lg border border-border-secondary">{getTaskDescription(selectedTask)}</p>
                             </div>
+
+                            {selectedTask.rejection_reason && (
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-xl space-y-2">
+                                    <div className="flex items-center gap-2 text-red-600 font-bold text-xs uppercase tracking-wider">
+                                        <AlertCircle size={14} />
+                                        Rejection Reason
+                                    </div>
+                                    <p className="text-sm text-red-700 font-medium leading-relaxed">
+                                        {selectedTask.rejection_reason}
+                                    </p>
+                                </div>
+                            )}
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div><h3 className="text-sm font-semibold text-text-primary mb-1">Deadline</h3><p className="text-sm text-text-secondary flex items-center gap-1.5"><Clock size={14} className="text-brand-500" />{selectedTask.deadline}</p></div>
                                 <div><h3 className="text-sm font-semibold text-text-primary mb-1">Current Status</h3><StatusBadge variant="brand">{selectedTask.status}</StatusBadge></div>
@@ -470,9 +606,23 @@ export default function EmployeeDashboard() {
                         <div className="p-6 space-y-4">
                             <div>
                                 <h4 className="text-sm font-semibold text-text-primary mb-2">Message</h4>
-                                <p className="text-sm text-text-secondary leading-relaxed bg-surface-secondary p-3 rounded-lg border border-border-secondary">
-                                    {selectedNotification.message}
-                                </p>
+                                <div className="text-sm text-text-secondary leading-relaxed bg-surface-secondary p-3 rounded-lg border border-border-secondary">
+                                    {selectedNotification?.message?.includes('Reason: ') ? (
+                                        <>
+                                            <p className="mb-3">{selectedNotification.message.split('. Reason: ')[0].trim()}</p>
+                                            <div className="bg-red-50 p-3 rounded-lg border border-red-100 text-red-700">
+                                                <span className="font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5 mb-1.5">
+                                                    <AlertCircle size={14} /> Reason for Rejection
+                                                </span>
+                                                <p className="font-medium text-xs leading-relaxed">
+                                                    {selectedNotification.message.split('. Reason: ')[1]?.trim() || 'No reason provided'}
+                                                </p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <p>{selectedNotification?.message}</p>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center justify-between text-xs text-text-tertiary">
                                 <div className="flex items-center gap-1.5">
@@ -492,10 +642,10 @@ export default function EmployeeDashboard() {
                             >
                                 Close
                             </button>
-                            {selectedNotification.targetId && (
+                            {selectedNotification.related_id && (
                                 <button
                                     onClick={() => {
-                                        const task = tasks.find(t => t.id == selectedNotification.targetId);
+                                        const task = tasks.find(t => t.id == selectedNotification.related_id);
                                         if (task) {
                                             setSelectedTask(task);
                                             setSelectedNotification(null);
@@ -514,16 +664,45 @@ export default function EmployeeDashboard() {
                 document.body
             )}
 
-            {/* Delete Task Confirmation */}
-            <ConfirmDialog
-                isOpen={!!deleteTarget}
-                onClose={() => setDeleteTarget(null)}
-                onConfirm={confirmDeleteTask}
-                title="Delete Task"
-                message={deleteTarget ? `Are you sure you want to delete "${deleteTarget.title}"? This action cannot be undone.` : ''}
-                confirmLabel="Delete Task"
-                loading={deleting}
-            />
+            {/* Admin Feedback Note Modal */}
+            {selectedFeedbackNote && createPortal(
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedFeedbackNote(null)}>
+                    <div className="bg-surface-primary w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-border-secondary flex flex-col animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-border-secondary flex justify-between items-center bg-indigo-500/5">
+                            <h3 className="text-lg font-black text-text-primary flex items-center gap-2">
+                                <MessageSquare className="text-indigo-500" size={20} />
+                                Administrative Feedback
+                            </h3>
+                            <button onClick={() => setSelectedFeedbackNote(null)} className="p-2 rounded-xl text-text-tertiary hover:text-text-primary hover:bg-surface-secondary transition-all active:scale-95">
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-8">
+                            <div className="flex items-center gap-2 mb-6 text-xs font-semibold text-text-secondary bg-surface-secondary p-2.5 rounded-xl w-fit border border-border-secondary">
+                                <Clock size={14} className="text-text-tertiary" />
+                                {new Date(selectedFeedbackNote.created_at).toLocaleString()}
+                                <span className="mx-2 text-border-secondary">|</span>
+                                <span className="text-indigo-600">From: {selectedFeedbackNote.author_role === 'HR' ? 'HR Team' : 'Admin Team'}</span>
+                            </div>
+                            <div className="bg-surface-secondary/50 p-6 rounded-2xl border border-border-secondary shadow-sm">
+                                <p className="text-[15px] text-text-primary whitespace-pre-wrap italic leading-relaxed font-medium">
+                                    "{selectedFeedbackNote.note}"
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-border-secondary flex justify-end bg-surface-secondary/30">
+                            <button
+                                onClick={() => setSelectedFeedbackNote(null)}
+                                className="px-6 py-2.5 rounded-xl text-sm font-bold bg-surface-secondary hover:bg-border-secondary text-text-primary transition-all shadow-sm border border-border-secondary active:scale-95"
+                            >
+                                Close Note
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
         </div>
     );
 }

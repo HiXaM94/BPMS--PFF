@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2, Plus, Users, Globe, MapPin, Phone, Mail,
   MoreHorizontal, Edit, Trash2, Eye, ShieldAlert, ToggleLeft, ToggleRight,
@@ -9,7 +10,9 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useRole } from '../../contexts/RoleContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase, isSupabaseReady } from '../../services/supabase';
+import { landingSupabase } from '../../services/landingSupabase';
 import { cacheService } from '../../services/CacheService';
 
 /**
@@ -91,24 +94,17 @@ function getColumns(onView, onEdit, onToggleStatus, onDelete, isSuperAdmin) {
               <Edit size={14} className="text-text-tertiary" />
             </button>
           )}
-          <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Delete">
-            <Trash2 size={14} className="text-red-400" />
-          </button>
+          {isSuperAdmin && (
+            <button onClick={() => onToggleStatus(row)} className="p-1.5 rounded-lg hover:bg-surface-tertiary transition-colors cursor-pointer" title={row.status === 'suspended' ? 'Activate' : 'Pause'}>
+              {row.status === 'suspended' ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} className="text-amber-500" />}
+            </button>
+          )}
         </div>
       ),
     },
   ];
 }
 
-const industryStats = [
-  { label: 'Technology', count: 1, color: 'brand' },
-  { label: 'Finance', count: 1, color: 'brand' },
-  { label: 'Healthcare', count: 1, color: 'success' },
-  { label: 'Education', count: 1, color: 'info' },
-  { label: 'Retail', count: 1, color: 'warning' },
-  { label: 'Construction', count: 1, color: 'danger' },
-  { label: 'Logistics', count: 1, color: 'pink' },
-];
 
 const emptyCompanyForm = {
   name: '',
@@ -138,6 +134,9 @@ export default function EnterpriseManagement() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const { currentRole } = useRole();
+  const { profile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const isAdmin = currentRole.id === 'super_admin' || currentRole.id === 'company_admin';
   const isSuperAdmin = currentRole.id === 'super_admin';
@@ -145,57 +144,139 @@ export default function EnterpriseManagement() {
 
   // ── Fetch enterprises from Supabase ──
   const fetchEnterprises = useCallback(async () => {
-    if (!isSupabaseReady) { setEnterprises(defaultEnterprises); return; }
+    if (!isSupabaseReady) {
+      setEnterprises(defaultEnterprises);
+      return;
+    }
     setLoading(true);
-    const data = await cacheService.getOrSet('enterprises:list', async () => {
-      const { data, error } = await supabase.from('entreprises')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) { console.error('Fetch entreprises error:', error.message); return null; }
-      return data;
+    // 1. Fetch Landing DB Data for intersection (using the secure RPC we created)
+    let landingCompanyNames = new Set();
+    try {
+      const { data: landingData, error: landingError } = await landingSupabase.rpc('get_dashboard_subscriptions', {
+        admin_token: 'bpms_admin_secret_2026'
+      });
+      if (!landingError && landingData) {
+        landingData.forEach(s => {
+          if (s.company_name) {
+            landingCompanyNames.add(s.company_name.toLowerCase().trim());
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching landing DB subscriptions for enterprise view:", err);
+    }
+
+    // 2. Fetch SaaS DB Data (DB2)
+    const cacheKey = isSuperAdmin ? 'enterprises:list' : `enterprises:${profile?.entreprise_id || 'unknown'}`;
+    const data = await cacheService.getOrSet(cacheKey, async () => {
+      let query = supabase.from('entreprises').select('*');
+      if (!isSuperAdmin) {
+        if (profile?.entreprise_id) {
+          query = query.eq('id', profile.entreprise_id);
+        } else {
+          return null;
+        }
+      }
+      const { data: db2Data, error } = await query.order('created_at', { ascending: false });
+      if (error) {
+        console.error('Fetch entreprises error:', error.message);
+        return null;
+      }
+
+      // Fetch user counts to accurately show the number of employees profile per organization
+      try {
+        const { data: usersData, error: usersError } = await supabase.from('users').select('entreprise_id');
+        if (!usersError && usersData) {
+          const userCounts = {};
+          usersData.forEach(u => {
+            if (u.entreprise_id) {
+              userCounts[u.entreprise_id] = (userCounts[u.entreprise_id] || 0) + 1;
+            }
+          });
+          // Attach accurately calculated employee counts
+          return db2Data.map(e => ({
+            ...e,
+            employees: userCounts[e.id] || 0
+          }));
+        }
+      } catch (err) {
+        console.warn('Error fetching user count for enterprises', err);
+      }
+
+      return db2Data;
     }, 90);
-    if (data && data.length > 0) {
-      setEnterprises(data.map(e => ({
-        id: e.id,
-        company_id: e.company_id,
-        name: e.name,
-        industry: e.industry || '-',
-        employees: 0,
-        location: e.location || e.address || '-',
-        email: e.email || '-',
-        phone: e.phone || '',
-        status: e.status || 'active',
-        plan: e.plan || 'Starter',
-        created: new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      })));
+
+    // 3. Filter DB2 data: Only include companies that exist in Landing DB (intersection)
+    if (data) {
+      const intersectedData = isSuperAdmin
+        ? data.filter(e => landingCompanyNames.has((e.name || '').toLowerCase().trim()))
+        : data;
+
+      setEnterprises(intersectedData.map(e => {
+        const formatDate = (value) => value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+        return {
+          ...e,
+          employees: e.employees ?? 0,
+          location: e.location ?? e.address ?? '—',
+          status: e.status || 'active',
+          plan: e.plan || 'Starter',
+          created: formatDate(e.created_at),
+          updated: formatDate(e.updated_at),
+          country: e.country || '—',
+          legal_form: e.legal_form || '—',
+          if_number: e.if_number || '—',
+          cnss: e.cnss || '—',
+          ice: e.ice || '—',
+          rc: e.rc || '—',
+          patente: e.patente || '—',
+          logo_url: e.logo_url || '—',
+          capital: e.capital || '—',
+        };
+      }));
+    } else {
+      setEnterprises([]);
     }
     setLoading(false);
-  }, []);
+  }, [isSuperAdmin, profile?.entreprise_id]);
 
   useEffect(() => { fetchEnterprises(); }, [fetchEnterprises]);
 
-  // ─── company_id filtering ───
-  // Super Admin sees ALL companies. Other roles see only their own company.
-  const visibleEnterprises = isSuperAdmin
-    ? enterprises
-    : enterprises.filter(e => e.company_id === currentRole.companyId);
+  // Handle auto-opening the details modal from a router redirection (e.g. from Subscriptions Analytics)
+  useEffect(() => {
+    if (location.state?.openCompanyDetails && enterprises.length > 0) {
+      const targetName = location.state.openCompanyDetails.toLowerCase();
+      const targetCompany = enterprises.find(e => e.name.toLowerCase() === targetName);
 
-  const filtered = visibleEnterprises.filter(e =>
+      if (targetCompany) {
+        setViewEnterprise(targetCompany);
+        // Clean up the state so it doesn't endlessly reopen if the user closes it and interacts with the page
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.state?.openCompanyDetails, enterprises, navigate, location.pathname]);
+
+  const filtered = enterprises.filter(e =>
     e.name.toLowerCase().includes(search.toLowerCase()) ||
     e.industry.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalEmployees = visibleEnterprises.reduce((sum, e) => sum + e.employees, 0);
-  const activeCount = visibleEnterprises.filter(e => e.status === 'active').length;
+  const totalEmployees = enterprises.reduce((sum, e) => sum + e.employees, 0);
+  const activeCount = enterprises.filter(e => e.status === 'active').length;
 
-  // Derive industry stats from what the user can see
-  const visibleIndustries = isSuperAdmin
-    ? industryStats
-    : visibleEnterprises.map(e => ({
-      label: e.industry,
-      count: 1,
-      color: industryStats.find(i => i.label === e.industry)?.color || 'neutral',
-    }));
+  // Derive legal status stats dynamically from the actual data
+  const legalStatusCounts = enterprises.reduce((acc, e) => {
+    const legalStatus = e.legal_form && e.legal_form !== '-' ? e.legal_form : 'Other';
+    acc[legalStatus] = (acc[legalStatus] || 0) + 1;
+    return acc;
+  }, {});
+
+  const predefinedColors = ['brand', 'success', 'info', 'warning', 'danger', 'pink', 'purple', 'emerald'];
+
+  const visibleLegalStatuses = Object.entries(legalStatusCounts).map(([label, count], index) => ({
+    label,
+    count,
+    color: predefinedColors[index % predefinedColors.length]
+  })).sort((a, b) => b.count - a.count);
 
   const handleInputChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -239,14 +320,25 @@ export default function EnterpriseManagement() {
     showToast(`${ent.name} ${newStatus === 'active' ? 'activated' : 'suspended'}.`);
 
     if (isSupabaseReady) {
+      // 1. Update company status
       const { error } = await supabase.from('entreprises')
         .update({ status: newStatus }).eq('id', ent.id);
+
       if (error) {
         showToast(`Error: ${error.message}`);
         fetchEnterprises(); // rollback
         return;
       }
+
+      // 2. Cascade suspended status to all users linked to this company
+      // This enforces the DB-level block because `verify_login` and the frontend
+      // also check user.status explicitly for login success.
+      await supabase.from('users')
+        .update({ status: newStatus === 'suspended' ? 'suspended' : 'active' })
+        .eq('entreprise_id', ent.id);
+
       cacheService.invalidatePattern('^enterprises:');
+      cacheService.invalidatePattern('^users:');
       cacheService.invalidatePattern('^admin:');
     }
   };
@@ -356,10 +448,10 @@ export default function EnterpriseManagement() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Organizations', value: visibleEnterprises.length, icon: Building2, color: 'from-brand-500 to-brand-600' },
+          { label: 'Total Organizations', value: enterprises.length, icon: Building2, color: 'from-brand-500 to-brand-600' },
           { label: 'Active', value: activeCount, icon: Globe, color: 'from-emerald-500 to-teal-600' },
           { label: 'Total Employees', value: totalEmployees.toLocaleString(), icon: Users, color: 'from-brand-500 to-brand-600' },
-          { label: 'Industries', value: visibleIndustries.length, icon: Globe, color: 'from-amber-500 to-orange-600' },
+          { label: 'Legal Status', value: visibleLegalStatuses.length, icon: Globe, color: 'from-amber-500 to-orange-600' },
         ].map((card, i) => (
           <div key={i} className="bg-surface-primary rounded-2xl border border-border-secondary p-4
                                   hover:shadow-md transition-all duration-300 group animate-fade-in"
@@ -376,14 +468,14 @@ export default function EnterpriseManagement() {
         ))}
       </div>
 
-      {/* Industries */}
+      {/* Legal Statuses */}
       <div className="bg-surface-primary rounded-2xl border border-border-secondary p-5 animate-fade-in"
         style={{ animationDelay: '350ms' }}>
-        <h2 className="text-sm font-semibold text-text-primary mb-3">Industries</h2>
+        <h2 className="text-sm font-semibold text-text-primary mb-3">Legal Status</h2>
         <div className="flex flex-wrap gap-2">
-          {visibleIndustries.map(ind => (
-            <StatusBadge key={ind.label} variant={ind.color} size="md">
-              {ind.label} ({ind.count})
+          {visibleLegalStatuses.map(status => (
+            <StatusBadge key={status.label} variant={status.color} size="md">
+              {status.label} ({status.count})
             </StatusBadge>
           ))}
         </div>
@@ -416,7 +508,7 @@ export default function EnterpriseManagement() {
         isOpen={!!viewEnterprise}
         onClose={() => setViewEnterprise(null)}
         title="Organization Details"
-        maxWidth="max-w-md"
+        maxWidth="max-w-3xl"
         footer={
           <div className="flex justify-end">
             <button onClick={() => setViewEnterprise(null)}
@@ -431,7 +523,7 @@ export default function EnterpriseManagement() {
         {viewEnterprise && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/15 shrink-0">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-neutral-100 dark:bg-neutral-800 border-2 border-white dark:border-neutral-700 shrink-0 shadow-sm">
                 <Building2 size={22} className="text-brand-500" />
               </div>
               <div>
@@ -440,24 +532,32 @@ export default function EnterpriseManagement() {
               </div>
             </div>
             <div className="divide-y divide-border-secondary">
-              {[
-                { label: 'Status', value: <StatusBadge variant={{ active: 'success', trial: 'warning', suspended: 'danger' }[viewEnterprise.status]} dot size="sm">{viewEnterprise.status}</StatusBadge> },
-                { label: 'Plan', value: <StatusBadge variant={viewEnterprise.plan === 'Enterprise' ? 'brand' : viewEnterprise.plan === 'Business' ? 'brand' : 'neutral'} size="sm">{viewEnterprise.plan}</StatusBadge> },
-                { label: 'Address', value: viewEnterprise.address || viewEnterprise.location },
-                { label: 'Location', value: viewEnterprise.location },
-                { label: 'Email', value: viewEnterprise.email },
-                { label: 'Phone', value: viewEnterprise.phone || '—' },
-                { label: 'RC', value: viewEnterprise.rc || '—' },
-                { label: 'ICE', value: viewEnterprise.ice || '—' },
-                { label: 'Capital', value: viewEnterprise.capital || '—' },
-                { label: 'Employees', value: viewEnterprise.employees },
-                { label: 'Created', value: viewEnterprise.created },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-start justify-between py-2.5 gap-4">
-                  <span className="text-xs text-text-tertiary uppercase tracking-wider shrink-0">{label}</span>
-                  <span className="text-sm text-text-primary text-right">{value}</span>
-                </div>
-              ))}
+              <div className="grid gap-3 py-3 sm:grid-cols-2">
+                {[
+                  { label: 'Status', value: <StatusBadge variant={{ active: 'success', trial: 'warning', suspended: 'danger' }[viewEnterprise.status]} dot size="sm">{viewEnterprise.status}</StatusBadge> },
+                  { label: 'Plan', value: <StatusBadge variant={viewEnterprise.plan === 'Enterprise' ? 'brand' : viewEnterprise.plan === 'Business' ? 'brand' : 'neutral'} size="sm">{viewEnterprise.plan}</StatusBadge> },
+                  { label: 'Location', value: viewEnterprise.location },
+                  { label: 'Email', value: viewEnterprise.email },
+                  { label: 'Phone', value: viewEnterprise.phone || '—' },
+                  { label: 'RC', value: viewEnterprise.rc },
+                  { label: 'ICE', value: viewEnterprise.ice },
+                  { label: 'IF Number', value: viewEnterprise.if_number },
+                  { label: 'CNSS', value: viewEnterprise.cnss },
+                  { label: 'Patente', value: viewEnterprise.patente },
+                  { label: 'Legal Form', value: viewEnterprise.legal_form },
+                  { label: 'Country', value: viewEnterprise.country },
+                  { label: 'Capital', value: viewEnterprise.capital },
+                  { label: 'Employees', value: viewEnterprise.employees },
+                  { label: 'Created', value: viewEnterprise.created },
+                  { label: 'Updated', value: viewEnterprise.updated },
+                  { label: 'Logo URL', value: viewEnterprise.logo_url ? <a href={viewEnterprise.logo_url} target="_blank" rel="noreferrer" className="text-brand-500 underline break-all">{viewEnterprise.logo_url}</a> : '—' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex flex-col gap-0.5 rounded-lg border border-border-secondary/40 px-3 py-2">
+                    <span className="text-[11px] text-text-tertiary uppercase tracking-wider">{label}</span>
+                    <span className="text-sm text-text-primary">{value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

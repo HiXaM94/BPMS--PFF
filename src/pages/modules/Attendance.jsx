@@ -33,13 +33,7 @@ export default function Attendance() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="Attendance Dashboard"
-        description={`Logged in as: ${currentRole.label}`}
-        icon={Clock}
-        iconColor="from-cyan-500 to-blue-600"
-      />
+    <div className="animate-fade-in">
       {renderDashboard()}
     </div>
   );

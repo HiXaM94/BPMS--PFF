@@ -48,9 +48,9 @@ export default function Navbar() {
       className={`sticky top-0 z-30 flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8
                   transition-all duration-300 ease-in-out
                   ${scrolled
-                    ? 'mx-3 mt-3 rounded-2xl bg-surface-primary/80 backdrop-blur-xl shadow-md border border-border-secondary/50'
-                    : 'lg:rounded-t-[20px] bg-surface-secondary/95 backdrop-blur-xl'
-                  }`}
+          ? 'mx-3 mt-3 rounded-2xl bg-surface-primary/80 backdrop-blur-xl shadow-md border border-border-secondary/50'
+          : 'lg:rounded-t-[20px] bg-surface-secondary/95 backdrop-blur-xl'
+        }`}
     >
       {/* Left */}
       <div className="flex items-center gap-3">
@@ -66,12 +66,8 @@ export default function Navbar() {
       {/* Right */}
       <div className="flex items-center gap-1.5">
         {/* Role switching restricted to privileged admin roles only */}
-        {(currentRole.id === 'super_admin' || currentRole.id === 'company_admin') && (
-          <>
-            <RoleSwitcher />
-            <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1" />
-          </>
-        )}
+        <RoleSwitcher />
+        <div className="hidden sm:block w-px h-7 bg-border-secondary mx-1" />
         <button className="flex items-center justify-center w-9 h-9 rounded-xl
                            hover:bg-surface-tertiary transition-colors duration-200 cursor-pointer group"
           aria-label="Search">
@@ -90,8 +86,12 @@ export default function Navbar() {
                        hover:bg-surface-tertiary transition-all duration-200 cursor-pointer group"
           >
             <div className="flex items-center justify-center w-8 h-8 rounded-full
-                            bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm shrink-0">
-              <span className="text-white text-xs font-bold">{initials}</span>
+                            bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm shrink-0 overflow-hidden">
+              {profile?.profile_image_url ? (
+                <img src={profile.profile_image_url} alt={displayName} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white text-xs font-bold">{initials}</span>
+              )}
             </div>
             <div className="hidden sm:flex flex-col items-start min-w-0">
               <span className="text-sm font-semibold text-text-primary leading-tight truncate max-w-[100px]">
@@ -109,15 +109,24 @@ export default function Navbar() {
                            ${userMenuOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}>
             <div className="px-4 py-3 border-b border-border-secondary">
               <p className="text-sm font-semibold text-text-primary truncate">{profile?.name || 'User'}</p>
-              <p className="text-xs text-text-tertiary truncate">{profile?.email || ''}</p>
+              <p className="text-[11px] text-text-tertiary truncate mb-0.5">{profile?.email || ''}</p>
+              {profile?.entreprise?.name && (
+                <p className="text-[10px] font-bold text-brand-600 uppercase tracking-tight truncate">
+                  {profile.entreprise.name}
+                </p>
+              )}
             </div>
             <div className="py-1">
-              <button onClick={() => { navigate('/profile'); setUserMenuOpen(false); }}
+              <button onClick={() => { navigate('/profile?openSelf=true'); setUserMenuOpen(false); }}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary
                            hover:bg-surface-secondary hover:text-text-primary transition-colors cursor-pointer">
                 <User size={15} /> {t('navbar.myProfile')}
               </button>
-              <button onClick={() => { navigate('/settings'); setUserMenuOpen(false); }}
+              <button onClick={() => {
+                const isManagerOrEmployee = currentRole?.id === 'manager' || currentRole?.id === 'employee';
+                navigate(isManagerOrEmployee ? '/my-settings' : '/settings');
+                setUserMenuOpen(false);
+              }}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary
                            hover:bg-surface-secondary hover:text-text-primary transition-colors cursor-pointer">
                 <Settings size={15} /> {t('navbar.settings')}

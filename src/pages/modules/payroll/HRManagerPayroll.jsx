@@ -1,75 +1,219 @@
 import { useState, useEffect } from 'react';
 import {
     Calculator, Send, DollarSign, Clock, CheckCircle2, FileText,
-    Loader2, Download, Receipt, Users
+    Loader2, Download, Receipt, Users, Edit3, X, Save, FilePlus,
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 import StatCard from '../../../components/ui/StatCard';
 import { useAuth } from '../../../contexts/AuthContext';
-import { fmt, fmtDate, periodLabel, fetchPayrollsByPeriod, generatePayslipPDF, generateBatchPayslipsPDF } from './payrollUtils';
+import { fmt, fmtDate, periodLabel, fetchPayrollsByPeriod, generatePayslipPDF, generateBatchPayslipsPDF, updatePayrollAmounts, generateTeamPayrolls, submitPayrollBatch } from './payrollUtils';
 
 export default function HRManagerPayroll() {
     const { profile } = useAuth();
     const [submitted, setSubmitted] = useState(false);
-    const [toast, setToast] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [payrolls, setPayrolls] = useState([]);
     const [stats, setStats] = useState({ totalNetScheduled: 0, totalEmployees: 0, overtimeProcessed: 0, employeesWithOvertime: 0, advancesDeducted: 0, employeesWithAdvances: 0 });
+    const [toast, setToast] = useState('');
+
+    // Editing State
+    const [editingPayroll, setEditingPayroll] = useState(null);
+    const [editForm, setEditForm] = useState({ bonuses: '', deductions: '' });
+    const [savingEdit, setSavingEdit] = useState(false);
+
+    const [payrolls, setPayrolls] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // Pagination State
+    const ITEMS_PER_PAGE = 6;
+    const [breakdownPage, setBreakdownPage] = useState(1);
+    const [whoGetsWhatPage, setWhoGetsWhatPage] = useState(1);
+
+    const PaginationControls = ({ currentPage, totalItems, onPageChange, itemsPerPage }) => {
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        if (totalPages <= 1) return null;
+
+        return (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border-secondary bg-surface-primary/50">
+                <div className="text-xs text-text-tertiary">
+                    Showing <span className="font-bold text-text-secondary">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-bold text-text-secondary">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of <span className="font-bold text-text-secondary">{totalItems}</span> results
+                </div>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="p-1.5 rounded-lg border border-border-secondary hover:bg-surface-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-text-secondary cursor-pointer"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <button
+                            key={page}
+                            onClick={() => onPageChange(page)}
+                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                ? 'bg-brand-500 text-white shadow-sm'
+                                : 'text-text-secondary hover:bg-surface-secondary border border-transparent hover:border-border-secondary cursor-pointer'
+                                }`}
+                        >
+                            {page}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                        className="p-1.5 rounded-lg border border-border-secondary hover:bg-surface-secondary disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-text-secondary cursor-pointer"
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const fetchPayrollStats = async () => {
+        setLoading(true);
+        try {
+            const data = await fetchPayrollsByPeriod('2026-03-01', '2026-03-31', profile?.entreprise_id);
+
+            if (data && data.length > 0) {
+                let totalNet = 0;
+                let overtimeTotal = 0;
+                let overtimeCount = 0;
+                let advancesTotal = 0;
+                let advancesCount = 0;
+                const employeeSet = new Set();
+
+                data.forEach(p => {
+                    totalNet += Number(p.net_salary || 0);
+                    employeeSet.add(p.employee_id);
+
+                    if (Number(p.overtime_pay) > 0) {
+                        overtimeTotal += Number(p.overtime_pay);
+                        overtimeCount++;
+                    }
+
+                    if (Number(p.deductions) > 0) {
+                        advancesTotal += Number(p.deductions);
+                        advancesCount++;
+                    }
+                });
+
+                setStats({
+                    totalNetScheduled: totalNet,
+                    totalEmployees: employeeSet.size || data.length,
+                    overtimeProcessed: overtimeTotal,
+                    employeesWithOvertime: overtimeCount,
+                    advancesDeducted: advancesTotal,
+                    employeesWithAdvances: advancesCount
+                });
+                setPayrolls(data);
+            }
+        } catch (err) {
+            console.error("Error fetching payroll stats:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
     useEffect(() => {
-        async function fetchPayrollStats() {
-            setLoading(true);
-            try {
-                const data = await fetchPayrollsByPeriod('2026-03-01', '2026-03-31', profile?.entreprise_id);
-
-                if (data && data.length > 0) {
-                    let totalNet = 0;
-                    let overtimeTotal = 0;
-                    let overtimeCount = 0;
-                    let advancesTotal = 0;
-                    let advancesCount = 0;
-                    const employeeSet = new Set();
-
-                    data.forEach(p => {
-                        totalNet += Number(p.net_salary || 0);
-                        employeeSet.add(p.employee_id);
-
-                        if (Number(p.overtime_pay) > 0) {
-                            overtimeTotal += Number(p.overtime_pay);
-                            overtimeCount++;
-                        }
-
-                        if (Number(p.deductions) > 0) {
-                            advancesTotal += Number(p.deductions);
-                            advancesCount++;
-                        }
-                    });
-
-                    setStats({
-                        totalNetScheduled: totalNet,
-                        totalEmployees: employeeSet.size || data.length,
-                        overtimeProcessed: overtimeTotal,
-                        employeesWithOvertime: overtimeCount,
-                        advancesDeducted: advancesTotal,
-                        employeesWithAdvances: advancesCount
-                    });
-                    setPayrolls(data);
-                }
-            } catch (err) {
-                console.error("Error fetching payroll stats:", err);
-            } finally {
-                setLoading(false);
-            }
+        if (profile?.entreprise_id) {
+            fetchPayrollStats();
         }
-
-        fetchPayrollStats();
     }, [profile?.entreprise_id]);
+
+    const handleGeneratePayroll = async () => {
+        setLoading(true);
+        try {
+            const success = await generateTeamPayrolls(profile.entreprise_id, '2026-03-01', '2026-03-31');
+            if (success) {
+                flash('Payroll records generated successfully!');
+                await fetchPayrollStats();
+            } else {
+                flash('Failed to generate payroll records.');
+            }
+        } catch (err) {
+            console.error(err);
+            flash('Error generating payroll');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSubmitForApproval = async () => {
         if (submitted) return;
-        setSubmitted(true);
-        flash('Payroll submitted for approval');
+        setLoading(true);
+        try {
+            const success = await submitPayrollBatch(profile.entreprise_id, '2026-03-01', '2026-03-31');
+            if (success) {
+                setSubmitted(true);
+                flash('Payroll submitted for Admin approval!');
+            } else {
+                flash('Error submitting payroll records.');
+            }
+        } catch (err) {
+            console.error(err);
+            flash('Failed to submit payroll.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingPayroll) return;
+        setSavingEdit(true);
+        try {
+            const res = await updatePayrollAmounts(
+                editingPayroll.id,
+                editingPayroll.salary_base,
+                editingPayroll.overtime_pay,
+                editForm.bonuses,
+                editForm.deductions
+            );
+            if (res) {
+                // Update local state
+                const updatedPayrolls = payrolls.map(p => {
+                    if (p.id === editingPayroll.id) {
+                        return {
+                            ...p,
+                            bonuses: editForm.bonuses,
+                            deductions: editForm.deductions,
+                            net_salary: res.netSalary
+                        };
+                    }
+                    return p;
+                });
+
+                // Recalculate stats
+                let totalNet = 0;
+                let advancesTotal = 0;
+                let advancesCount = 0;
+                updatedPayrolls.forEach(p => {
+                    totalNet += Number(p.net_salary || 0);
+                    if (Number(p.deductions) > 0) {
+                        advancesTotal += Number(p.deductions);
+                        advancesCount++;
+                    }
+                });
+
+                setStats(s => ({
+                    ...s,
+                    totalNetScheduled: totalNet,
+                    advancesDeducted: advancesTotal,
+                    employeesWithAdvances: advancesCount
+                }));
+
+                setPayrolls(updatedPayrolls);
+                flash(`Updated payroll for ${editingPayroll.employees?.users?.name || 'Employee'}`);
+                setEditingPayroll(null);
+            } else {
+                flash('Error updating payroll');
+            }
+        } catch (err) {
+            console.error(err);
+            flash('Error saving changes');
+        } finally {
+            setSavingEdit(false);
+        }
     };
 
     if (loading) {
@@ -82,10 +226,17 @@ export default function HRManagerPayroll() {
 
     if (payrolls.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="flex flex-col items-center justify-center py-24 text-center animate-fade-in">
                 <Receipt size={48} className="text-text-tertiary mb-4" />
-                <h3 className="text-lg font-bold text-text-primary">No Payroll Data</h3>
-                <p className="text-text-secondary mt-2 max-w-sm">No payroll records found. Records will appear once the payroll cycle is processed.</p>
+                <h3 className="text-lg font-bold text-text-primary">No Payroll Data Generated</h3>
+                <p className="text-text-secondary mt-2 max-w-sm mb-6">No payroll records found for this period. Click the button below to fetch all active employees and calculate their default salaries automatically based on their contract.</p>
+                <button
+                    onClick={handleGeneratePayroll}
+                    className="flex items-center gap-2 px-6 py-3 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm cursor-pointer"
+                >
+                    <FilePlus size={18} />
+                    Generate Payroll for All Employees
+                </button>
             </div>
         );
     }
@@ -159,13 +310,17 @@ export default function HRManagerPayroll() {
                                 <th className="px-5 py-3 font-medium text-right">Overtime</th>
                                 <th className="px-5 py-3 font-medium text-right">Deductions</th>
                                 <th className="px-5 py-3 font-medium text-right">Net Salary</th>
-                                <th className="px-5 py-3 font-medium text-center">PDF</th>
+                                <th className="px-5 py-3 font-medium text-center">Status</th>
+                                <th className="px-5 py-3 font-medium text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="text-text-primary divide-y divide-border-secondary">
-                            {payrolls.map((row) => {
+                            {payrolls.slice((breakdownPage - 1) * ITEMS_PER_PAGE, breakdownPage * ITEMS_PER_PAGE).map((row) => {
                                 const empName = row.employees?.users?.name || 'Employee';
                                 const position = row.employees?.position || '-';
+                                const rowStatus = row.status || 'draft';
+                                const isSubmitted = rowStatus === 'pending' || rowStatus === 'approved' || submitted;
+
                                 return (
                                     <tr key={row.id} className="hover:bg-surface-secondary/50 transition-colors">
                                         <td className="px-5 py-3 font-medium">
@@ -183,12 +338,31 @@ export default function HRManagerPayroll() {
                                         <td className="px-5 py-3 text-right text-red-400 font-medium">{Number(row.deductions) > 0 ? `-${fmt(row.deductions)}` : '-'}</td>
                                         <td className="px-5 py-3 text-right font-bold">{fmt(row.net_salary)}</td>
                                         <td className="px-5 py-3 text-center">
-                                            <button
-                                                onClick={() => { generatePayslipPDF({ ...row, position }, empName); flash(`Downloaded payslip for ${empName}`); }}
-                                                className="p-1.5 rounded-lg hover:bg-surface-secondary transition-colors cursor-pointer"
-                                            >
-                                                <Download size={16} className="text-text-tertiary hover:text-brand-500 transition-colors" />
-                                            </button>
+                                            <span className={`px-2 py-1 text-xs font-semibold rounded-md ${isSubmitted ? 'bg-amber-500/10 text-amber-600' : 'bg-surface-secondary text-text-secondary'}`}>
+                                                {isSubmitted ? 'Submitted' : 'Draft'}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-3 text-center">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingPayroll(row);
+                                                        setEditForm({ bonuses: row.bonuses || '', deductions: row.deductions || '' });
+                                                    }}
+                                                    disabled={isSubmitted}
+                                                    title="Edit Additions & Deductions"
+                                                    className={`p-1.5 rounded-lg transition-colors ${isSubmitted ? 'opacity-50 cursor-not-allowed text-text-tertiary' : 'hover:bg-brand-50 hover:text-brand-500 text-text-tertiary cursor-pointer'}`}
+                                                >
+                                                    <Edit3 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => { generatePayslipPDF({ ...row, position }, empName); flash(`Downloaded payslip for ${empName}`); }}
+                                                    title="Download PDF"
+                                                    className="p-1.5 rounded-lg hover:bg-surface-secondary text-text-tertiary hover:text-brand-500 transition-colors cursor-pointer"
+                                                >
+                                                    <Download size={16} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -203,10 +377,17 @@ export default function HRManagerPayroll() {
                                 <td className="px-5 py-3 text-right text-red-400">{fmt(totalDeductions)}</td>
                                 <td className="px-5 py-3 text-right">{fmt(stats.totalNetScheduled)}</td>
                                 <td className="px-5 py-3"></td>
+                                <td className="px-5 py-3"></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
+                <PaginationControls
+                    currentPage={breakdownPage}
+                    totalItems={payrolls.length}
+                    onPageChange={setBreakdownPage}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                />
             </div>
 
             {/* ── Payroll Intelligence ── */}
@@ -240,7 +421,7 @@ export default function HRManagerPayroll() {
                                 <Users size={13} /> Who gets what
                             </h4>
                             <div className="space-y-3">
-                                {payrolls.map((row, idx) => {
+                                {payrolls.slice((whoGetsWhatPage - 1) * ITEMS_PER_PAGE, whoGetsWhatPage * ITEMS_PER_PAGE).map((row, idx) => {
                                     const empName = row.employees?.users?.name || 'Employee';
                                     const initials = empName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                                     const position = row.employees?.position || '-';
@@ -269,6 +450,14 @@ export default function HRManagerPayroll() {
                                         </div>
                                     );
                                 })}
+                            </div>
+                            <div className="mt-4">
+                                <PaginationControls
+                                    currentPage={whoGetsWhatPage}
+                                    totalItems={payrolls.length}
+                                    onPageChange={setWhoGetsWhatPage}
+                                    itemsPerPage={ITEMS_PER_PAGE}
+                                />
                             </div>
                         </div>
 
@@ -364,16 +553,104 @@ export default function HRManagerPayroll() {
                     </div>
                 </div>
 
-                {/* Submit Bar */}
-                <div className="p-5 border-t border-border-secondary bg-surface-secondary/30">
-                    <button
-                        onClick={handleSubmitForApproval}
-                        disabled={submitted}
-                        className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer text-sm ${submitted ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-gradient-to-r from-brand-500 to-indigo-600 text-white hover:shadow-brand-500/30 hover:scale-[1.005]'} disabled:cursor-not-allowed`}>
-                        {submitted ? <><CheckCircle2 size={18} /> Submitted for Admin Approval</> : <><Send size={18} /> Submit Payroll for Approval</>}
-                    </button>
+                <div className="p-6 border-t border-border-secondary bg-surface-primary flex items-center justify-between">
+                    <div>
+                        <h4 className="font-bold text-text-primary capitalize text-sm">Action Required</h4>
+                        <p className="text-xs text-text-secondary mt-1">Review all calculations carefully. Submitting indicates HR validation.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleGeneratePayroll}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-surface-secondary text-text-primary rounded-xl text-sm font-bold hover:bg-border-secondary transition-colors cursor-pointer"
+                        >
+                            <FilePlus size={18} /> Re-Sync
+                        </button>
+                        <button
+                            onClick={handleSubmitForApproval}
+                            disabled={submitted || payrolls.some(p => p.status === 'pending' || p.status === 'approved')}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all duration-300 ${submitted || payrolls.some(p => p.status === 'pending' || p.status === 'approved') ?
+                                'bg-surface-secondary text-text-tertiary cursor-not-allowed' :
+                                'bg-brand-500 text-white hover:bg-brand-600 hover:shadow-brand-500/25 hover:shadow-lg cursor-pointer'
+                                }`}
+                        >
+                            {(submitted || payrolls.some(p => p.status === 'pending' || p.status === 'approved')) ? <><CheckCircle2 size={18} /> Submitted for Admin Approval</> : <><Send size={18} /> Submit Payroll for Approval</>}
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            {/* Edit Modal */}
+            {editingPayroll && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-surface-primary rounded-2xl border border-border-secondary shadow-2xl w-full max-w-md animate-scale-in">
+                        <div className="p-5 border-b border-border-secondary flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-text-primary">Edit Payroll Entries</h3>
+                            <button onClick={() => setEditingPayroll(null)} className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-surface-secondary rounded-lg transition-colors cursor-pointer">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-6">
+                                <p className="text-sm text-text-secondary">Employee</p>
+                                <p className="font-bold text-text-primary">{editingPayroll.employees?.users?.name || 'Employee'}</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-text-primary mb-1.5">Additions (Bonuses) <span className="text-emerald-500">+</span></label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <span className="text-text-tertiary font-medium">MAD</span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={editForm.bonuses}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, bonuses: e.target.value }))}
+                                            placeholder="0.00"
+                                            className="w-full pl-12 pr-4 py-2.5 bg-surface-secondary border border-border-secondary rounded-xl text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-text-primary mb-1.5">Deductions <span className="text-red-400">-</span></label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <span className="text-text-tertiary font-medium">MAD</span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={editForm.deductions}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, deductions: e.target.value }))}
+                                            placeholder="0.00"
+                                            className="w-full pl-12 pr-4 py-2.5 bg-surface-secondary border border-border-secondary rounded-xl text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="mt-4 p-4 rounded-xl bg-surface-secondary border border-border-secondary flex justify-between items-center text-sm">
+                                    <span className="font-medium text-text-secondary">New Net Salary:</span>
+                                    <span className="font-bold text-text-primary text-lg">
+                                        {fmt(Number(editingPayroll.salary_base || 0) + Number(editingPayroll.overtime_pay || 0) + Number(editForm.bonuses || 0) - Number(editForm.deductions || 0))}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-5 border-t border-border-secondary flex justify-end gap-3 bg-surface-secondary/30">
+                            <button onClick={() => setEditingPayroll(null)} className="px-5 py-2.5 rounded-xl font-semibold text-text-secondary hover:bg-surface-secondary transition-colors cursor-pointer">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                disabled={savingEdit}
+                                className="flex items-center gap-2 px-6 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                            >
+                                {savingEdit ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

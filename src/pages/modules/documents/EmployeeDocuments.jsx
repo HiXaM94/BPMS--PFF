@@ -202,13 +202,13 @@ export default function EmployeeDocuments() {
             if (upErr) throw upErr;
 
             const { data: rec } = await supabase.from('documents').insert({
-                employee_id: profile.id,
-                entreprise_id: profile.entreprise_id || null,
+                user_id: profile.id,
+                entreprise_id: profile.entreprise_id || profile.entreprise?.id,
                 title: docKey,
                 file_url: path,
                 type: 'onboarding',
                 status: 'pending',
-                uploaded_by: profile.id,
+                uploaded_by: profile.id
             }).select().single();
 
             clearInterval(progressInterval);
@@ -249,9 +249,12 @@ export default function EmployeeDocuments() {
 
             const { error } = await supabase
                 .from('documents')
-                .update({ status: 'submitted' })
-                .eq('employee_id', profile.id)
-                .eq('type', 'onboarding')
+                .update({
+                    status: 'submitted',
+                    entreprise_id: profile.entreprise_id || profile.entreprise?.id
+                })
+                .eq('user_id', profile.id)
+                .eq('doc_type', 'onboarding')
                 .eq('status', 'pending');
             if (error) {
                 flash('Error submitting: ' + error.message, 'error');
