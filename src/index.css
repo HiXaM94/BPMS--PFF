@@ -198,6 +198,14 @@
     font-weight: 400 !important;
   }
 
+  p.text-3xl {
+    font-weight: 400 !important;
+  }
+
+  span.text-2xl {
+    font-weight: 400 !important;
+  }
+
   .text-gradient {
     background: linear-gradient(135deg, #6366f1, #818cf8);
     -webkit-background-clip: text;
