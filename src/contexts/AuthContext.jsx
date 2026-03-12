@@ -64,14 +64,18 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    let mounted = true;
+
     // Get initial session
     console.log('[AuthContext] Fetching initial session...');
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+      if (!mounted) return;
       console.log('[AuthContext] Session fetched:', s?.user?.email || 'No user');
       setSession(s);
       if (s?.user) {
         console.log('[AuthContext] Fetching profile for user:', s.user.id);
         const profile = await fetchProfile(s.user.id);
+        if (!mounted) return;
         console.log('[AuthContext] Profile fetched:', profile?.email || 'No profile');
         setProfile(profile);
         // Warm up cache with frequent queries after login
@@ -83,6 +87,7 @@ export function AuthProvider({ children }) {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      if (!mounted) return;
       // If we're in the middle of creating a new user, ignore the session switch
       if (suppressAuthChange.current) return;
       setSession(s);
@@ -90,13 +95,16 @@ export function AuthProvider({ children }) {
         // Fire-and-forget: do NOT await fetchProfile here.
         // Awaiting inside onAuthStateChange blocks Supabase's auth state machine
         // and prevents updateUser() / signInWithPassword() from resolving.
-        fetchProfile(s.user.id).then(p => { if (p) setProfile(p); });
+        fetchProfile(s.user.id).then(p => { if (mounted && p) setProfile(p); });
       } else {
         setProfile(null);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const signIn = useCallback(async (email, password) => {
