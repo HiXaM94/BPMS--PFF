@@ -281,7 +281,7 @@ export default function HRWorkflow() {
           edges_json: edges,
           updated_by: profile.id,
         }, { onConflict: 'entreprise_id,workflow_key' });
-        auditService.log('WORKFLOW_SAVED', 'hr_workflow', activeWorkflow, null, { nodeCount: nodes.length, edgeCount: edges.length }).catch(() => {});
+        auditService.log('WORKFLOW_SAVED', 'hr_workflow', null, null, { workflow_key: activeWorkflow, nodeCount: nodes.length, edgeCount: edges.length }).catch(() => {});
       } catch (err) {
         console.error('[HRWorkflow] Supabase save failed:', err.message);
       }

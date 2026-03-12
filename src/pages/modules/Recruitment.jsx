@@ -148,6 +148,7 @@ export default function Recruitment() {
       salary_range: form.salaryMin && form.salaryMax ? `${form.salaryMin}K-${form.salaryMax}K MAD` : null,
       description: form.description,
       status: 'open',
+      is_public: true,
     });
     setSaving(false);
     if (error) { flash('Error: ' + error.message); return; }
