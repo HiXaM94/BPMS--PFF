@@ -190,6 +190,14 @@
     background: rgba(26, 29, 31, 0.8);
   }
 
+  h1.text-2xl {
+    font-weight: 500 !important;
+  }
+
+  h3.text-3xl {
+    font-weight: 400 !important;
+  }
+
   .text-gradient {
     background: linear-gradient(135deg, #6366f1, #818cf8);
     -webkit-background-clip: text;
