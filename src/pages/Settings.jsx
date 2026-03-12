@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
-  Settings as SettingsIcon, Save, Bell, Shield, Palette, Globe,
-  Database, Zap, Mail, Smartphone, Lock, Key, Users, Building2,
-  AlertCircle, CheckCircle2, Loader2
+  AlertCircle, CheckCircle2, Loader2, QrCode, Download, Share2,
+  ExternalLink, Info
 } from 'lucide-react';
+import QRCode from 'react-qr-code';
 import PageHeader from '../components/ui/PageHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -159,12 +159,32 @@ export default function Settings() {
   };
 
   const tabs = [
-    { id: 'general', label: t('settings.general'), icon: SettingsIcon },
-    { id: 'notifications', label: t('settings.notificationSettings'), icon: Bell },
-    { id: 'security', label: t('settings.security'), icon: Shield },
-    { id: 'ai', label: t('settings.aiFeatures'), icon: Zap },
-    { id: 'integrations', label: t('settings.integrations'), icon: Database }
+    { id: 'integrations', label: t('settings.integrations'), icon: Database },
+    { id: 'mobile', label: 'Mobile App', icon: Smartphone }
   ];
+
+  const appUrl = window.location.origin + '?source=qr';
+
+  const downloadQRCode = () => {
+    const svg = document.getElementById('pwa-qr-code');
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width + 40;
+      canvas.height = img.height + 40;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 20, 20);
+      const pngFile = canvas.toDataURL('image/png');
+      const downloadLink = document.createElement('a');
+      downloadLink.download = 'flowly-app-qr.png';
+      downloadLink.href = `${pngFile}`;
+      downloadLink.click();
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+  };
 
   return (
     <div className="space-y-6">
@@ -617,6 +637,109 @@ export default function Settings() {
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm"
                         />
                       )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile App Settings */}
+            {activeTab === 'mobile' && (
+              <div className="space-y-8 animate-fade-in">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-brand-100 rounded-lg">
+                      <Smartphone className="text-brand-600" size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Flowly Mobile App</h3>
+                      <p className="text-gray-500">Enable app-like experience for your team</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-8">
+                  {/* Left Column: QR Code */}
+                  <div className="space-y-6">
+                    <div className="p-8 bg-white border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center space-y-4">
+                      <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
+                        <QRCode
+                          id="pwa-qr-code"
+                          value={appUrl}
+                          size={200}
+                          level="H"
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="font-semibold text-gray-900">Installation QR Code</p>
+                        <p className="text-sm text-gray-500">Scan this to install the app on mobile</p>
+                      </div>
+                      <button
+                        onClick={downloadQRCode}
+                        type="button"
+                        className="flex items-center gap-2 px-6 py-2 bg-gray-900 text-white rounded-xl hover:bg-black transition-all shadow-lg shadow-black/10 active:scale-95"
+                      >
+                        <Download size={18} />
+                        Download QR for Printing
+                      </button>
+                    </div>
+
+                    <div className="p-4 bg-brand-50 border border-brand-100 rounded-xl flex gap-3">
+                      <Info size={20} className="text-brand-600 shrink-0 mt-0.5" />
+                      <div className="text-sm text-brand-800">
+                        <p className="font-semibold">Pro Tip</p>
+                        <p>Place this QR code on your office walls, badges, or landing page to make it easy for employees to stay connected.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Instructions */}
+                  <div className="space-y-6">
+                    <h4 className="font-bold text-gray-900 flex items-center gap-2">
+                      <QrCode size={18} className="text-brand-500" />
+                      How to Install
+                    </h4>
+                    
+                    <div className="space-y-4">
+                      {/* iOS */}
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-xs font-bold border border-gray-200">1</div>
+                          <span className="font-semibold text-gray-900">iOS (Safari)</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          Tap the <span className="p-1 bg-white border rounded mx-1"><Share2 size={12} className="inline mb-1" /></span> share button and select <strong>"Add to Home Screen"</strong>.
+                        </p>
+                      </div>
+
+                      {/* Android */}
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-xs font-bold border border-gray-200">2</div>
+                          <span className="font-semibold text-gray-900">Android (Chrome)</span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Wait for the <strong>"Install Flowly"</strong> banner to appear, or tap the vertical dots and select <strong>"Install App"</strong>.
+                        </p>
+                      </div>
+
+                      <div className="pt-4 space-y-3">
+                        <h5 className="text-sm font-semibold text-gray-700">App Benefits</h5>
+                        <ul className="text-sm text-gray-500 space-y-2">
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                            Faster access from home screen
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                            Offline access to key features
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                            Full-screen immersive experience
+                          </li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>

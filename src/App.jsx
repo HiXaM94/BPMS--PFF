@@ -9,6 +9,7 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import router from './router';
 import ProfileDataModal from './components/ui/ProfileDataModal';
 import PasswordChangeModal from './components/ui/PasswordChangeModal';
+import PWAInstallPrompt from './components/ui/PWAInstallPrompt';
 import { useDefaultPasswordCheck } from './hooks/useDefaultPasswordCheck';
 
 function AppInner() {
@@ -36,6 +37,7 @@ function AppInner() {
             onClose={hidePasswordModal}
             role={profile?.role || 'EMPLOYEE'}
           />
+          <PWAInstallPrompt />
         </SidebarProvider>
       </NotificationProvider>
     </RoleProvider>
