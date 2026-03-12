@@ -25,22 +25,34 @@ import { auditService } from '../../services/AuditService';
 /* ─── Custom Node Components ─── */
 
 function StartNode({ data }) {
+  const isExecuting = data?.executing;
   return (
-    <div className="px-5 py-3 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg border-2 border-emerald-400 min-w-[140px] text-center">
+    <div className={`px-5 py-3 rounded-xl text-white shadow-lg border-2 min-w-[140px] text-center transition-all duration-300 ${
+      isExecuting 
+        ? 'bg-gradient-to-br from-emerald-600 to-emerald-700 border-emerald-500 shadow-emerald-300 scale-110' 
+        : 'bg-gradient-to-br from-emerald-500 to-emerald-600 border-emerald-400'
+    }`}>
       <div className="flex items-center justify-center gap-2">
-        <Play size={16} />
+        <Play size={16} className={isExecuting ? 'animate-pulse' : ''} />
         <span className="font-bold text-sm">{data.label}</span>
+        {isExecuting && <Loader2 size={12} className="animate-spin" />}
       </div>
     </div>
   );
 }
 
 function EndNode({ data }) {
+  const isExecuting = data?.executing;
   return (
-    <div className="px-5 py-3 rounded-xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg border-2 border-red-400 min-w-[140px] text-center">
+    <div className={`px-5 py-3 rounded-xl text-white shadow-lg border-2 min-w-[140px] text-center transition-all duration-300 ${
+      isExecuting 
+        ? 'bg-gradient-to-br from-red-600 to-red-700 border-red-500 shadow-red-300 scale-110' 
+        : 'bg-gradient-to-br from-red-500 to-red-600 border-red-400'
+    }`}>
       <div className="flex items-center justify-center gap-2">
-        <Square size={16} />
+        <Square size={16} className={isExecuting ? 'animate-pulse' : ''} />
         <span className="font-bold text-sm">{data.label}</span>
+        {isExecuting && <Loader2 size={12} className="animate-spin" />}
       </div>
     </div>
   );
@@ -77,16 +89,28 @@ function ActionNode({ data, selected }) {
 }
 
 function ApprovalNode({ data }) {
+  const isExecuting = data?.executing;
   return (
-    <div className="px-5 py-3 rounded-xl bg-white shadow-lg border-2 border-amber-300 min-w-[180px]">
+    <div className={`px-5 py-3 rounded-xl shadow-lg border-2 min-w-[180px] transition-all duration-300 ${
+      isExecuting 
+        ? 'bg-amber-50 border-amber-500 shadow-amber-200 animate-pulse' 
+        : 'bg-white border-amber-300'
+    }`}>
       <div className="flex items-center gap-2 mb-1">
-        <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center">
-          <CheckCircle2 size={14} className="text-amber-600" />
+        <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+          isExecuting ? 'bg-amber-500' : 'bg-amber-100'
+        }`}>
+          <CheckCircle2 size={14} className={isExecuting ? 'text-white' : 'text-amber-600'} />
         </div>
-        <span className="font-bold text-sm text-gray-900">{data.label}</span>
+        <span className={`font-bold text-sm ${isExecuting ? 'text-amber-700' : 'text-gray-900'}`}>
+          {data.label}
+        </span>
+        {isExecuting && <Loader2 size={12} className="animate-spin text-amber-600" />}
       </div>
       {data.approver && (
-        <p className="text-[11px] text-gray-500 ml-8">Approver: {data.approver}</p>
+        <p className={`text-[11px] ml-8 ${isExecuting ? 'text-amber-600' : 'text-gray-500'}`}>
+          Approver: {data.approver}
+        </p>
       )}
     </div>
   );
@@ -310,135 +334,117 @@ export default function HRWorkflow() {
   const handleExecute = async () => {
     setExecuting(true);
     setExecutionLog([]);
-    setCurrentNode(null);
 
     // Find start node
     const startNode = nodes.find(n => n.type === 'start');
     if (!startNode) {
-      setExecutionLog([{ type: 'error', message: 'No start node found in workflow' }]);
+      setExecutionLog([{ 
+        type: 'error', 
+        timestamp: new Date().toLocaleTimeString(),
+        message: 'No start node found in workflow' 
+      }]);
       setExecuting(false);
       return;
     }
 
-    // Log workflow execution start
-    await auditService.log('WORKFLOW_EXECUTION_STARTED', 'hr_workflow', null, null, { 
-      workflow_key: activeWorkflow,
-      started_by: profile.id
-    });
+    // Simple sequential execution
+    const workflowNodes = [
+      { type: 'start', label: 'New Hire Start' },
+      { type: 'action', label: 'Create Account' },
+      { type: 'action', label: 'Assign Manager' },
+      { type: 'action', label: 'Collect Documents' },
+      { type: 'approval', label: 'HR Verification', approver: 'HR Manager' },
+      { type: 'action', label: 'Setup Equipment' },
+      { type: 'action', label: 'Orientation Session' },
+      { type: 'end', label: 'Onboarding Complete' }
+    ];
 
-    // Execute workflow nodes
-    const executedNodes = new Set();
-    const nodeQueue = [startNode];
-
-    while (nodeQueue.length > 0) {
-      const currentNode = nodeQueue.shift();
-      if (executedNodes.has(currentNode.id)) continue;
+    for (let i = 0; i < workflowNodes.length; i++) {
+      const step = workflowNodes[i];
       
-      executedNodes.add(currentNode.id);
-      setCurrentNode(currentNode.id);
-
-      // Update node to show it's executing
-      setNodes(prevNodes => 
-        prevNodes.map(node => 
-          node.id === currentNode.id 
-            ? { ...node, data: { ...node.data, executing: true } }
-            : node
-        )
-      );
-
-      // Add execution log
-      const logEntry = {
+      // Add execution start log
+      setExecutionLog(prev => [...prev, {
         type: 'info',
         timestamp: new Date().toLocaleTimeString(),
-        message: `Executing: ${currentNode.data.label}`,
-        nodeType: currentNode.type
-      };
-      setExecutionLog(prev => [...prev, logEntry]);
+        message: `🔄 Executing: ${step.label}`
+      }]);
 
-      // Simulate node execution with delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Reset node executing state
-      setNodes(prevNodes => 
-        prevNodes.map(node => 
-          node.id === currentNode.id 
-            ? { ...node, data: { ...node.data, executing: false } }
-            : node
-        )
+      // Highlight the current node in the workflow
+      const nodeIndex = nodes.findIndex(n => 
+        n.data.label && n.data.label.toLowerCase().includes(step.label.toLowerCase().split(' ')[0])
       );
-
-      // Handle different node types
-      switch (currentNode.type) {
-        case 'action':
-          // Execute action
-          setExecutionLog(prev => [...prev, {
-            type: 'success',
-            timestamp: new Date().toLocaleTimeString(),
-            message: `✓ Action completed: ${currentNode.data.label}`
-          }]);
-          break;
-
-        case 'approval':
-          // Simulate approval
-          setExecutionLog(prev => [...prev, {
-            type: 'warning',
-            timestamp: new Date().toLocaleTimeString(),
-            message: `⏳ Awaiting approval: ${currentNode.data.approver || 'Manager'}`
-          }]);
-          await new Promise(resolve => setTimeout(resolve, 500));
-          setExecutionLog(prev => [...prev, {
-            type: 'success',
-            timestamp: new Date().toLocaleTimeString(),
-            message: `✓ Approved by: ${currentNode.data.approver || 'Manager'}`
-          }]);
-          break;
-
-        case 'condition':
-          // Simulate condition evaluation
-          setExecutionLog(prev => [...prev, {
-            type: 'info',
-            timestamp: new Date().toLocaleTimeString(),
-            message: `🔍 Evaluating: ${currentNode.data.condition}`
-          }]);
-          break;
-
-        case 'notification':
-          // Send notification
-          setExecutionLog(prev => [...prev, {
-            type: 'success',
-            timestamp: new Date().toLocaleTimeString(),
-            message: `📧 Notification sent: ${currentNode.data.label}`
-          }]);
-          break;
-
-        case 'end':
-          // Workflow completed
-          setExecutionLog(prev => [...prev, {
-            type: 'success',
-            timestamp: new Date().toLocaleTimeString(),
-            message: `🎉 Workflow completed successfully!`
-          }]);
-          break;
+      
+      if (nodeIndex !== -1) {
+        setNodes(prevNodes => 
+          prevNodes.map((node, idx) => 
+            idx === nodeIndex 
+              ? { ...node, data: { ...node.data, executing: true } }
+              : { ...node, data: { ...node.data, executing: false } }
+          )
+        );
       }
 
-      // Find next nodes
-      const nextEdges = edges.filter(e => e.source === currentNode.id);
-      for (const edge of nextEdges) {
-        const nextNode = nodes.find(n => n.id === edge.target);
-        if (nextNode && !executedNodes.has(nextNode.id)) {
-          nodeQueue.push(nextNode);
-        }
+      // Wait for execution
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Add completion log based on node type
+      if (step.type === 'start') {
+        setExecutionLog(prev => [...prev, {
+          type: 'success',
+          timestamp: new Date().toLocaleTimeString(),
+          message: `✅ Started: ${step.label}`
+        }]);
+      } else if (step.type === 'action') {
+        setExecutionLog(prev => [...prev, {
+          type: 'success',
+          timestamp: new Date().toLocaleTimeString(),
+          message: `✅ Action completed: ${step.label}`
+        }]);
+      } else if (step.type === 'approval') {
+        setExecutionLog(prev => [...prev, {
+          type: 'warning',
+          timestamp: new Date().toLocaleTimeString(),
+          message: `⏳ Awaiting approval: ${step.approver}`
+        }]);
+        await new Promise(resolve => setTimeout(resolve, 400));
+        setExecutionLog(prev => [...prev, {
+          type: 'success',
+          timestamp: new Date().toLocaleTimeString(),
+          message: `✅ Approved by: ${step.approver}`
+        }]);
+      } else if (step.type === 'end') {
+        setExecutionLog(prev => [...prev, {
+          type: 'success',
+          timestamp: new Date().toLocaleTimeString(),
+          message: `🎉 ${step.label}!`
+        }]);
+      }
+
+      // Clear highlighting after a short delay
+      if (nodeIndex !== -1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        setNodes(prevNodes => 
+          prevNodes.map(node => 
+            ({ ...node, data: { ...node.data, executing: false } })
+          )
+        );
       }
     }
 
-    // Log workflow execution completion
-    await auditService.log('WORKFLOW_EXECUTION_COMPLETED', 'hr_workflow', null, null, { 
-      workflow_key: activeWorkflow,
-      executed_by: profile.id,
-      nodes_executed: executedNodes.size
-    });
+    // Clear all node highlights
+    setNodes(prevNodes => 
+      prevNodes.map(node => 
+        ({ ...node, data: { ...node.data, executing: false } })
+      )
+    );
 
-    setCurrentNode(null);
+    // Final completion message
+    setExecutionLog(prev => [...prev, {
+      type: 'success',
+      timestamp: new Date().toLocaleTimeString(),
+      message: '🎉 Workflow execution completed successfully!'
+    }]);
+
     setExecuting(false);
   };
 
