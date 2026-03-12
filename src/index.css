@@ -206,6 +206,14 @@
     font-weight: 400 !important;
   }
 
+  span.text-sm.font-black {
+    font-weight: 400 !important;
+  }
+
+  .bg-gradient-to-br.from-brand-500 {
+    background: #1a1d1f !important;
+  }
+
   .text-gradient {
     background: linear-gradient(135deg, #6366f1, #818cf8);
     -webkit-background-clip: text;
